@@ -1,7 +1,7 @@
 # Client
 
 This directory contains the React based front-end for the AI‑Integrated Screenwriting Tool.
-It provides the user interface and interacts with the collaboration server and AI service.
+It provides the user interface and interacts with the collaboration server and AI service. Beat board and outline data are fetched from the server's JSON API instead of using browser storage.
 
 ## Development
 
@@ -18,9 +18,9 @@ The app will launch a development build of the React UI. A simple toolbar allows
 ### Beat Board Usage
 
 - **Add lanes** – click "Add Lane" to create new columns for organizing beats.
-- **Add beats** – within each lane use "Add Beat" and fill in the prompts.
+- **Add beats** – within each lane use "Add Beat" and fill in the inline form.
 - **Drag & drop** – reorder beats within a lane or move them between lanes.
-- Beats are saved to your browser storage so refreshing will preserve them.
+- Beat data is loaded from the development API and saved back whenever changes are made.
 
 ### Outline Editor Usage
 
@@ -29,7 +29,7 @@ The app will launch a development build of the React UI. A simple toolbar allows
 - **Add cards** – each card can be given a title, description and color.
 - **Drag & drop** – move cards within and between lanes to plan your story.
 - Edit lane titles or delete lanes using the lane controls.
-- The outline persists to `localStorage` under the key `outlineData`.
+- Outline data is loaded from the development API and persisted via API calls.
 
 ### Editor Usage
 

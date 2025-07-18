@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "start": "echo 'Run React app'"
+    "start": "echo 'Use a development server such as Vite to run this app'"
   },
   "dependencies": {
     "react": "^18.2.0",
