@@ -1,7 +1,7 @@
-from fastapi import FastAPI
+"""Compatibility module for running ``uvicorn app:app``.
 
-app = FastAPI()
+This file imports the FastAPI ``app`` instance from ``main.py`` so that legacy
+commands referencing ``app:app`` continue to work.
+"""
 
-@app.get("/status")
-def read_status():
-    return {"status": "ok"}
+from .main import app  # noqa: F401  # re-export for Uvicorn

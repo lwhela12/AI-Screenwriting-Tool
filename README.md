@@ -56,7 +56,7 @@ For a full description of the planned architecture and feature roadmap, see **de
 
    # Run the AI service (optional)
    cd ai_service
-   uvicorn app:app --reload
+   uvicorn main:app --reload
    ```
 
    The app will open in a desktop window.  By default, it connects to the local API server and AI service.
