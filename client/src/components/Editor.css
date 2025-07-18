@@ -1,0 +1,35 @@
+.editor-wrapper {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.toolbar {
+  padding: 4px;
+  background: #e0e0e0;
+  display: flex;
+  gap: 8px;
+}
+
+.editor-wrapper.dark .toolbar {
+  background: #333;
+}
+
+.editor {
+  flex: 1;
+}
+
+.cm-line.scene-heading {
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.cm-line.character-name {
+  margin-left: 4em;
+  text-transform: uppercase;
+}
+
+.editor-wrapper.dark .editor {
+  background: #1e1e1e;
+  color: #f7f7f7;
+}

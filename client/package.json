@@ -7,7 +7,11 @@
   },
   "dependencies": {
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "@codemirror/state": "^6.2.0",
+    "@codemirror/view": "^6.6.0",
+    "@codemirror/basic-setup": "^0.19.1",
+    "@codemirror/autocomplete": "^6.4.0"
   },
   "devDependencies": {
     "typescript": "^5.0.0",
