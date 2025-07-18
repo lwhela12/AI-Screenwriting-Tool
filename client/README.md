@@ -13,7 +13,14 @@ npm install
 npm start
 ```
 
-The app will launch a development build of the React UI. The main view now renders the **Editor** component which uses CodeMirror for screenplay editing.
+The app will launch a development build of the React UI. The main view now renders the **Beat Board** for planning your story structure.
+
+### Beat Board Usage
+
+- **Add lanes** – click "Add Lane" to create new columns for organizing beats.
+- **Add beats** – within each lane use "Add Beat" and fill in the prompts.
+- **Drag & drop** – reorder beats within a lane or move them between lanes.
+- Beats are saved to your browser storage so refreshing will preserve them.
 
 ### Editor Usage
 

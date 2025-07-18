@@ -1,0 +1,22 @@
+.beat-board {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.lanes {
+  display: flex;
+  gap: 16px;
+  padding: 8px;
+  overflow-x: auto;
+  flex: 1;
+}
+
+.lane {
+  background: #f0f0f0;
+  padding: 8px;
+  min-width: 250px;
+  flex: 0 0 250px;
+  display: flex;
+  flex-direction: column;
+}

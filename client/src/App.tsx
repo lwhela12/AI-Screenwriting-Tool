@@ -1,8 +1,8 @@
 import React from 'react';
-import Editor from './components/Editor';
+import BeatBoard from './components/BeatBoard';
 
 export const App: React.FC = () => {
-  return <Editor />;
+  return <BeatBoard />;
 };
 
 export default App;

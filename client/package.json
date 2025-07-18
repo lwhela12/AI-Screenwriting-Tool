@@ -11,11 +11,13 @@
     "@codemirror/state": "^6.2.0",
     "@codemirror/view": "^6.6.0",
     "@codemirror/basic-setup": "^0.19.1",
-    "@codemirror/autocomplete": "^6.4.0"
+    "@codemirror/autocomplete": "^6.4.0",
+    "react-beautiful-dnd": "^13.1.0"
   },
   "devDependencies": {
     "typescript": "^5.0.0",
     "@types/react": "^18.0.0",
-    "@types/react-dom": "^18.0.0"
+    "@types/react-dom": "^18.0.0",
+    "@types/react-beautiful-dnd": "^13.1.2"
   }
 }
