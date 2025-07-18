@@ -20,29 +20,6 @@ interface OutlineData {
   lanes: Lane[];
 }
 
-const STORAGE_KEY = 'outlineData';
-
-const getInitialData = (): OutlineData => {
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored) {
-    try {
-      return JSON.parse(stored) as OutlineData;
-    } catch {
-      /* ignore */
-    }
-  }
-  const firstCard: Card = {
-    id: 'card-1',
-    title: 'Example Card',
-    description: 'Short description',
-    color: '#cfe2ff',
-  };
-  return {
-    cards: { 'card-1': firstCard },
-    lanes: [{ id: 'lane-1', title: 'Act I', cardIds: ['card-1'] }],
-  };
-};
-
 const OutlineCard: React.FC<{
   card: Card;
   onEdit: () => void;
@@ -59,10 +36,23 @@ const OutlineCard: React.FC<{
 );
 
 export const OutlineEditor: React.FC = () => {
-  const [data, setData] = useState<OutlineData>(getInitialData);
+  const [data, setData] = useState<OutlineData>({ cards: {}, lanes: [] });
+  const [newLaneTitle, setNewLaneTitle] = useState('');
+  const [newCardTitles, setNewCardTitles] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    fetch('/projects/1/outlines')
+      .then((res) => res.json())
+      .then((d: OutlineData) => setData(d))
+      .catch(() => setData({ cards: {}, lanes: [] }));
+  }, []);
+
+  useEffect(() => {
+    fetch('/projects/1/outlines', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
   }, [data]);
 
   const onDragEnd = (result: DropResult) => {
@@ -81,12 +71,13 @@ export const OutlineEditor: React.FC = () => {
   };
 
   const addLane = () => {
-    const title = window.prompt('Lane title');
+    const title = newLaneTitle.trim();
     if (!title) return;
     setData((prev) => ({
       ...prev,
       lanes: [...prev.lanes, { id: `lane-${Date.now()}`, title, cardIds: [] }],
     }));
+    setNewLaneTitle('');
   };
 
   const editLane = (id: string) => {
@@ -115,12 +106,10 @@ export const OutlineEditor: React.FC = () => {
   };
 
   const addCard = (laneId: string) => {
-    const title = window.prompt('Card title');
+    const title = (newCardTitles[laneId] || '').trim();
     if (!title) return;
-    const description = window.prompt('Description') || '';
-    const color = window.prompt('Color (CSS value)', '#cfe2ff') || '#cfe2ff';
     const id = `card-${Date.now()}`;
-    const card: Card = { id, title, description, color };
+    const card: Card = { id, title, description: '', color: '#cfe2ff' };
     setData((prev) => {
       const newLanes = prev.lanes.map((l) => (l.id === laneId ? { ...l, cardIds: [...l.cardIds, id] } : l));
       return {
@@ -128,6 +117,7 @@ export const OutlineEditor: React.FC = () => {
         lanes: newLanes,
       };
     });
+    setNewCardTitles((prev) => ({ ...prev, [laneId]: '' }));
   };
 
   const editCard = (id: string) => {
@@ -158,6 +148,11 @@ export const OutlineEditor: React.FC = () => {
   return (
     <div className="outline-editor">
       <div className="outline-toolbar">
+        <input
+          placeholder="New lane"
+          value={newLaneTitle}
+          onChange={(e) => setNewLaneTitle(e.target.value)}
+        />
         <button onClick={addLane}>Add Lane</button>
       </div>
       <DragDropContext onDragEnd={onDragEnd}>
@@ -169,6 +164,13 @@ export const OutlineEditor: React.FC = () => {
                   <div className="lane-header">
                     <h3 onClick={() => editLane(lane.id)}>{lane.title}</h3>
                     <div>
+                      <input
+                        placeholder="New card"
+                        value={newCardTitles[lane.id] || ''}
+                        onChange={(e) =>
+                          setNewCardTitles((prev) => ({ ...prev, [lane.id]: e.target.value }))
+                        }
+                      />
                       <button onClick={() => addCard(lane.id)}>Add Card</button>
                       <button onClick={() => deleteLane(lane.id)}>Delete Lane</button>
                     </div>

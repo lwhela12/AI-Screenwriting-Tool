@@ -14,32 +14,26 @@ interface BoardData {
   lanes: Lane[];
 }
 
-const getInitialData = (): BoardData => {
-  const stored = localStorage.getItem('beat-board');
-  if (stored) {
-    try {
-      return JSON.parse(stored) as BoardData;
-    } catch {
-      /* ignore */
-    }
-  }
-  const firstBeat: Beat = {
-    id: 'beat-1',
-    title: 'Example Beat',
-    description: 'Short description',
-    color: '#ffd966',
-  };
-  return {
-    beats: { 'beat-1': firstBeat },
-    lanes: [{ id: 'lane-1', title: 'Ideas', beatIds: ['beat-1'] }],
-  };
-};
-
 export const BeatBoard: React.FC = () => {
-  const [data, setData] = useState<BoardData>(getInitialData);
+  const [data, setData] = useState<BoardData>({ beats: {}, lanes: [] });
+  const [newLaneTitle, setNewLaneTitle] = useState('');
+  const [newBeatTitles, setNewBeatTitles] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    localStorage.setItem('beat-board', JSON.stringify(data));
+    fetch('/projects/1/beats')
+      .then((res) => res.json())
+      .then((d: BoardData) => setData(d))
+      .catch(() => {
+        setData({ beats: {}, lanes: [] });
+      });
+  }, []);
+
+  useEffect(() => {
+    fetch('/projects/1/beats', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
   }, [data]);
 
   const onDragEnd = (result: DropResult) => {
@@ -62,21 +56,20 @@ export const BeatBoard: React.FC = () => {
   };
 
   const addLane = () => {
-    const title = window.prompt('Lane title');
+    const title = newLaneTitle.trim();
     if (!title) return;
     setData((prev) => ({
       ...prev,
       lanes: [...prev.lanes, { id: `lane-${Date.now()}`, title, beatIds: [] }],
     }));
+    setNewLaneTitle('');
   };
 
   const addBeat = (laneId: string) => {
-    const title = window.prompt('Beat title');
+    const title = (newBeatTitles[laneId] || '').trim();
     if (!title) return;
-    const description = window.prompt('Description') || '';
-    const color = window.prompt('Color (CSS value)', '#ffd966') || '#ffd966';
     const id = `beat-${Date.now()}`;
-    const beat: Beat = { id, title, description, color };
+    const beat: Beat = { id, title, description: '', color: '#ffd966' };
     setData((prev) => {
       const newLanes = prev.lanes.map((l) =>
         l.id === laneId ? { ...l, beatIds: [...l.beatIds, id] } : l,
@@ -86,6 +79,7 @@ export const BeatBoard: React.FC = () => {
         lanes: newLanes,
       };
     });
+    setNewBeatTitles((prev) => ({ ...prev, [laneId]: '' }));
   };
 
   const editBeat = (id: string) => {
@@ -115,6 +109,11 @@ export const BeatBoard: React.FC = () => {
   return (
     <div className="beat-board">
       <div style={{ padding: '8px' }}>
+        <input
+          placeholder="New lane"
+          value={newLaneTitle}
+          onChange={(e) => setNewLaneTitle(e.target.value)}
+        />
         <button onClick={addLane}>Add Lane</button>
       </div>
       <DragDropContext onDragEnd={onDragEnd}>
@@ -129,6 +128,15 @@ export const BeatBoard: React.FC = () => {
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h3>{lane.title}</h3>
+                  </div>
+                  <div style={{ marginBottom: '8px' }}>
+                    <input
+                      placeholder="New beat"
+                      value={newBeatTitles[lane.id] || ''}
+                      onChange={(e) =>
+                        setNewBeatTitles((prev) => ({ ...prev, [lane.id]: e.target.value }))
+                      }
+                    />
                     <button onClick={() => addBeat(lane.id)}>Add Beat</button>
                   </div>
                   {lane.beatIds.map((beatId, index) => {
