@@ -2,6 +2,16 @@
 
 This repository contains the source code for an open‑source screenwriting application inspired by **Final Draft 13**.  It provides professional screenplay formatting, planning tools such as a beat board and outline editor, real‑time collaboration and AI‑assisted writing features.
 
+## Monorepo Structure
+
+This project is organized as a monorepo with three main packages:
+
+- **client** – React front‑end that renders the UI.
+- **server** – Node.js/Express server for collaboration APIs.
+- **ai_service** – Python FastAPI microservice that powers AI features.
+
+Each package contains its own `README` with more details.
+
 ## Features
 
 - **Automatic screenplay formatting** – Scene headings, character names and dialogue are recognized and formatted automatically, using an intuitive plain‑text syntax.
