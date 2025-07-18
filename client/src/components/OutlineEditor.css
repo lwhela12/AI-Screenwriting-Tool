@@ -1,0 +1,50 @@
+.outline-editor {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.outline-toolbar {
+  padding: 8px;
+  background: #e0e0e0;
+}
+
+.outline-lanes {
+  display: flex;
+  gap: 16px;
+  padding: 8px;
+  overflow-x: auto;
+  flex: 1;
+}
+
+.outline-lane {
+  background: #f8f8f8;
+  padding: 8px;
+  min-width: 250px;
+  flex: 0 0 250px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.lane-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.outline-card {
+  padding: 8px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  color: #000;
+}
+
+.structure-line {
+  position: absolute;
+  right: -8px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #ccc;
+}
