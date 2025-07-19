@@ -20,20 +20,33 @@ export const BeatBoard: React.FC = () => {
   const [newBeatTitles, setNewBeatTitles] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    fetch('/projects/1/beats')
-      .then((res) => res.json())
-      .then((d: BoardData) => setData(d))
-      .catch(() => {
-        setData({ beats: {}, lanes: [] });
-      });
+    // Temporarily disabled API call - using localStorage fallback
+    // fetch('/projects/1/beats')
+    //   .then((res) => res.json())
+    //   .then((d: BoardData) => setData(d))
+    //   .catch(() => {
+    //     setData({ beats: {}, lanes: [] });
+    //   });
+    
+    // Load from localStorage instead
+    const savedData = localStorage.getItem('beatBoardData');
+    if (savedData) {
+      setData(JSON.parse(savedData));
+    }
   }, []);
 
   useEffect(() => {
-    fetch('/projects/1/beats', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
+    // Temporarily disabled API call - using localStorage fallback
+    // fetch('/projects/1/beats', {
+    //   method: 'PUT',
+    //   headers: { 'Content-Type': 'application/json' },
+    //   body: JSON.stringify(data),
+    // });
+    
+    // Save to localStorage instead
+    if (data.lanes.length > 0 || Object.keys(data.beats).length > 0) {
+      localStorage.setItem('beatBoardData', JSON.stringify(data));
+    }
   }, [data]);
 
   const onDragEnd = (result: DropResult) => {
@@ -159,7 +172,7 @@ export const BeatBoard: React.FC = () => {
                         )}
                       </Draggable>
                     );
-                  })
+                  })}
                   {provided.placeholder}
                 </div>
               )}

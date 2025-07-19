@@ -41,18 +41,31 @@ export const OutlineEditor: React.FC = () => {
   const [newCardTitles, setNewCardTitles] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    fetch('/projects/1/outlines')
-      .then((res) => res.json())
-      .then((d: OutlineData) => setData(d))
-      .catch(() => setData({ cards: {}, lanes: [] }));
+    // Temporarily disabled API call - using localStorage fallback
+    // fetch('/projects/1/outlines')
+    //   .then((res) => res.json())
+    //   .then((d: OutlineData) => setData(d))
+    //   .catch(() => setData({ cards: {}, lanes: [] }));
+    
+    // Load from localStorage instead
+    const savedData = localStorage.getItem('outlineEditorData');
+    if (savedData) {
+      setData(JSON.parse(savedData));
+    }
   }, []);
 
   useEffect(() => {
-    fetch('/projects/1/outlines', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
+    // Temporarily disabled API call - using localStorage fallback
+    // fetch('/projects/1/outlines', {
+    //   method: 'PUT',
+    //   headers: { 'Content-Type': 'application/json' },
+    //   body: JSON.stringify(data),
+    // });
+    
+    // Save to localStorage instead
+    if (data.lanes.length > 0 || Object.keys(data.cards).length > 0) {
+      localStorage.setItem('outlineEditorData', JSON.stringify(data));
+    }
   }, [data]);
 
   const onDragEnd = (result: DropResult) => {
