@@ -107,12 +107,12 @@
   page-break-after: always;
 }
 
-/* Page margins for screenplay format */
+/* Page margins for screenplay format - Hollywood standard */
 .cm-page-content {
-  padding: 1in 1in 1in 1.5in;
+  padding: 1in 1in 1in 1.5in; /* Top: 1", Right: 1", Bottom: 1", Left: 1.5" */
   min-height: 11in;
   box-sizing: border-box;
-  font-family: 'Courier Final Draft', 'Courier New', Courier, monospace;
+  font-family: 'Courier New', Courier, monospace;
   font-size: 12pt;
   line-height: 1;
 }
@@ -132,7 +132,8 @@
   display: none;
 }
 
-/* Screenplay formatting classes */
+/* Screenplay formatting classes - Disabled, using ScreenplayFormat.css instead */
+/*
 .cm-line.cm-scene-heading {
   font-weight: bold;
   text-transform: uppercase;
@@ -169,6 +170,7 @@
 .cm-line.cm-action {
   margin: 12pt 0;
 }
+*/
 
 /* Dark mode page styling */
 .cm-editor.cm-theme-dark .cm-page {

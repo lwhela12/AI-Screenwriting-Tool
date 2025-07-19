@@ -1,0 +1,253 @@
+/* Hollywood Standard Screenplay Formatting */
+
+/* Base formatting for all screenplay elements */
+.cm-line {
+  font-family: 'Courier New', Courier, monospace !important;
+  font-size: 12pt !important;
+  line-height: 1 !important;
+  white-space: pre-wrap !important;
+  word-wrap: break-word !important;
+}
+
+/* Scene Headings (Sluglines) */
+.cm-screenplay-scene-heading {
+  text-transform: uppercase;
+  font-weight: normal; /* Courier doesn't need bold */
+  margin-top: 24pt !important;
+  margin-bottom: 12pt !important;
+  margin-left: 0 !important; /* 1.5" page margin handles indent */
+}
+
+/* Action Lines */
+.cm-screenplay-action {
+  margin-top: 0 !important;
+  margin-bottom: 12pt !important;
+  margin-left: 0 !important;
+  text-align: left;
+}
+
+/* Character Names */
+.cm-screenplay-character {
+  text-transform: uppercase;
+  text-align: center !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  margin-top: 12pt !important;
+  margin-bottom: 0 !important;
+  display: block;
+  width: 100%;
+}
+
+/* Parentheticals (Wrylies) */
+.cm-screenplay-parenthetical {
+  display: block;
+  width: 2.5in;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  padding-left: 0.3in !important;
+  text-transform: lowercase;
+  text-align: left;
+}
+
+/* Dialogue */
+.cm-screenplay-dialogue {
+  display: block;
+  max-width: 3.5in;
+  margin: 0 auto !important;
+  text-align: left;
+  padding: 0 !important;
+}
+
+/* Fix CodeMirror line wrapper for centered elements */
+.cm-line.cm-screenplay-character,
+.cm-line.cm-screenplay-dialogue,
+.cm-line.cm-screenplay-parenthetical {
+  display: flex;
+  justify-content: center;
+}
+
+.cm-line.cm-screenplay-character > span,
+.cm-line.cm-screenplay-dialogue > span,
+.cm-line.cm-screenplay-parenthetical > span {
+  display: block;
+  text-align: left;
+}
+
+.cm-line.cm-screenplay-character > span {
+  width: auto;
+  text-align: center;
+}
+
+.cm-line.cm-screenplay-dialogue > span {
+  width: 3.5in;
+  max-width: 3.5in;
+}
+
+.cm-line.cm-screenplay-parenthetical > span {
+  width: 2.5in;
+  max-width: 2.5in;
+  padding-left: 0.3in;
+}
+
+/* Transitions */
+.cm-screenplay-transition {
+  text-transform: uppercase;
+  text-align: right !important;
+  margin-right: 0 !important;
+  margin-top: 12pt !important;
+  margin-bottom: 12pt !important;
+  display: block;
+}
+
+/* Shots */
+.cm-screenplay-shot {
+  text-transform: uppercase;
+  margin-top: 12pt !important;
+  margin-bottom: 12pt !important;
+  margin-left: 0 !important;
+}
+
+/* Montage */
+.cm-screenplay-montage {
+  text-transform: uppercase;
+  margin-top: 12pt !important;
+  margin-bottom: 12pt !important;
+  margin-left: 0 !important;
+}
+
+/* Ensure dialogue blocks stay together */
+.cm-screenplay-character + .cm-screenplay-parenthetical,
+.cm-screenplay-character + .cm-screenplay-dialogue,
+.cm-screenplay-parenthetical + .cm-screenplay-dialogue {
+  page-break-before: avoid;
+}
+
+/* (MORE) and (CONT'D) for page breaks */
+.cm-screenplay-more {
+  display: block;
+  text-align: center;
+  margin-top: 12pt;
+  margin-bottom: 0;
+  text-transform: uppercase;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 12pt;
+}
+
+.cm-screenplay-contd {
+  text-transform: uppercase;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 12pt;
+  font-weight: normal;
+}
+
+/* Title page formatting */
+.cm-screenplay-title-page {
+  text-align: center;
+  margin-top: 3in;
+}
+
+.cm-screenplay-title {
+  text-transform: uppercase;
+  font-size: 14pt;
+  margin-bottom: 24pt;
+}
+
+.cm-screenplay-byline {
+  margin-bottom: 12pt;
+}
+
+.cm-screenplay-author {
+  margin-bottom: 48pt;
+}
+
+/* Smart type indicators */
+.cm-line[data-element]::before {
+  content: attr(data-element);
+  position: absolute;
+  left: -80px;
+  font-size: 9pt;
+  color: #999;
+  text-transform: uppercase;
+  width: 70px;
+  text-align: right;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.cm-editor:hover .cm-line[data-element]::before {
+  opacity: 0.5;
+}
+
+/* Character extensions */
+.cm-screenplay-character-extension {
+  text-transform: uppercase;
+  margin-left: 0.5em;
+}
+
+/* First appearance of characters in action */
+.cm-screenplay-character-first {
+  text-transform: uppercase;
+}
+
+/* Key sounds in action */
+.cm-screenplay-sound {
+  text-transform: uppercase;
+}
+
+/* Dual dialogue formatting */
+.cm-screenplay-dual-dialogue-left {
+  width: 48%;
+  float: left;
+  margin-right: 2%;
+}
+
+.cm-screenplay-dual-dialogue-right {
+  width: 48%;
+  float: right;
+  margin-left: 2%;
+}
+
+/* Clear floats after dual dialogue */
+.cm-screenplay-dual-dialogue-clear {
+  clear: both;
+}
+
+/* Montage list items */
+.cm-screenplay-montage-item {
+  margin-left: 2em;
+  margin-top: 6pt;
+  margin-bottom: 6pt;
+}
+
+/* Superimposed text */
+.cm-screenplay-super {
+  text-transform: uppercase;
+  font-weight: bold;
+}
+
+/* Dark mode adjustments */
+.editor-wrapper.dark .cm-line[data-element]::before {
+  color: #666;
+}
+
+/* Print styles */
+@media print {
+  .cm-line[data-element]::before {
+    display: none;
+  }
+  
+  /* Ensure proper page breaks */
+  .cm-screenplay-scene-heading {
+    page-break-after: avoid;
+  }
+  
+  .cm-screenplay-character {
+    page-break-after: avoid;
+  }
+  
+  .cm-screenplay-transition {
+    page-break-before: avoid;
+  }
+}

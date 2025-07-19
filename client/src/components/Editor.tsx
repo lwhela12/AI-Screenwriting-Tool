@@ -38,7 +38,12 @@ import {
 import { lintKeymap } from '@codemirror/lint';
 import './Editor.css';
 import './EditorPage.css';
+import './ScreenplayFormat.css';
 import { sampleScreenplay } from '../sampleScreenplay';
+import { screenplayFormatting, screenplayKeymap } from './screenplay/ScreenplayFormatter';
+import { pageBreakHandling } from './screenplay/PageBreakHandler';
+import { specializedElements } from './screenplay/SpecializedElements';
+import { actionFormatterPlugin } from './screenplay/ActionFormatter';
 
 interface EditorProps {
   initialText?: string;
@@ -144,13 +149,13 @@ function createBasicSetup(): Extension[] {
     bracketMatching(),
     rectangularSelection(),
     keymap.of([
+      ...screenplayKeymap, // Screenplay shortcuts take precedence
       ...defaultKeymap,
       ...searchKeymap,
       ...historyKeymap,
       ...foldKeymap,
       ...completionKeymap,
-      ...lintKeymap,
-      indentWithTab
+      ...lintKeymap
     ])
   ];
 }
@@ -432,7 +437,11 @@ export const Editor: React.FC<EditorProps> = ({ initialText = '' }) => {
       extensions: [
         ...createBasicSetup(),
         EditorView.lineWrapping,
-        createScriptFormatting(),
+        screenplayFormatting(), // Add screenplay auto-formatting
+        pageBreakHandling(), // Add (MORE) and (CONT'D) handling
+        specializedElements(), // Add specialized screenplay elements
+        actionFormatterPlugin, // Add action line auto-formatting
+        // createScriptFormatting(), // Disabled - using screenplayFormatting instead
         createScriptCompletion(),
         pageViewPlugin,
         themeCompartment.current.of(createLightTheme()),
