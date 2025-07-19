@@ -1,0 +1,44 @@
+{
+  "name": "ai-screenwriting-tool",
+  "version": "1.0.0",
+  "description": "AI-powered screenwriting tool with professional script editor",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n \"server,client,ai\" -c \"blue,green,yellow\" \"npm run dev:server\" \"npm run dev:client\" \"npm run dev:ai\"",
+    "dev:server": "cd server && npm run build && npm start",
+    "dev:client": "cd client && npm run dev",
+    "dev:ai": "cd ai_service && python -m uvicorn app:app --reload --port 8000",
+    "install:all": "npm install && cd server && npm install && cd ../client && npm install && cd ../ai_service && pip install -r requirements.txt",
+    "install:node": "npm install && cd server && npm install && cd ../client && npm install",
+    "build": "npm run build:server && npm run build:client",
+    "build:server": "cd server && npm run build",
+    "build:client": "cd client && npm run build",
+    "start": "concurrently -n \"server,ai\" -c \"blue,yellow\" \"npm run start:server\" \"npm run start:ai\"",
+    "start:server": "cd server && npm start",
+    "start:client": "cd client && npm run preview",
+    "start:ai": "cd ai_service && python -m uvicorn app:app --port 8000",
+    "clean": "rm -rf node_modules server/node_modules client/node_modules server/dist client/dist",
+    "clean:install": "npm run clean && npm run install:all"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lwhela12/AI-Screenwriting-Tool.git"
+  },
+  "keywords": [
+    "screenwriting",
+    "screenplay",
+    "script",
+    "editor",
+    "ai",
+    "writing"
+  ],
+  "author": "",
+  "license": "MIT"
+}

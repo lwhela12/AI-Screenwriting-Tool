@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { EditorState, Extension, Compartment } from '@codemirror/state';
+import { EditorState, Extension, Compartment, StateField, StateEffect } from '@codemirror/state';
 import { 
   EditorView, 
   keymap, 
@@ -10,7 +10,10 @@ import {
   lineNumbers,
   highlightActiveLineGutter,
   Decoration,
-  ViewUpdate
+  DecorationSet,
+  ViewPlugin,
+  ViewUpdate,
+  WidgetType
 } from '@codemirror/view';
 import { 
   defaultKeymap, 
@@ -34,19 +37,105 @@ import {
 } from '@codemirror/language';
 import { lintKeymap } from '@codemirror/lint';
 import './Editor.css';
+import './EditorPage.css';
+import { sampleScreenplay } from '../sampleScreenplay';
 
 interface EditorProps {
   initialText?: string;
 }
 
+// Constants for screenplay formatting
+const LINES_PER_PAGE = 55; // Standard screenplay lines per page
+const CHAR_PER_LINE = 61; // Standard screenplay characters per line
+
+// Page number widget
+class PageNumberWidget extends WidgetType {
+  constructor(readonly pageNum: number) {
+    super();
+  }
+
+  toDOM() {
+    const span = document.createElement('span');
+    span.className = 'cm-page-number';
+    span.textContent = `${this.pageNum}.`;
+    return span;
+  }
+}
+
+// Page break widget
+class PageBreakWidget extends WidgetType {
+  toDOM() {
+    const div = document.createElement('div');
+    div.className = 'cm-page-break';
+    return div;
+  }
+}
+
+// Page view plugin
+const pageViewPlugin = ViewPlugin.fromClass(class {
+  decorations: DecorationSet;
+  
+  constructor(view: EditorView) {
+    this.decorations = this.buildDecorations(view);
+  }
+  
+  update(update: ViewUpdate) {
+    if (update.docChanged || update.viewportChanged) {
+      this.decorations = this.buildDecorations(update.view);
+    }
+  }
+  
+  buildDecorations(view: EditorView) {
+    const widgets: any[] = [];
+    const doc = view.state.doc;
+    const pageHeight = LINES_PER_PAGE;
+    let currentPage = 1;
+    let linesInPage = 0;
+    
+    // Add page container class
+    view.dom.classList.add('cm-pages-container');
+    
+    for (let i = 1; i <= doc.lines; i++) {
+      const line = doc.line(i);
+      linesInPage++;
+      
+      // Add page break and number when reaching page limit
+      if (linesInPage >= pageHeight && i < doc.lines) {
+        // Add page break after this line
+        widgets.push(
+          Decoration.widget({
+            widget: new PageBreakWidget(),
+            side: 1
+          }).range(line.to)
+        );
+        
+        currentPage++;
+        linesInPage = 0;
+        
+        // Add page number at the start of the next page
+        if (i < doc.lines) {
+          const nextLine = doc.line(i + 1);
+          widgets.push(
+            Decoration.widget({
+              widget: new PageNumberWidget(currentPage),
+              side: -1
+            }).range(nextLine.from)
+          );
+        }
+      }
+    }
+    
+    return Decoration.set(widgets);
+  }
+}, {
+  decorations: v => v.decorations
+});
+
 // Create a minimal basicSetup that includes essential features
 function createBasicSetup(): Extension[] {
   return [
-    lineNumbers(),
-    highlightActiveLineGutter(),
     highlightSpecialChars(),
     history(),
-    foldGutter(),
     drawSelection(),
     dropCursor(),
     EditorState.allowMultipleSelections.of(true),
@@ -66,61 +155,77 @@ function createBasicSetup(): Extension[] {
   ];
 }
 
-// Themes
+// Enhanced themes with page support
 const createDarkTheme = () => EditorView.theme({
   '&': { 
-    backgroundColor: '#1e1e1e', 
-    color: '#f7f7f7', 
-    height: '100%' 
+    backgroundColor: '#000000', // Black page
+    height: '100%',
+    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.8), 0 2px 8px rgba(0, 0, 0, 0.6)',
+    borderRadius: '4px',
+    color: '#ffffff' // White text
   },
   '.cm-content': { 
-    caretColor: '#ffffff' 
+    caretColor: '#ffffff',
+    padding: '1in 1in 1in 1.5in',
+    fontFamily: "'Courier New', Courier, monospace",
+    fontSize: '12pt',
+    lineHeight: '12pt',
+    minHeight: '9in', // 11in - 2in margins
+    backgroundColor: '#000000', // Black page
+    color: '#ffffff' // White text
+  },
+  '.cm-page': {
+    backgroundColor: '#000000', // Black page
+    color: '#ffffff' // White text
   },
   '.cm-gutters': {
-    backgroundColor: '#252525',
-    color: '#858585',
-    border: 'none'
-  },
-  '.cm-activeLineGutter': {
-    backgroundColor: '#323232'
+    display: 'none' // Hide gutters for screenplay format
   },
   '.cm-activeLine': {
-    backgroundColor: '#2a2a2a'
+    backgroundColor: 'rgba(255, 255, 255, 0.08)'
+  },
+  '.cm-scroller': {
+    backgroundColor: '#000000', // Black page
+    color: '#ffffff' // White text
+  },
+  '.cm-cursor': {
+    borderLeftColor: '#ffffff'
   }
 }, { dark: true });
 
 const createLightTheme = () => EditorView.theme({
   '&': { 
-    backgroundColor: '#ffffff', 
-    color: '#000000', 
-    height: '100%' 
+    backgroundColor: '#ffffff',
+    height: '100%',
+    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08)',
+    borderRadius: '4px'
   },
   '.cm-content': { 
-    caretColor: '#000000' 
+    caretColor: '#000000',
+    padding: '1in 1in 1in 1.5in',
+    fontFamily: "'Courier New', Courier, monospace",
+    fontSize: '12pt',
+    lineHeight: '12pt',
+    minHeight: '9in', // 11in - 2in margins
+    backgroundColor: '#ffffff'
+  },
+  '.cm-page': {
+    backgroundColor: '#ffffff',
+    color: '#000000'
   },
   '.cm-gutters': {
-    backgroundColor: '#f7f7f7',
-    color: '#999',
-    border: 'none'
+    display: 'none' // Hide gutters for screenplay format
+  },
+  '.cm-scroller': {
+    backgroundColor: '#ffffff'
   }
 });
 
 const createTypewriterTheme = () => [
   EditorView.theme({
     '.cm-content': {
-      maxWidth: '700px',
-      margin: '0 auto',
       paddingTop: '40vh',
       paddingBottom: '40vh',
-    },
-    '.cm-line': {
-      paddingLeft: '2em',
-      paddingRight: '2em'
-    },
-    '.cm-scroller': {
-      fontFamily: 'Courier New, monospace',
-      fontSize: '14pt',
-      lineHeight: '2'
     }
   }),
   EditorView.updateListener.of((update) => {
@@ -144,7 +249,7 @@ const createTypewriterTheme = () => [
   })
 ];
 
-// Script formatting for screenplay elements
+// Enhanced script formatting for screenplay elements
 function createScriptFormatting(): Extension {
   return EditorView.decorations.compute(['doc'], state => {
     const decorations: any[] = [];
@@ -153,6 +258,8 @@ function createScriptFormatting(): Extension {
     for (let i = 1; i <= doc.lines; i++) {
       const line = doc.line(i);
       const text = line.text.trim();
+      const prevLine = i > 1 ? doc.line(i - 1).text.trim() : '';
+      const nextLine = i < doc.lines ? doc.line(i + 1).text.trim() : '';
       
       // Scene headings
       if (/^(INT|EXT|EST)[\.\s]/i.test(text)) {
@@ -163,10 +270,9 @@ function createScriptFormatting(): Extension {
         );
       }
       // Character names (all caps, potentially with parenthetical)
-      else if (/^[A-Z][A-Z0-9\s]{1,30}(\s*\([^)]+\))?$/.test(text) && text === text.toUpperCase()) {
-        const nextLine = i < doc.lines ? doc.line(i + 1) : null;
+      else if (/^[A-Z][A-Z0-9\s\-\']{1,30}(\s*\([^)]+\))?$/.test(text) && text === text.toUpperCase()) {
         // Only mark as character if next line exists and isn't empty
-        if (nextLine && nextLine.text.trim()) {
+        if (nextLine) {
           decorations.push(
             Decoration.line({ 
               class: 'cm-character-name' 
@@ -182,11 +288,30 @@ function createScriptFormatting(): Extension {
           }).range(line.from)
         );
       }
+      // Dialogue (follows character name or parenthetical)
+      else if (prevLine && (
+        /^[A-Z][A-Z0-9\s\-\']{1,30}(\s*\([^)]+\))?$/.test(prevLine) || 
+        /^\([^)]+\)$/.test(prevLine)
+      )) {
+        decorations.push(
+          Decoration.line({ 
+            class: 'cm-dialogue' 
+          }).range(line.from)
+        );
+      }
       // Transitions
-      else if (/^(FADE IN:|FADE OUT\.|FADE TO:|CUT TO:|DISSOLVE TO:)$/i.test(text)) {
+      else if (/^(FADE IN:|FADE OUT\.|FADE TO:|CUT TO:|DISSOLVE TO:|SMASH CUT:|MATCH CUT:)$/i.test(text)) {
         decorations.push(
           Decoration.line({ 
             class: 'cm-transition' 
+          }).range(line.from)
+        );
+      }
+      // Action lines (default)
+      else if (text.length > 0) {
+        decorations.push(
+          Decoration.line({ 
+            class: 'cm-action' 
           }).range(line.from)
         );
       }
@@ -277,11 +402,23 @@ function createScriptCompletion(): Extension {
   });
 }
 
+// Page status display
+function getPageStatus(view: EditorView): string {
+  const doc = view.state.doc;
+  const totalLines = doc.lines;
+  const currentPage = Math.ceil(totalLines / LINES_PER_PAGE) || 1;
+  const cursorLine = doc.lineAt(view.state.selection.main.head).number;
+  const cursorPage = Math.ceil(cursorLine / LINES_PER_PAGE);
+  
+  return `Page ${cursorPage} of ${currentPage}`;
+}
+
 export const Editor: React.FC<EditorProps> = ({ initialText = '' }) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const [dark, setDark] = useState(false);
   const [typewriter, setTypewriter] = useState(false);
+  const [pageStatus, setPageStatus] = useState('Page 1 of 1');
   
   // Create compartments inside component to avoid scope issues
   const themeCompartment = useRef(new Compartment());
@@ -291,14 +428,20 @@ export const Editor: React.FC<EditorProps> = ({ initialText = '' }) => {
     if (!editorRef.current || viewRef.current) return;
     
     const startState = EditorState.create({
-      doc: initialText,
+      doc: initialText || sampleScreenplay,
       extensions: [
         ...createBasicSetup(),
         EditorView.lineWrapping,
         createScriptFormatting(),
         createScriptCompletion(),
+        pageViewPlugin,
         themeCompartment.current.of(createLightTheme()),
-        typewriterCompartment.current.of([])
+        typewriterCompartment.current.of([]),
+        EditorView.updateListener.of((update) => {
+          if (update.docChanged || update.selectionSet) {
+            setPageStatus(getPageStatus(update.view));
+          }
+        })
       ]
     });
     
@@ -308,6 +451,7 @@ export const Editor: React.FC<EditorProps> = ({ initialText = '' }) => {
     });
     
     viewRef.current = view;
+    setPageStatus(getPageStatus(view));
     
     return () => {
       if (viewRef.current) {
@@ -345,7 +489,7 @@ export const Editor: React.FC<EditorProps> = ({ initialText = '' }) => {
   }, [typewriter]);
 
   return (
-    <div className="editor-wrapper">
+    <div className={`editor-wrapper ${dark ? 'dark' : ''}`}>
       <div className="toolbar">
         <button onClick={() => setDark(d => !d)}>
           {dark ? 'Light' : 'Dark'} Mode
@@ -355,7 +499,7 @@ export const Editor: React.FC<EditorProps> = ({ initialText = '' }) => {
         </button>
         <button disabled>Notes</button>
         <span className="toolbar-info">
-          Screenplay Editor - Auto-formats as you type
+          {pageStatus} • Screenplay Format
         </span>
       </div>
       <div ref={editorRef} className="editor" />

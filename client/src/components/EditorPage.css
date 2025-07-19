@@ -1,0 +1,181 @@
+/* Enhanced page view CSS for proper screenplay formatting */
+
+/* Override CodeMirror defaults for page view */
+.editor .cm-editor {
+  background: transparent !important;
+  height: auto !important;
+}
+
+.editor .cm-scroller {
+  font-family: 'Courier New', Courier, monospace !important;
+  font-size: 12pt !important;
+  line-height: 1 !important;
+  padding: 40px 20px !important;
+  overflow-x: hidden !important;
+}
+
+.editor .cm-content {
+  padding: 0 !important;
+  max-width: none !important;
+  font-family: inherit !important;
+}
+
+/* Page wrapper */
+.cm-page-wrapper {
+  background: white;
+  width: 8.5in;
+  min-height: 11in;
+  margin: 0 auto 30px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+/* Page content area with proper screenplay margins */
+.cm-page-content {
+  padding: 1in 1in 1in 1.5in;
+  min-height: 9in;
+  position: relative;
+}
+
+/* Virtual page styling */
+.cm-line[data-page-start="true"] {
+  position: relative;
+  padding-top: 1in;
+}
+
+.cm-line[data-page-start="true"]::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -1.5in;
+  right: -1in;
+  height: 1px;
+  background: #ddd;
+}
+
+/* Page numbers positioned absolutely */
+.cm-page-number-widget {
+  position: absolute;
+  top: 0.5in;
+  right: 1in;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 12pt;
+  color: #000;
+  z-index: 10;
+}
+
+/* Dark mode adjustments */
+.editor-wrapper.dark .cm-page-wrapper {
+  background: #000000; /* Black page */
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.8), 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+
+.editor-wrapper.dark .cm-page-wrapper * {
+  color: #ffffff !important; /* White text */
+}
+
+.editor-wrapper.dark .cm-page-number-widget {
+  color: #ffffff; /* White page numbers */
+}
+
+/* Screenplay element spacing */
+.cm-line {
+  min-height: 12pt;
+  line-height: 1;
+}
+
+/* Scene headings */
+.cm-line.cm-scene-heading {
+  margin-top: 24pt;
+  margin-bottom: 12pt;
+  font-weight: bold;
+}
+
+/* Character names - centered above dialogue */
+.cm-line.cm-character-name {
+  text-align: center;
+  margin-left: 0;
+  padding-left: 2.2in;
+  padding-right: 2.2in;
+  margin-top: 12pt;
+}
+
+/* Parentheticals - centered under character */
+.cm-line.cm-parenthetical {
+  text-align: center;
+  padding-left: 1.6in;
+  padding-right: 1.6in;
+  font-style: normal;
+}
+
+/* Dialogue - centered block */
+.cm-line.cm-dialogue {
+  padding-left: 1in;
+  padding-right: 1.5in;
+}
+
+/* Transitions - right aligned */
+.cm-line.cm-transition {
+  text-align: right;
+  padding-right: 0;
+  margin-top: 12pt;
+  margin-bottom: 12pt;
+}
+
+/* Action lines */
+.cm-line.cm-action {
+  margin-top: 12pt;
+  margin-bottom: 12pt;
+}
+
+/* Line height adjustments for proper spacing */
+.cm-line + .cm-line.cm-character-name {
+  margin-top: 24pt;
+}
+
+.cm-line.cm-dialogue + .cm-line:not(.cm-dialogue):not(.cm-parenthetical) {
+  margin-top: 24pt;
+}
+
+/* Ensure monospace throughout */
+.cm-editor * {
+  font-family: 'Courier New', Courier, monospace !important;
+}
+
+/* Hide scrollbar but keep functionality */
+.cm-scroller::-webkit-scrollbar {
+  width: 8px;
+}
+
+.cm-scroller::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.cm-scroller::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+.cm-scroller:hover::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+/* Print preview mode */
+@media print {
+  .editor {
+    background: white !important;
+    padding: 0 !important;
+  }
+  
+  .cm-page-wrapper {
+    box-shadow: none !important;
+    margin: 0 !important;
+    page-break-after: always;
+  }
+  
+  .cm-scroller {
+    padding: 0 !important;
+  }
+}
