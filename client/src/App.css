@@ -113,10 +113,33 @@ body {
   justify-content: center;
 }
 
-.action-button:hover {
+.action-button:hover:not(:disabled) {
   background: #f5f5f5;
   border-color: #ccc;
   transform: translateY(-1px);
+}
+
+.action-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.action-button.unsaved {
+  background: #fff3cd;
+  border-color: #ffeaa7;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(255, 193, 7, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 193, 7, 0);
+  }
 }
 
 /* Main Content Area */
@@ -185,7 +208,8 @@ input:not([type]) {
   padding: 0.5rem 0.75rem;
   font-size: 0.9rem;
   transition: all 0.2s ease;
-  background: white;
+  background: white !important;
+  color: #333 !important;
 }
 
 input[type="text"]:focus,

@@ -80,20 +80,120 @@
   background: #2d2d2d; /* Dark charcoal grey */
 }
 
-/* Page container */
+/* Page container - represents actual 8.5" x 11" page */
 .cm-editor {
   background: white !important;
   width: 8.5in;
+  min-height: 11in;
   max-width: 8.5in;
   margin: 0 auto;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1), 0 1px 8px rgba(0, 0, 0, 0.06);
   border-radius: 2px;
+  overflow: visible;
+  padding: 1in 1in 1in 1.5in; /* Hollywood standard margins */
+  box-sizing: border-box;
+}
+
+/* Ensure the scroller and content backgrounds are also white */
+.cm-editor .cm-scroller {
+  background: white !important;
+}
+
+.cm-editor .cm-content {
+  background: white !important;
+}
+
+/* Ensure gutters are also white */
+.cm-editor .cm-gutters {
+  background: white !important;
+  border: none !important;
+}
+
+/* Ensure focused state maintains white background */
+.cm-editor.cm-focused {
+  background: white !important;
+}
+
+.cm-editor.cm-focused .cm-scroller {
+  background: white !important;
+}
+
+.cm-editor.cm-focused .cm-content {
+  background: white !important;
+}
+
+/* Override any theme backgrounds */
+.cm-editor .cm-selectionBackground {
+  background: rgba(0, 100, 200, 0.2) !important;
+}
+
+.cm-editor .cm-activeLineGutter,
+.cm-editor .cm-activeLine {
+  background: transparent !important;
+}
+
+/* Ensure panels have correct background */
+.cm-editor .cm-panels {
+  background: white !important;
+}
+
+.cm-editor .cm-panel {
+  background: white !important;
+}
+
+/* Ensure all editor layers have white background */
+.cm-editor .cm-layer {
+  background: transparent !important;
+}
+
+/* Ensure line layers have transparent background */
+.cm-editor .cm-line {
+  background: transparent !important;
+}
+
+/* Remove any outline that might show background */
+.cm-editor {
+  outline: none !important;
 }
 
 .editor-wrapper.dark .cm-editor {
   background: #000000 !important; /* Pure black page */
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), 0 1px 8px rgba(0, 0, 0, 0.6);
   color: #ffffff; /* White text */
+}
+
+.editor-wrapper.dark .cm-editor .cm-scroller {
+  background: #000000 !important; /* Pure black for dark mode */
+}
+
+.editor-wrapper.dark .cm-editor .cm-content {
+  background: #000000 !important; /* Pure black for dark mode */
+}
+
+.editor-wrapper.dark .cm-editor .cm-gutters {
+  background: #000000 !important; /* Pure black for dark mode */
+  border: none !important;
+}
+
+/* Dark mode focused state */
+.editor-wrapper.dark .cm-editor.cm-focused {
+  background: #000000 !important;
+}
+
+.editor-wrapper.dark .cm-editor.cm-focused .cm-scroller {
+  background: #000000 !important;
+}
+
+.editor-wrapper.dark .cm-editor.cm-focused .cm-content {
+  background: #000000 !important;
+}
+
+.editor-wrapper.dark .cm-editor .cm-panels {
+  background: #000000 !important;
+}
+
+.editor-wrapper.dark .cm-editor .cm-panel {
+  background: #000000 !important;
 }
 
 /* Page styling */
@@ -195,7 +295,7 @@
   min-height: 100%;
   white-space: pre-wrap;
   word-wrap: break-word;
-  padding: 0;
+  /* Don't override padding - let theme handle it */
 }
 
 /* Handle line wrapping for dialogue */

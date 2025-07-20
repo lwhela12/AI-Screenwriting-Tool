@@ -2,7 +2,7 @@
 
 /* Override CodeMirror defaults for page view */
 .editor .cm-editor {
-  background: transparent !important;
+  background: white !important;
   height: auto !important;
 }
 
@@ -10,7 +10,7 @@
   font-family: 'Courier New', Courier, monospace !important;
   font-size: 12pt !important;
   line-height: 1 !important;
-  padding: 40px 20px !important;
+  padding: 0 !important; /* Padding handled by cm-editor */
   overflow-x: hidden !important;
 }
 
@@ -32,9 +32,8 @@
   border: 1px solid rgba(0, 0, 0, 0.05);
 }
 
-/* Page content area with proper screenplay margins */
+/* Page content area - margins now handled by cm-editor */
 .cm-page-content {
-  padding: 1in 1in 1in 1.5in;
   min-height: 9in;
   position: relative;
 }
@@ -93,36 +92,13 @@
   font-weight: bold;
 }
 
-/* Character names - centered above dialogue */
-.cm-line.cm-character-name {
-  text-align: center;
-  margin-left: 0;
-  padding-left: 2.2in;
-  padding-right: 2.2in;
-  margin-top: 12pt;
-}
+/* Character names - removed conflicting styles, handled by ScreenplayFormat.css */
 
-/* Parentheticals - centered under character */
-.cm-line.cm-parenthetical {
-  text-align: center;
-  padding-left: 1.6in;
-  padding-right: 1.6in;
-  font-style: normal;
-}
+/* Parentheticals - removed conflicting styles, handled by ScreenplayFormat.css */
 
-/* Dialogue - centered block */
-.cm-line.cm-dialogue {
-  padding-left: 1in;
-  padding-right: 1.5in;
-}
+/* Dialogue - removed conflicting styles, handled by ScreenplayFormat.css */
 
-/* Transitions - right aligned */
-.cm-line.cm-transition {
-  text-align: right;
-  padding-right: 0;
-  margin-top: 12pt;
-  margin-bottom: 12pt;
-}
+/* Transitions - removed conflicting styles, handled by ScreenplayFormat.css */
 
 /* Action lines */
 .cm-line.cm-action {

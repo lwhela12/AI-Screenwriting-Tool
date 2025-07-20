@@ -161,9 +161,33 @@ export const smartEnter: Command = (view) => {
   const selection = state.selection.main;
   const line = state.doc.lineAt(selection.head);
   const lineNum = line.number;
+  const lineText = line.text.trim();
   
   const elementTypes = state.field(elementTypeField);
   const currentElement = elementTypes.get(lineNum) || ScreenplayElement.Action;
+  
+  // If current line is empty and we're in character mode, don't add dialogue
+  if (currentElement === ScreenplayElement.Character && !lineText) {
+    // Just insert a new line and stay in action mode
+    const changes = state.changeByRange(range => ({
+      changes: { from: range.to, insert: '\n' },
+      range: { from: range.to + 1, to: range.to + 1 }
+    }));
+    view.dispatch(changes);
+    return true;
+  }
+  
+  // If we have a character name, auto-capitalize it before moving to dialogue
+  if (currentElement === ScreenplayElement.Character && lineText.length > 0) {
+    const upperText = lineText.toUpperCase();
+    if (lineText !== upperText) {
+      // First update the character name to uppercase
+      view.dispatch({
+        changes: { from: line.from, to: line.to, insert: upperText }
+      });
+    }
+  }
+  
   const nextElement = ELEMENT_FLOW[currentElement] || ScreenplayElement.Action;
   
   // Insert new line
@@ -188,6 +212,7 @@ export const smartTab: Command = (view) => {
   const selection = state.selection.main;
   const line = state.doc.lineAt(selection.head);
   const lineNum = line.number;
+  const lineText = line.text.trim();
   
   const elementTypes = state.field(elementTypeField);
   const currentElement = elementTypes.get(lineNum) || ScreenplayElement.Action;
@@ -195,7 +220,31 @@ export const smartTab: Command = (view) => {
   // Find next element in cycle
   const currentIndex = TAB_CYCLE_ORDER.indexOf(currentElement);
   const nextIndex = (currentIndex + 1) % TAB_CYCLE_ORDER.length;
-  const nextElement = TAB_CYCLE_ORDER[nextIndex];
+  let nextElement = TAB_CYCLE_ORDER[nextIndex];
+  
+  // Special case: After Action (like scene description), Tab should go to Character
+  if (currentElement === ScreenplayElement.Action && lineText.length > 0) {
+    // Check if this looks like it could be a character name (even if lowercase)
+    const couldBeCharacter = lineText.length <= 35 && 
+                           !lineText.includes('.') && 
+                           !/^\d+$/.test(lineText);
+    if (couldBeCharacter) {
+      nextElement = ScreenplayElement.Character;
+    }
+  }
+  
+  // If we're moving to a character element and there's text, auto-capitalize it
+  if (nextElement === ScreenplayElement.Character && lineText.length > 0) {
+    const upperText = lineText.toUpperCase();
+    if (lineText !== upperText) {
+      // Replace the line text with uppercase version
+      view.dispatch({
+        changes: { from: line.from, to: line.to, insert: upperText },
+        effects: setElementType.of({ line: lineNum, element: nextElement })
+      });
+      return true;
+    }
+  }
   
   // Update element type
   view.dispatch({
@@ -218,11 +267,6 @@ function createDecorations(view: EditorView): DecorationSet {
     
     // Create CSS classes for formatting
     const classes = [`cm-screenplay-${element}`];
-    
-    // Only add alignment class if not default left
-    if (format.alignment !== 'left') {
-      classes.push(`cm-screenplay-align-${format.alignment}`);
-    }
     
     // Add line decoration
     builder.add(
@@ -260,30 +304,53 @@ const screenplayPlugin = ViewPlugin.fromClass(class {
 
 // Auto-detect and format as user types
 const autoFormatPlugin = EditorView.updateListener.of((update: ViewUpdate) => {
-  if (!update.docChanged) return;
+  if (!update.docChanged && !update.transactions.some(tr => tr.effects.length > 0)) return;
   
   const effects: StateEffect<any>[] = [];
   const elementTypes = update.state.field(elementTypeField);
   
-  // Check each changed line
-  update.changes.iterChangedRanges((fromA, toA, fromB, toB) => {
-    const startLine = update.state.doc.lineAt(fromB).number;
-    const endLine = Math.min(update.state.doc.lines, update.state.doc.lineAt(toB).number + 2); // Check 2 lines after for dialogue
-    
-    for (let i = startLine; i <= endLine; i++) {
-      const line = update.state.doc.line(i);
-      const prevElement = i > 1 ? elementTypes.get(i - 1) : undefined;
-      const detectedElement = detectElementType(line.text, prevElement);
-      const currentElement = elementTypes.get(i);
-      
-      if (currentElement !== detectedElement) {
-        effects.push(setElementType.of({ line: i, element: detectedElement }));
+  // Check if any manual element type changes were made
+  let manualChanges = false;
+  for (const tr of update.transactions) {
+    for (const effect of tr.effects) {
+      if (effect.is(setElementType)) {
+        manualChanges = true;
+        // If a character element was set manually, auto-capitalize
+        if (effect.value.element === ScreenplayElement.Character) {
+          const line = update.state.doc.line(effect.value.line);
+          const lineText = line.text.trim();
+          if (lineText && lineText !== lineText.toUpperCase()) {
+            update.view.dispatch({
+              changes: { from: line.from, to: line.to, insert: lineText.toUpperCase() }
+            });
+          }
+        }
       }
     }
-  });
+  }
   
-  if (effects.length > 0) {
-    update.view.dispatch({ effects });
+  // Only auto-detect if no manual changes were made
+  if (!manualChanges && update.docChanged) {
+    // Check each changed line
+    update.changes.iterChangedRanges((fromA, toA, fromB, toB) => {
+      const startLine = update.state.doc.lineAt(fromB).number;
+      const endLine = Math.min(update.state.doc.lines, update.state.doc.lineAt(toB).number + 2);
+      
+      for (let i = startLine; i <= endLine; i++) {
+        const line = update.state.doc.line(i);
+        const prevElement = i > 1 ? elementTypes.get(i - 1) : undefined;
+        const detectedElement = detectElementType(line.text, prevElement);
+        const currentElement = elementTypes.get(i);
+        
+        if (currentElement !== detectedElement) {
+          effects.push(setElementType.of({ line: i, element: detectedElement }));
+        }
+      }
+    });
+    
+    if (effects.length > 0) {
+      update.view.dispatch({ effects });
+    }
   }
 });
 
@@ -343,39 +410,45 @@ export function screenplayFormatting(): Extension {
       '.cm-screenplay-character': {
         textTransform: 'uppercase',
         marginTop: '12pt',
-        marginBottom: '0'
+        marginBottom: '0',
+        marginLeft: '2.2in !important',
+        marginRight: '0 !important',
+        display: 'block',
+        width: 'auto'
       },
       
       // Parentheticals
       '.cm-screenplay-parenthetical': {
-        fontStyle: 'italic',
         marginTop: '0',
-        marginBottom: '0'
+        marginBottom: '0',
+        marginLeft: '1.5in !important',
+        marginRight: '0 !important',
+        display: 'block',
+        width: '2.5in',
+        paddingLeft: '0.3in'
       },
       
       // Dialogue
       '.cm-screenplay-dialogue': {
         marginTop: '0',
-        marginBottom: '12pt'
+        marginBottom: '12pt',
+        marginLeft: '1.0in !important',
+        marginRight: '0 !important',
+        display: 'block',
+        width: '3.5in'
       },
       
       // Transitions
       '.cm-screenplay-transition': {
         textTransform: 'uppercase',
         marginTop: '12pt',
-        marginBottom: '12pt'
+        marginBottom: '12pt',
+        marginLeft: '4.0in !important',
+        marginRight: '0 !important',
+        textAlign: 'right'
       },
       
-      // Alignment classes
-      '.cm-screenplay-align-right': {
-        textAlign: 'right !important',
-        marginLeft: 'auto !important',
-        marginRight: '0 !important'
-      },
-      
-      '.cm-screenplay-align-center': {
-        textAlign: 'center !important'
-      }
+      // Alignment classes - removed to prevent conflicts with margin positioning
     })
   ];
 }

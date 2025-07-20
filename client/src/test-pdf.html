@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Screenplay PDF Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #1d4ed8;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .success {
+            color: #10b981;
+            font-weight: bold;
+        }
+        .error {
+            color: #ef4444;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Screenplay PDF Generation Test</h1>
+    
+    <div class="test-section">
+        <h2>CSS Fix Verification</h2>
+        <p>Test the input field below to ensure text is visible:</p>
+        <input type="text" placeholder="Type here to test visibility" style="width: 300px; margin: 10px 0;">
+        <p>The text should be dark (#333) on a white background.</p>
+    </div>
+
+    <div class="test-section">
+        <h2>PDF Generation Features</h2>
+        <h3>✅ Implemented Features:</h3>
+        <ul>
+            <li><span class="success">Professional screenplay formatting</span> - Exact Hollywood standards</li>
+            <li><span class="success">Courier 12pt font</span> - Industry standard typeface</li>
+            <li><span class="success">Proper margins</span> - 1.5" left, 1" right/top/bottom</li>
+            <li><span class="success">Element positioning</span> - Character names at 3.7", dialogue at 2.5"</li>
+            <li><span class="success">Page breaking</span> - Smart breaks that don't split dialogue</li>
+            <li><span class="success">Direct download</span> - No browser print dialog needed</li>
+            <li><span class="success">TypeScript support</span> - Full type safety</li>
+        </ul>
+
+        <h3>📋 Library Comparison:</h3>
+        <pre>
+Selected: @react-pdf/renderer
+- ✅ React component-based approach
+- ✅ TypeScript support built-in
+- ✅ Precise positioning control
+- ✅ Direct PDF blob generation
+- ✅ No server-side rendering needed
+
+Alternatives considered:
+- jsPDF: Lower-level, more complex for layouts
+- pdfmake: JSON-based, less React-friendly
+- Puppeteer: Requires server-side setup
+        </pre>
+    </div>
+
+    <div class="test-section">
+        <h2>Example Screenplay Format</h2>
+        <pre>
+FADE IN:
+
+INT. COFFEE SHOP - DAY
+
+A cozy neighborhood café. SARAH (30s), a writer with 
+tired eyes, sits at a corner table with her laptop.
+
+                    SARAH
+          (to herself)
+     Just one more scene...
+
+She types furiously, then stops. Stares at the screen.
+
+                    SARAH
+     Who am I kidding? This is 
+     terrible.
+
+The BARISTA (20s, cheerful) approaches with a fresh cup.
+
+                    BARISTA
+     Another espresso?
+
+                    SARAH
+     Make it a double.
+
+CUT TO:
+        </pre>
+    </div>
+
+    <div class="test-section">
+        <h2>Integration Summary</h2>
+        <p>The PDF export functionality has been integrated into your existing export system:</p>
+        <ul>
+            <li>Updated <code>/src/utils/exporters.tsx</code> to use @react-pdf/renderer</li>
+            <li>Created <code>/src/utils/screenplayPDF.tsx</code> with formatting components</li>
+            <li>Created <code>/src/utils/screenplayParser.ts</code> for intelligent parsing</li>
+            <li>Added example component at <code>/src/components/ScreenplayPDFExample.tsx</code></li>
+        </ul>
+        <p>The ExportDialog component will now generate properly formatted PDFs when users select the PDF export option.</p>
+    </div>
+</body>
+</html>

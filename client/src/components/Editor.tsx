@@ -44,9 +44,15 @@ import { screenplayFormatting, screenplayKeymap } from './screenplay/ScreenplayF
 import { pageBreakHandling } from './screenplay/PageBreakHandler';
 import { specializedElements } from './screenplay/SpecializedElements';
 import { actionFormatterPlugin } from './screenplay/ActionFormatter';
+import { TitlePage } from './TitlePage';
 
 interface EditorProps {
   initialText?: string;
+  onContentChange?: (content: string) => void;
+  projectTitle?: string;
+  projectAuthor?: string;
+  projectContact?: string;
+  onTitlePageUpdate?: (data: { title: string; author?: string; contact?: string }) => void;
 }
 
 // Constants for screenplay formatting
@@ -117,8 +123,8 @@ const pageViewPlugin = ViewPlugin.fromClass(class {
         currentPage++;
         linesInPage = 0;
         
-        // Add page number at the start of the next page
-        if (i < doc.lines) {
+        // Add page number at the start of the next page (only if page 2 or higher)
+        if (i < doc.lines && currentPage > 1) {
           const nextLine = doc.line(i + 1);
           widgets.push(
             Decoration.widget({
@@ -418,19 +424,42 @@ function getPageStatus(view: EditorView): string {
   return `Page ${cursorPage} of ${currentPage}`;
 }
 
-export const Editor: React.FC<EditorProps> = ({ initialText = '' }) => {
+export const Editor: React.FC<EditorProps> = ({ 
+  initialText = '', 
+  onContentChange,
+  projectTitle = 'Untitled',
+  projectAuthor,
+  projectContact,
+  onTitlePageUpdate
+}) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const [dark, setDark] = useState(false);
   const [typewriter, setTypewriter] = useState(false);
   const [pageStatus, setPageStatus] = useState('Page 1 of 1');
+  const [showTitlePage, setShowTitlePage] = useState(false);
   
   // Create compartments inside component to avoid scope issues
   const themeCompartment = useRef(new Compartment());
   const typewriterCompartment = useRef(new Compartment());
 
   useEffect(() => {
-    if (!editorRef.current || viewRef.current) return;
+    if (!editorRef.current) return;
+    
+    // If we already have an editor and text changed, update it
+    if (viewRef.current && initialText !== viewRef.current.state.doc.toString()) {
+      viewRef.current.dispatch({
+        changes: {
+          from: 0,
+          to: viewRef.current.state.doc.length,
+          insert: initialText
+        }
+      });
+      return;
+    }
+    
+    // Create new editor if we don't have one
+    if (viewRef.current) return;
     
     const startState = EditorState.create({
       doc: initialText || sampleScreenplay,
@@ -442,13 +471,16 @@ export const Editor: React.FC<EditorProps> = ({ initialText = '' }) => {
         specializedElements(), // Add specialized screenplay elements
         actionFormatterPlugin, // Add action line auto-formatting
         // createScriptFormatting(), // Disabled - using screenplayFormatting instead
-        createScriptCompletion(),
+        // createScriptCompletion(), // Disabled - removing intrusive dropdowns
         pageViewPlugin,
         themeCompartment.current.of(createLightTheme()),
         typewriterCompartment.current.of([]),
         EditorView.updateListener.of((update) => {
           if (update.docChanged || update.selectionSet) {
             setPageStatus(getPageStatus(update.view));
+            if (update.docChanged && onContentChange) {
+              onContentChange(update.state.doc.toString());
+            }
           }
         })
       ]
@@ -468,7 +500,7 @@ export const Editor: React.FC<EditorProps> = ({ initialText = '' }) => {
         viewRef.current = null;
       }
     };
-  }, []); // Remove initialText dependency to prevent recreation
+  }, [initialText]); // Re-add dependency to handle project changes
 
   // Handle theme changes
   useEffect(() => {
@@ -506,12 +538,23 @@ export const Editor: React.FC<EditorProps> = ({ initialText = '' }) => {
         <button onClick={() => setTypewriter(t => !t)}>
           {typewriter ? 'Normal' : 'Typewriter'} View
         </button>
+        <button onClick={() => setShowTitlePage(true)}>Title Page</button>
         <button disabled>Notes</button>
         <span className="toolbar-info">
           {pageStatus} • Screenplay Format
         </span>
       </div>
       <div ref={editorRef} className="editor" />
+      
+      {showTitlePage && (
+        <TitlePage
+          title={projectTitle}
+          author={projectAuthor}
+          contact={projectContact}
+          onUpdate={onTitlePageUpdate}
+          onClose={() => setShowTitlePage(false)}
+        />
+      )}
     </div>
   );
 };

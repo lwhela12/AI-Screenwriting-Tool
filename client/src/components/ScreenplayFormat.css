@@ -7,6 +7,7 @@
   line-height: 1 !important;
   white-space: pre-wrap !important;
   word-wrap: break-word !important;
+  background: transparent !important; /* Inherit from parent */
 }
 
 /* Scene Headings (Sluglines) */
@@ -23,27 +24,29 @@
   margin-top: 0 !important;
   margin-bottom: 12pt !important;
   margin-left: 0 !important;
+  margin-right: 0 !important;
   text-align: left;
+  width: 100%;
 }
 
 /* Character Names */
 .cm-screenplay-character {
   text-transform: uppercase;
-  text-align: center !important;
-  margin-left: auto !important;
-  margin-right: auto !important;
+  margin-left: 2.2in !important; /* 3.7" from page left - 1.5" page margin */
+  margin-right: 0 !important;
   margin-top: 12pt !important;
   margin-bottom: 0 !important;
   display: block;
-  width: 100%;
+  width: auto;
+  text-align: left;
 }
 
 /* Parentheticals (Wrylies) */
 .cm-screenplay-parenthetical {
   display: block;
   width: 2.5in;
-  margin-left: auto !important;
-  margin-right: auto !important;
+  margin-left: 1.5in !important; /* 3.0" from page left - 1.5" page margin */
+  margin-right: 0 !important;
   margin-top: 0 !important;
   margin-bottom: 0 !important;
   padding-left: 0.3in !important;
@@ -54,47 +57,34 @@
 /* Dialogue */
 .cm-screenplay-dialogue {
   display: block;
-  max-width: 3.5in;
-  margin: 0 auto !important;
+  width: 3.5in;
+  margin-left: 1.0in !important; /* 2.5" from page left - 1.5" page margin */
+  margin-right: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
   text-align: left;
   padding: 0 !important;
 }
 
-/* Fix CodeMirror line wrapper for centered elements */
+/* Remove flexbox centering - use margin positioning instead */
 .cm-line.cm-screenplay-character,
 .cm-line.cm-screenplay-dialogue,
 .cm-line.cm-screenplay-parenthetical {
-  display: flex;
-  justify-content: center;
-}
-
-.cm-line.cm-screenplay-character > span,
-.cm-line.cm-screenplay-dialogue > span,
-.cm-line.cm-screenplay-parenthetical > span {
   display: block;
-  text-align: left;
 }
 
-.cm-line.cm-screenplay-character > span {
-  width: auto;
-  text-align: center;
-}
-
-.cm-line.cm-screenplay-dialogue > span {
-  width: 3.5in;
-  max-width: 3.5in;
-}
-
-.cm-line.cm-screenplay-parenthetical > span {
-  width: 2.5in;
-  max-width: 2.5in;
-  padding-left: 0.3in;
+/* Ensure proper text wrapping within dialogue width */
+.cm-line.cm-screenplay-dialogue {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 /* Transitions */
 .cm-screenplay-transition {
   text-transform: uppercase;
   text-align: right !important;
+  margin-left: 4.0in !important; /* Push to right side */
   margin-right: 0 !important;
   margin-top: 12pt !important;
   margin-bottom: 12pt !important;
