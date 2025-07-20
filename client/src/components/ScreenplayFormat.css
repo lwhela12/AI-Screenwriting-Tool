@@ -8,6 +8,8 @@
   white-space: pre-wrap !important;
   word-wrap: break-word !important;
   background: transparent !important; /* Inherit from parent */
+  transition: background-color 0.2s ease;
+  position: relative;
 }
 
 /* Scene Headings (Sluglines) */
@@ -17,6 +19,24 @@
   margin-top: 24pt !important;
   margin-bottom: 12pt !important;
   margin-left: 0 !important; /* 1.5" page margin handles indent */
+  position: relative;
+  padding-left: 4px;
+}
+
+.cm-screenplay-scene-heading::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--primary-color);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.cm-screenplay-scene-heading:hover::before {
+  opacity: 0.5;
 }
 
 /* Action Lines */
@@ -39,6 +59,12 @@
   display: block;
   width: auto;
   text-align: left;
+  position: relative;
+}
+
+.cm-screenplay-character:hover {
+  background: rgba(91, 76, 255, 0.05) !important;
+  border-radius: 4px;
 }
 
 /* Parentheticals (Wrylies) */
@@ -64,6 +90,12 @@
   margin-bottom: 0 !important;
   text-align: left;
   padding: 0 !important;
+  position: relative;
+}
+
+.cm-screenplay-dialogue:hover {
+  background: rgba(91, 76, 255, 0.03) !important;
+  border-radius: 4px;
 }
 
 /* Remove flexbox centering - use margin positioning instead */
@@ -89,6 +121,24 @@
   margin-top: 12pt !important;
   margin-bottom: 12pt !important;
   display: block;
+  position: relative;
+  padding-right: 4px;
+}
+
+.cm-screenplay-transition::after {
+  content: '';
+  position: absolute;
+  right: -8px;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--secondary-color);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.cm-screenplay-transition:hover::after {
+  opacity: 0.5;
 }
 
 /* Shots */
@@ -156,18 +206,25 @@
 .cm-line[data-element]::before {
   content: attr(data-element);
   position: absolute;
-  left: -80px;
+  left: -90px;
   font-size: 9pt;
-  color: #999;
+  color: var(--text-light);
   text-transform: uppercase;
-  width: 70px;
+  width: 80px;
   text-align: right;
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: opacity 0.3s ease;
+  font-weight: 600;
+  letter-spacing: 0.05em;
 }
 
 .cm-editor:hover .cm-line[data-element]::before {
-  opacity: 0.5;
+  opacity: 0.6;
+}
+
+.cm-line[data-element]:hover::before {
+  opacity: 1 !important;
+  color: var(--primary-color);
 }
 
 /* Character extensions */
@@ -179,11 +236,19 @@
 /* First appearance of characters in action */
 .cm-screenplay-character-first {
   text-transform: uppercase;
+  font-weight: 600;
+  background: linear-gradient(180deg, transparent 60%, rgba(91, 76, 255, 0.2) 60%);
+  padding: 0 2px;
+  border-radius: 2px;
 }
 
 /* Key sounds in action */
 .cm-screenplay-sound {
   text-transform: uppercase;
+  font-weight: 600;
+  background: linear-gradient(180deg, transparent 60%, rgba(255, 107, 107, 0.2) 60%);
+  padding: 0 2px;
+  border-radius: 2px;
 }
 
 /* Dual dialogue formatting */
@@ -219,7 +284,24 @@
 
 /* Dark mode adjustments */
 .editor-wrapper.dark .cm-line[data-element]::before {
-  color: #666;
+  color: var(--text-light);
+}
+
+.editor-wrapper.dark .cm-line[data-element]:hover::before {
+  color: var(--primary-color);
+}
+
+.editor-wrapper.dark .cm-screenplay-character:hover {
+  background: rgba(91, 76, 255, 0.1) !important;
+}
+
+.editor-wrapper.dark .cm-screenplay-dialogue:hover {
+  background: rgba(91, 76, 255, 0.08) !important;
+}
+
+.editor-wrapper.dark .cm-screenplay-scene-heading:hover::before,
+.editor-wrapper.dark .cm-screenplay-transition:hover::after {
+  opacity: 0.7;
 }
 
 /* Print styles */

@@ -26,18 +26,32 @@ export const App: React.FC = () => {
   const [showProjectManager, setShowProjectManager] = useState(true);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [editorContent, setEditorContent] = useState('');
+  const [beatsData, setBeatsData] = useState<any>(null);
+  const [outlineData, setOutlineData] = useState<any>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
 
   const handleProjectSelect = (project: ScreenplayProject) => {
     setCurrentProject(project);
     setEditorContent(project.content);
+    setBeatsData((project as any).beats || null);
+    setOutlineData((project as any).outline || null);
     setShowProjectManager(false);
     setHasUnsavedChanges(false);
   };
   
   const handleContentChange = (content: string) => {
     setEditorContent(content);
+    setHasUnsavedChanges(true);
+  };
+
+  const handleBeatsChange = (data: any) => {
+    setBeatsData(data);
+    setHasUnsavedChanges(true);
+  };
+
+  const handleOutlineChange = (data: any) => {
+    setOutlineData(data);
     setHasUnsavedChanges(true);
   };
 
@@ -80,10 +94,12 @@ export const App: React.FC = () => {
   const handleSave = async () => {
     if (!currentProject) return;
     
-    // Update project with latest content
+    // Update project with latest content, beats, and outline
     const updatedProject = {
       ...currentProject,
       content: editorContent || currentProject.content,
+      beats: beatsData,
+      outline: outlineData,
       updatedAt: new Date().toISOString()
     };
     
@@ -157,7 +173,7 @@ export const App: React.FC = () => {
         clearTimeout(autoSaveTimer.current);
       }
     };
-  }, [hasUnsavedChanges, editorContent, currentProject]);
+  }, [hasUnsavedChanges, editorContent, beatsData, outlineData, currentProject]);
 
   if (showProjectManager) {
     return (
@@ -216,10 +232,20 @@ export const App: React.FC = () => {
           )}
         </div>
         <div className={`view-container ${activeView === 'board' ? 'active' : ''}`}>
-          {activeView === 'board' && <BeatBoard />}
+          {activeView === 'board' && currentProject && (
+            <BeatBoard 
+              screenplayId={currentProject.id}
+              onDataChange={handleBeatsChange}
+            />
+          )}
         </div>
         <div className={`view-container ${activeView === 'outline' ? 'active' : ''}`}>
-          {activeView === 'outline' && <OutlineEditor />}
+          {activeView === 'outline' && currentProject && (
+            <OutlineEditor 
+              screenplayId={currentProject.id}
+              onDataChange={handleOutlineChange}
+            />
+          )}
         </div>
       </main>
       

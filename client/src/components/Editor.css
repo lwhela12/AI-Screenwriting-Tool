@@ -2,146 +2,184 @@
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #e8e8e8;
+  background: transparent;
 }
 
 .editor-wrapper.dark {
-  background: #2d2d2d; /* Dark charcoal grey */
+  background: var(--dark-bg);
 }
 
 .toolbar {
-  padding: 8px 16px;
-  background: #f8f8f8;
+  padding: 16px 24px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   display: flex;
-  gap: 8px;
+  gap: 12px;
   align-items: center;
-  border-bottom: 1px solid #ddd;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border-bottom: 1px solid var(--light-border);
+  box-shadow: var(--shadow-sm);
   z-index: 10;
 }
 
 .editor-wrapper.dark .toolbar {
-  background: #1a1a1a;
-  border-bottom: 1px solid #444;
+  background: rgba(26, 26, 46, 0.95);
+  border-bottom: 1px solid var(--dark-border);
   color: #ffffff;
 }
 
 .toolbar button {
-  padding: 6px 14px;
-  border: 1px solid #ccc;
-  background: white;
-  border-radius: 4px;
+  padding: 8px 18px;
+  border: 2px solid var(--light-border);
+  background: var(--light-surface);
+  border-radius: 10px;
   cursor: pointer;
-  font-size: 0.875rem;
-  transition: all 0.2s ease;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: var(--transition-smooth);
+  position: relative;
 }
 
 .toolbar button:hover:not(:disabled) {
-  background: #f5f5f5;
-  border-color: #999;
+  background: var(--primary-light);
+  color: var(--primary-color);
+  border-color: var(--primary-color);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
 
 .toolbar button:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
 .toolbar-info {
   margin-left: auto;
-  font-size: 0.9em;
-  color: #666;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  padding: 8px 16px;
+  background: rgba(91, 76, 255, 0.1);
+  border-radius: 20px;
+  border: 1px solid var(--primary-light);
 }
 
 .editor-wrapper.dark .toolbar button {
-  background: #333;
-  border-color: #555;
+  background: var(--dark-surface);
+  border-color: var(--dark-border);
   color: #fff;
 }
 
 .editor-wrapper.dark .toolbar button:hover:not(:disabled) {
-  background: #444;
-  border-color: #666;
+  background: rgba(91, 76, 255, 0.2);
+  border-color: var(--primary-color);
+  color: #fff;
 }
 
 .editor-wrapper.dark .toolbar-info {
-  color: #ccc;
+  color: var(--text-light);
+  background: rgba(91, 76, 255, 0.2);
+  border-color: rgba(91, 76, 255, 0.4);
 }
 
 .editor {
   flex: 1;
   overflow: auto;
-  background: #e8e8e8;
-  padding: 40px 20px;
+  background: transparent;
+  padding: 60px 20px;
   display: flex;
   justify-content: center;
+  position: relative;
+}
+
+.editor::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    radial-gradient(circle at 20% 80%, rgba(91, 76, 255, 0.05) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(255, 107, 107, 0.05) 0%, transparent 50%);
+  pointer-events: none;
 }
 
 .editor-wrapper.dark .editor {
-  background: #2d2d2d; /* Dark charcoal grey */
+  background: var(--dark-bg);
 }
 
 /* Page container - represents actual 8.5" x 11" page */
 .cm-editor {
-  background: white !important;
+  background: var(--light-surface) !important;
   width: 8.5in;
   min-height: 11in;
   max-width: 8.5in;
   margin: 0 auto;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1), 0 1px 8px rgba(0, 0, 0, 0.06);
-  border-radius: 2px;
+  box-shadow: var(--shadow-xl);
+  border-radius: 8px;
   overflow: visible;
   padding: 1in 1in 1in 1.5in; /* Hollywood standard margins */
   box-sizing: border-box;
+  position: relative;
+  transition: var(--transition-smooth);
 }
 
-/* Ensure the scroller and content backgrounds are also white */
+.cm-editor:hover {
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  transform: translateY(-2px);
+}
+
+/* Ensure the scroller and content backgrounds match */
 .cm-editor .cm-scroller {
-  background: white !important;
+  background: transparent !important;
 }
 
 .cm-editor .cm-content {
-  background: white !important;
+  background: transparent !important;
 }
 
-/* Ensure gutters are also white */
+/* Ensure gutters match */
 .cm-editor .cm-gutters {
-  background: white !important;
+  background: transparent !important;
   border: none !important;
 }
 
-/* Ensure focused state maintains white background */
+/* Ensure focused state maintains background */
 .cm-editor.cm-focused {
-  background: white !important;
+  background: var(--light-surface) !important;
+  box-shadow: var(--shadow-xl), 0 0 0 3px rgba(91, 76, 255, 0.15);
 }
 
 .cm-editor.cm-focused .cm-scroller {
-  background: white !important;
+  background: transparent !important;
 }
 
 .cm-editor.cm-focused .cm-content {
-  background: white !important;
+  background: transparent !important;
 }
 
 /* Override any theme backgrounds */
 .cm-editor .cm-selectionBackground {
-  background: rgba(0, 100, 200, 0.2) !important;
+  background: rgba(91, 76, 255, 0.2) !important;
 }
 
 .cm-editor .cm-activeLineGutter,
 .cm-editor .cm-activeLine {
-  background: transparent !important;
+  background: rgba(91, 76, 255, 0.05) !important;
 }
 
 /* Ensure panels have correct background */
 .cm-editor .cm-panels {
-  background: white !important;
+  background: var(--light-surface) !important;
+  border-top: 1px solid var(--light-border);
 }
 
 .cm-editor .cm-panel {
-  background: white !important;
+  background: var(--light-surface) !important;
 }
 
-/* Ensure all editor layers have white background */
+/* Ensure all editor layers have transparent background */
 .cm-editor .cm-layer {
   background: transparent !important;
 }
@@ -158,42 +196,55 @@
 
 .editor-wrapper.dark .cm-editor {
   background: #000000 !important; /* Pure black page */
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), 0 1px 8px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), 0 1px 8px rgba(91, 76, 255, 0.2);
   color: #ffffff; /* White text */
+  border: 1px solid rgba(91, 76, 255, 0.2);
 }
 
 .editor-wrapper.dark .cm-editor .cm-scroller {
-  background: #000000 !important; /* Pure black for dark mode */
+  background: transparent !important;
 }
 
 .editor-wrapper.dark .cm-editor .cm-content {
-  background: #000000 !important; /* Pure black for dark mode */
+  background: transparent !important;
 }
 
 .editor-wrapper.dark .cm-editor .cm-gutters {
-  background: #000000 !important; /* Pure black for dark mode */
+  background: transparent !important;
   border: none !important;
 }
 
 /* Dark mode focused state */
 .editor-wrapper.dark .cm-editor.cm-focused {
   background: #000000 !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), 0 0 0 3px rgba(91, 76, 255, 0.3);
+  border-color: var(--primary-color);
 }
 
 .editor-wrapper.dark .cm-editor.cm-focused .cm-scroller {
-  background: #000000 !important;
+  background: transparent !important;
 }
 
 .editor-wrapper.dark .cm-editor.cm-focused .cm-content {
-  background: #000000 !important;
+  background: transparent !important;
 }
 
 .editor-wrapper.dark .cm-editor .cm-panels {
-  background: #000000 !important;
+  background: var(--dark-surface) !important;
+  border-top: 1px solid var(--dark-border);
 }
 
 .editor-wrapper.dark .cm-editor .cm-panel {
-  background: #000000 !important;
+  background: var(--dark-surface) !important;
+}
+
+.editor-wrapper.dark .cm-editor .cm-selectionBackground {
+  background: rgba(91, 76, 255, 0.3) !important;
+}
+
+.editor-wrapper.dark .cm-editor .cm-activeLineGutter,
+.editor-wrapper.dark .cm-editor .cm-activeLine {
+  background: rgba(91, 76, 255, 0.1) !important;
 }
 
 /* Page styling */

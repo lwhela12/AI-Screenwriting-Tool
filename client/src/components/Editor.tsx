@@ -39,7 +39,6 @@ import { lintKeymap } from '@codemirror/lint';
 import './Editor.css';
 import './EditorPage.css';
 import './ScreenplayFormat.css';
-import { sampleScreenplay } from '../sampleScreenplay';
 import { screenplayFormatting, screenplayKeymap } from './screenplay/ScreenplayFormatter';
 import { pageBreakHandling } from './screenplay/PageBreakHandler';
 import { specializedElements } from './screenplay/SpecializedElements';
@@ -462,7 +461,7 @@ export const Editor: React.FC<EditorProps> = ({
     if (viewRef.current) return;
     
     const startState = EditorState.create({
-      doc: initialText || sampleScreenplay,
+      doc: initialText || '',
       extensions: [
         ...createBasicSetup(),
         EditorView.lineWrapping,

@@ -14,40 +14,57 @@ interface BoardData {
   lanes: Lane[];
 }
 
-export const BeatBoard: React.FC = () => {
+interface BeatBoardProps {
+  screenplayId?: string;
+  onDataChange?: (data: BoardData) => void;
+}
+
+export const BeatBoard: React.FC<BeatBoardProps> = ({ screenplayId, onDataChange }) => {
   const [data, setData] = useState<BoardData>({ beats: {}, lanes: [] });
   const [newLaneTitle, setNewLaneTitle] = useState('');
   const [newBeatTitles, setNewBeatTitles] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    // Temporarily disabled API call - using localStorage fallback
-    // fetch('/projects/1/beats')
-    //   .then((res) => res.json())
-    //   .then((d: BoardData) => setData(d))
-    //   .catch(() => {
-    //     setData({ beats: {}, lanes: [] });
-    //   });
-    
-    // Load from localStorage instead
-    const savedData = localStorage.getItem('beatBoardData');
-    if (savedData) {
-      setData(JSON.parse(savedData));
+    if (!screenplayId) {
+      // Fallback to localStorage if no screenplay ID
+      const savedData = localStorage.getItem('beatBoardData');
+      if (savedData) {
+        setData(JSON.parse(savedData));
+      }
+      return;
     }
-  }, []);
+
+    // Load beats from screenplay
+    fetch(`http://localhost:5001/screenplays/${screenplayId}`)
+      .then((res) => res.json())
+      .then((screenplay) => {
+        if (screenplay.beats) {
+          setData(screenplay.beats);
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to load beats:', error);
+        // Fallback to localStorage
+        const savedData = localStorage.getItem(`beatBoardData_${screenplayId}`);
+        if (savedData) {
+          setData(JSON.parse(savedData));
+        }
+      });
+  }, [screenplayId]);
 
   useEffect(() => {
-    // Temporarily disabled API call - using localStorage fallback
-    // fetch('/projects/1/beats', {
-    //   method: 'PUT',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(data),
-    // });
-    
-    // Save to localStorage instead
-    if (data.lanes.length > 0 || Object.keys(data.beats).length > 0) {
+    // Notify parent component of data changes
+    if (onDataChange) {
+      onDataChange(data);
+    }
+
+    // Save to localStorage as backup
+    if (screenplayId) {
+      localStorage.setItem(`beatBoardData_${screenplayId}`, JSON.stringify(data));
+    } else {
       localStorage.setItem('beatBoardData', JSON.stringify(data));
     }
-  }, [data]);
+  }, [data, screenplayId, onDataChange]);
 
   const onDragEnd = (result: DropResult) => {
     const { source, destination, draggableId } = result;

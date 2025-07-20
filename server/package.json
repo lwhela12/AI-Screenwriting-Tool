@@ -6,7 +6,11 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "dev": "ts-node src/server.ts",
-    "typeorm": "typeorm-ts-node-commonjs"
+    "typeorm": "typeorm-ts-node-commonjs",
+    "migration:generate": "npm run typeorm migration:generate -- -d src/database/dataSource.ts",
+    "migration:create": "npm run typeorm migration:create",
+    "migration:run": "npm run typeorm migration:run -- -d src/database/dataSource.ts",
+    "migration:revert": "npm run typeorm migration:revert -- -d src/database/dataSource.ts"
   },
   "dependencies": {
     "@types/node": "^24.0.15",

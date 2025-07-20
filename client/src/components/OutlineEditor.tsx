@@ -20,6 +20,11 @@ interface OutlineData {
   lanes: Lane[];
 }
 
+interface OutlineEditorProps {
+  screenplayId?: string;
+  onDataChange?: (data: OutlineData) => void;
+}
+
 const OutlineCard: React.FC<{
   card: Card;
   onEdit: () => void;
@@ -35,38 +40,52 @@ const OutlineCard: React.FC<{
   </div>
 );
 
-export const OutlineEditor: React.FC = () => {
+export const OutlineEditor: React.FC<OutlineEditorProps> = ({ screenplayId, onDataChange }) => {
   const [data, setData] = useState<OutlineData>({ cards: {}, lanes: [] });
   const [newLaneTitle, setNewLaneTitle] = useState('');
   const [newCardTitles, setNewCardTitles] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    // Temporarily disabled API call - using localStorage fallback
-    // fetch('/projects/1/outlines')
-    //   .then((res) => res.json())
-    //   .then((d: OutlineData) => setData(d))
-    //   .catch(() => setData({ cards: {}, lanes: [] }));
-    
-    // Load from localStorage instead
-    const savedData = localStorage.getItem('outlineEditorData');
-    if (savedData) {
-      setData(JSON.parse(savedData));
+    if (!screenplayId) {
+      // Fallback to localStorage if no screenplay ID
+      const savedData = localStorage.getItem('outlineEditorData');
+      if (savedData) {
+        setData(JSON.parse(savedData));
+      }
+      return;
     }
-  }, []);
+
+    // Load outline from screenplay
+    fetch(`http://localhost:5001/screenplays/${screenplayId}`)
+      .then((res) => res.json())
+      .then((screenplay) => {
+        if (screenplay.outline) {
+          setData(screenplay.outline);
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to load outline:', error);
+        // Fallback to localStorage
+        const savedData = localStorage.getItem(`outlineEditorData_${screenplayId}`);
+        if (savedData) {
+          setData(JSON.parse(savedData));
+        }
+      });
+  }, [screenplayId]);
 
   useEffect(() => {
-    // Temporarily disabled API call - using localStorage fallback
-    // fetch('/projects/1/outlines', {
-    //   method: 'PUT',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(data),
-    // });
-    
-    // Save to localStorage instead
-    if (data.lanes.length > 0 || Object.keys(data.cards).length > 0) {
+    // Notify parent component of data changes
+    if (onDataChange) {
+      onDataChange(data);
+    }
+
+    // Save to localStorage as backup
+    if (screenplayId) {
+      localStorage.setItem(`outlineEditorData_${screenplayId}`, JSON.stringify(data));
+    } else {
       localStorage.setItem('outlineEditorData', JSON.stringify(data));
     }
-  }, [data]);
+  }, [data, screenplayId, onDataChange]);
 
   const onDragEnd = (result: DropResult) => {
     const { source, destination, draggableId } = result;
