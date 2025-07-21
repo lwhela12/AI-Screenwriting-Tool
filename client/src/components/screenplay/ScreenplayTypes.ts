@@ -129,7 +129,9 @@ export const ELEMENT_PATTERNS = {
 // Smart key navigation flow
 export const ELEMENT_FLOW = {
   [ScreenplayElement.SceneHeading]: ScreenplayElement.Action,
-  [ScreenplayElement.Action]: ScreenplayElement.Character,
+  // From an Action line a single Enter should create another Action paragraph
+  // Final Draft opens the element picker on a blank Action line (double Enter)
+  [ScreenplayElement.Action]: ScreenplayElement.Action,
   [ScreenplayElement.Character]: ScreenplayElement.Dialogue,
   [ScreenplayElement.Parenthetical]: ScreenplayElement.Dialogue,
   [ScreenplayElement.Dialogue]: ScreenplayElement.Action,

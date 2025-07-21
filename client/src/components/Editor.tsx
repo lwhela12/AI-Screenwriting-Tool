@@ -43,6 +43,7 @@ import { screenplayFormatting, screenplayKeymap } from './screenplay/ScreenplayF
 import { pageBreakHandling } from './screenplay/PageBreakHandler';
 import { specializedElements } from './screenplay/SpecializedElements';
 import { actionFormatterPlugin } from './screenplay/ActionFormatter';
+import { smartType } from './screenplay/SmartType';
 import { TitlePage } from './TitlePage';
 
 interface EditorProps {
@@ -469,6 +470,7 @@ export const Editor: React.FC<EditorProps> = ({
         pageBreakHandling(), // Add (MORE) and (CONT'D) handling
         specializedElements(), // Add specialized screenplay elements
         actionFormatterPlugin, // Add action line auto-formatting
+        smartType(), // SmartType autocompletion
         // createScriptFormatting(), // Disabled - using screenplayFormatting instead
         // createScriptCompletion(), // Disabled - removing intrusive dropdowns
         pageViewPlugin,
