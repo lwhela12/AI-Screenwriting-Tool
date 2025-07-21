@@ -110,10 +110,16 @@ function detectElementType(text: string, prevElement?: ScreenplayElement): Scree
     return ScreenplayElement.Parenthetical;
   }
   
-  // Character - all caps, not too long
-  if (ELEMENT_PATTERNS.character.test(trimmed) && 
-      trimmed.length <= 35 &&
-      trimmed === trimmed.toUpperCase()) {
+  // Character - Context-based detection, not just capitalization
+  // If previous element was action/dialogue/scene and this is all caps
+  if (trimmed.length <= 35 &&
+      trimmed === trimmed.toUpperCase() &&
+      !trimmed.includes('.') &&
+      !/^\d+$/.test(trimmed) &&
+      (prevElement === ScreenplayElement.Action || 
+       prevElement === ScreenplayElement.Dialogue ||
+       prevElement === ScreenplayElement.SceneHeading ||
+       !prevElement)) {
     return ScreenplayElement.Character;
   }
   
@@ -217,33 +223,69 @@ export const smartTab: Command = (view) => {
   const elementTypes = state.field(elementTypeField);
   const currentElement = elementTypes.get(lineNum) || ScreenplayElement.Action;
   
-  // Find next element in cycle
-  const currentIndex = TAB_CYCLE_ORDER.indexOf(currentElement);
-  const nextIndex = (currentIndex + 1) % TAB_CYCLE_ORDER.length;
-  let nextElement = TAB_CYCLE_ORDER[nextIndex];
-  
-  // Special case: After Action (like scene description), Tab should go to Character
-  if (currentElement === ScreenplayElement.Action && lineText.length > 0) {
-    // Check if this looks like it could be a character name (even if lowercase)
-    const couldBeCharacter = lineText.length <= 35 && 
-                           !lineText.includes('.') && 
-                           !/^\d+$/.test(lineText);
-    if (couldBeCharacter) {
-      nextElement = ScreenplayElement.Character;
+  // Get previous non-empty line's element type
+  let prevElement: ScreenplayElement | undefined;
+  for (let i = lineNum - 1; i >= 1; i--) {
+    const prevLine = state.doc.line(i);
+    if (prevLine.text.trim()) {
+      prevElement = elementTypes.get(i);
+      break;
     }
   }
   
-  // If we're moving to a character element and there's text, auto-capitalize it
-  if (nextElement === ScreenplayElement.Character && lineText.length > 0) {
+  // Smart behavior: After action/dialogue/scene, Tab on empty line creates character
+  if (lineText.length === 0 && 
+      (prevElement === ScreenplayElement.Action || 
+       prevElement === ScreenplayElement.Dialogue ||
+       prevElement === ScreenplayElement.SceneHeading)) {
+    // Empty line after action/dialogue/scene - create character element
+    view.dispatch({
+      effects: setElementType.of({ line: lineNum, element: ScreenplayElement.Character })
+    });
+    return true;
+  }
+  
+  // If typing text on a line after action/dialogue/scene, convert to character
+  if (lineText.length > 0 && lineText.length <= 35 &&
+      currentElement === ScreenplayElement.Action &&
+      (prevElement === ScreenplayElement.Action || 
+       prevElement === ScreenplayElement.Dialogue ||
+       prevElement === ScreenplayElement.SceneHeading ||
+       !prevElement)) {
+    
+    const upperText = lineText.toUpperCase();
+    // Replace the line text with uppercase version and set as character
+    view.dispatch({
+      changes: { from: line.from, to: line.to, insert: upperText },
+      effects: setElementType.of({ line: lineNum, element: ScreenplayElement.Character })
+    });
+    return true;
+  }
+  
+  // Always capitalize character names
+  if (currentElement === ScreenplayElement.Character && lineText.length > 0) {
     const upperText = lineText.toUpperCase();
     if (lineText !== upperText) {
-      // Replace the line text with uppercase version
       view.dispatch({
-        changes: { from: line.from, to: line.to, insert: upperText },
-        effects: setElementType.of({ line: lineNum, element: nextElement })
+        changes: { from: line.from, to: line.to, insert: upperText }
       });
-      return true;
     }
+    return true;
+  }
+  
+  // For other cases, cycle through element types
+  const currentIndex = TAB_CYCLE_ORDER.indexOf(currentElement);
+  const nextIndex = (currentIndex + 1) % TAB_CYCLE_ORDER.length;
+  const nextElement = TAB_CYCLE_ORDER[nextIndex];
+  
+  // If moving to character, auto-capitalize
+  if (nextElement === ScreenplayElement.Character && lineText.length > 0) {
+    const upperText = lineText.toUpperCase();
+    view.dispatch({
+      changes: { from: line.from, to: line.to, insert: upperText },
+      effects: setElementType.of({ line: lineNum, element: nextElement })
+    });
+    return true;
   }
   
   // Update element type
@@ -268,15 +310,12 @@ function createDecorations(view: EditorView): DecorationSet {
     // Create CSS classes for formatting
     const classes = [`cm-screenplay-${element}`];
     
-    // Add line decoration
+    // Add line decoration (without data-element attribute to remove visual indicators)
     builder.add(
       line.from,
       line.from,
       Decoration.line({
-        class: classes.join(' '),
-        attributes: {
-          'data-element': element
-        }
+        class: classes.join(' ')
       })
     );
   }
@@ -338,9 +377,23 @@ const autoFormatPlugin = EditorView.updateListener.of((update: ViewUpdate) => {
       
       for (let i = startLine; i <= endLine; i++) {
         const line = update.state.doc.line(i);
+        const currentElement = elementTypes.get(i);
+        
+        // Skip re-detection for character elements - once set, they stay as characters
+        // This prevents lowercase typing from changing the element back to action
+        if (currentElement === ScreenplayElement.Character) {
+          // Auto-capitalize character names as they're typed
+          const lineText = line.text.trim();
+          if (lineText && lineText !== lineText.toUpperCase()) {
+            update.view.dispatch({
+              changes: { from: line.from, to: line.to, insert: lineText.toUpperCase() }
+            });
+          }
+          continue;
+        }
+        
         const prevElement = i > 1 ? elementTypes.get(i - 1) : undefined;
         const detectedElement = detectElementType(line.text, prevElement);
-        const currentElement = elementTypes.get(i);
         
         if (currentElement !== detectedElement) {
           effects.push(setElementType.of({ line: i, element: detectedElement }));
@@ -421,21 +474,24 @@ export function screenplayFormatting(): Extension {
       '.cm-screenplay-parenthetical': {
         marginTop: '0',
         marginBottom: '0',
-        marginLeft: '1.5in !important',
+        marginLeft: '0 !important',
         marginRight: '0 !important',
+        paddingLeft: '1.8in !important',
         display: 'block',
-        width: '2.5in',
-        paddingLeft: '0.3in'
+        width: '4.3in',
+        boxSizing: 'border-box'
       },
       
       // Dialogue
       '.cm-screenplay-dialogue': {
         marginTop: '0',
         marginBottom: '12pt',
-        marginLeft: '1.0in !important',
+        marginLeft: '0 !important',
         marginRight: '0 !important',
+        paddingLeft: '1.0in !important',
         display: 'block',
-        width: '3.5in'
+        width: '4.5in',
+        boxSizing: 'border-box'
       },
       
       // Transitions

@@ -70,27 +70,29 @@
 /* Parentheticals (Wrylies) */
 .cm-screenplay-parenthetical {
   display: block;
-  width: 2.5in;
-  margin-left: 1.5in !important; /* 3.0" from page left - 1.5" page margin */
+  width: 4.3in; /* Total width including padding */
+  margin-left: 0 !important;
   margin-right: 0 !important;
   margin-top: 0 !important;
   margin-bottom: 0 !important;
-  padding-left: 0.3in !important;
+  padding-left: 1.8in !important; /* 1.5in + 0.3in = 1.8in total indent */
   text-transform: lowercase;
   text-align: left;
+  box-sizing: border-box;
 }
 
 /* Dialogue */
 .cm-screenplay-dialogue {
   display: block;
-  width: 3.5in;
-  margin-left: 1.0in !important; /* 2.5" from page left - 1.5" page margin */
+  width: 4.5in; /* Total width including padding */
+  margin-left: 0 !important;
   margin-right: 0 !important;
   margin-top: 0 !important;
   margin-bottom: 0 !important;
+  padding-left: 1.0in !important; /* Use padding instead of margin for cursor positioning */
   text-align: left;
-  padding: 0 !important;
   position: relative;
+  box-sizing: border-box;
 }
 
 .cm-screenplay-dialogue:hover {
@@ -202,30 +204,8 @@
   margin-bottom: 48pt;
 }
 
-/* Smart type indicators */
-.cm-line[data-element]::before {
-  content: attr(data-element);
-  position: absolute;
-  left: -90px;
-  font-size: 9pt;
-  color: var(--text-light);
-  text-transform: uppercase;
-  width: 80px;
-  text-align: right;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-}
-
-.cm-editor:hover .cm-line[data-element]::before {
-  opacity: 0.6;
-}
-
-.cm-line[data-element]:hover::before {
-  opacity: 1 !important;
-  color: var(--primary-color);
-}
+/* Smart type indicators - REMOVED to clean up interface */
+/* Elements are now identified by context, not visual indicators */
 
 /* Character extensions */
 .cm-screenplay-character-extension {
@@ -283,14 +263,6 @@
 }
 
 /* Dark mode adjustments */
-.editor-wrapper.dark .cm-line[data-element]::before {
-  color: var(--text-light);
-}
-
-.editor-wrapper.dark .cm-line[data-element]:hover::before {
-  color: var(--primary-color);
-}
-
 .editor-wrapper.dark .cm-screenplay-character:hover {
   background: rgba(91, 76, 255, 0.1) !important;
 }
