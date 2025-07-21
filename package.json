@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "concurrently -n \"server,client,ai\" -c \"blue,green,yellow\" \"npm run dev:server\" \"npm run dev:client\" \"npm run dev:ai\"",
-    "dev:server": "cd server && npm run build && npm start",
+    "dev:server": "cd server && npm run dev",
     "dev:client": "cd client && npm run dev",
     "dev:ai": "cd ai_service && python -m uvicorn app:app --reload --port 8000",
     "install:all": "npm install && cd server && npm install && cd ../client && npm install && cd ../ai_service && pip install -r requirements.txt",
