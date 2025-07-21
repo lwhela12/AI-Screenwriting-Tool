@@ -11,7 +11,7 @@
   font-size: 12pt !important;
   line-height: 1 !important;
   padding: 0 !important; /* Padding handled by cm-editor */
-  overflow-x: hidden !important;
+  overflow: visible !important; /* Disable all internal scrolling */
 }
 
 .editor .cm-content {
@@ -120,23 +120,7 @@
   font-family: 'Courier New', Courier, monospace !important;
 }
 
-/* Hide scrollbar but keep functionality */
-.cm-scroller::-webkit-scrollbar {
-  width: 8px;
-}
-
-.cm-scroller::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.cm-scroller::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 4px;
-}
-
-.cm-scroller:hover::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.3);
-}
+/* Remove internal scrollbar completely - scrolling handled by view-container */
 
 /* Print preview mode */
 @media print {

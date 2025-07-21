@@ -13,7 +13,8 @@ import {
   DecorationSet,
   ViewPlugin,
   ViewUpdate,
-  WidgetType
+  WidgetType,
+  scrollPastEnd
 } from '@codemirror/view';
 import { 
   defaultKeymap, 
@@ -166,11 +167,47 @@ function createBasicSetup(): Extension[] {
   ];
 }
 
+// Disable internal scrolling theme and extension
+const disableScrollTheme = EditorView.theme({
+  '&': {
+    height: 'auto !important',
+    maxHeight: 'none !important'
+  },
+  '.cm-scroller': {
+    overflow: 'visible !important',
+    maxHeight: 'none !important',
+    height: 'auto !important',
+    flex: 'none !important'
+  },
+  '.cm-content': {
+    minHeight: 'auto !important',
+    maxHeight: 'none !important'
+  }
+});
+
+// Extension to force CodeMirror to not create a scrollable viewport
+const forceNoScroll = EditorView.domEventHandlers({
+  scroll: (event, view) => {
+    // Prevent any scrolling within CodeMirror
+    if (event.target === view.scrollDOM) {
+      event.preventDefault();
+      event.stopPropagation();
+      view.scrollDOM.scrollTop = 0;
+      view.scrollDOM.scrollLeft = 0;
+    }
+  }
+});
+
+// Make editor content grow to full height
+const growToContent = EditorView.contentAttributes.of({
+  style: "min-height: auto; height: auto;"
+});
+
 // Enhanced themes with page support
 const createDarkTheme = () => EditorView.theme({
   '&': { 
     backgroundColor: '#000000', // Black page
-    height: '100%',
+    height: 'auto',
     boxShadow: '0 8px 24px rgba(0, 0, 0, 0.8), 0 2px 8px rgba(0, 0, 0, 0.6)',
     borderRadius: '4px',
     color: '#ffffff' // White text
@@ -181,7 +218,7 @@ const createDarkTheme = () => EditorView.theme({
     fontFamily: "'Courier New', Courier, monospace",
     fontSize: '12pt',
     lineHeight: '12pt',
-    minHeight: '9in', // 11in - 2in margins
+    minHeight: 'auto', // Let content determine height
     backgroundColor: '#000000', // Black page
     color: '#ffffff' // White text
   },
@@ -207,7 +244,7 @@ const createDarkTheme = () => EditorView.theme({
 const createLightTheme = () => EditorView.theme({
   '&': { 
     backgroundColor: '#ffffff',
-    height: '100%',
+    height: 'auto',
     boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08)',
     borderRadius: '4px'
   },
@@ -217,7 +254,7 @@ const createLightTheme = () => EditorView.theme({
     fontFamily: "'Courier New', Courier, monospace",
     fontSize: '12pt',
     lineHeight: '12pt',
-    minHeight: '9in', // 11in - 2in margins
+    minHeight: 'auto', // Let content determine height
     backgroundColor: '#ffffff'
   },
   '.cm-page': {
@@ -444,28 +481,18 @@ export const Editor: React.FC<EditorProps> = ({
   const typewriterCompartment = useRef(new Compartment());
 
   useEffect(() => {
-    if (!editorRef.current) return;
+    if (!editorRef.current || viewRef.current) return;
     
-    // If we already have an editor and text changed, update it
-    if (viewRef.current && initialText !== viewRef.current.state.doc.toString()) {
-      viewRef.current.dispatch({
-        changes: {
-          from: 0,
-          to: viewRef.current.state.doc.length,
-          insert: initialText
-        }
-      });
-      return;
-    }
-    
-    // Create new editor if we don't have one
-    if (viewRef.current) return;
+    // Only create editor once - never update from external sources
     
     const startState = EditorState.create({
       doc: initialText || '',
       extensions: [
         ...createBasicSetup(),
         EditorView.lineWrapping,
+        disableScrollTheme, // Disable internal scrolling
+        forceNoScroll, // Force no scroll handler
+        growToContent, // Make content grow to full height
         screenplayFormatting(), // Add screenplay auto-formatting
         pageBreakHandling(), // Add (MORE) and (CONT'D) handling
         specializedElements(), // Add specialized screenplay elements
@@ -501,7 +528,7 @@ export const Editor: React.FC<EditorProps> = ({
         viewRef.current = null;
       }
     };
-  }, [initialText]); // Re-add dependency to handle project changes
+  }, []); // Empty dependency - create editor only once
 
   // Handle theme changes
   useEffect(() => {

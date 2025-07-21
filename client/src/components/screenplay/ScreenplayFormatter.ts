@@ -28,7 +28,7 @@ import { addSmartTypeEntry } from './SmartType';
 // State effect to set the element type for a line
 const setElementType = StateEffect.define<{line: number, element: ScreenplayElement}>();
 
-// State field to track element types for each line
+// State field to track element types for each line with persistence
 const elementTypeField = StateField.define<Map<number, ScreenplayElement>>({
   create(state) {
     const map = new Map<number, ScreenplayElement>();
@@ -49,7 +49,7 @@ const elementTypeField = StateField.define<Map<number, ScreenplayElement>>({
     
     const newMap = new Map(value);
     
-    // Apply effects
+    // Apply effects first (manual changes take precedence)
     for (const effect of tr.effects) {
       if (effect.is(setElementType)) {
         newMap.set(effect.value.line, effect.value.element);
@@ -58,15 +58,48 @@ const elementTypeField = StateField.define<Map<number, ScreenplayElement>>({
     
     // Handle document changes
     if (tr.docChanged) {
-      const oldMap = new Map(newMap);
-      newMap.clear();
+      const tempMap = new Map<number, ScreenplayElement>();
       
-      // Remap line numbers after document change
-      oldMap.forEach((element, oldLine) => {
-        const pos = tr.changes.mapPos(tr.startState.doc.line(oldLine).from);
-        const newLine = tr.state.doc.lineAt(pos).number;
-        newMap.set(newLine, element);
+      // First pass: preserve existing elements that weren't deleted
+      tr.changes.iterChangedRanges((fromA, toA, fromB, toB) => {
+        // Map old line numbers to new positions
+        for (let i = 1; i <= tr.startState.doc.lines; i++) {
+          if (value.has(i)) {
+            try {
+              const oldLine = tr.startState.doc.line(i);
+              const newPos = tr.changes.mapPos(oldLine.from);
+              
+              // Check if the line still exists
+              if (newPos >= 0 && newPos <= tr.state.doc.length) {
+                const newLine = tr.state.doc.lineAt(newPos);
+                // Preserve element type if the line wasn't completely replaced
+                if (oldLine.text.trim() !== '' || newLine.text.trim() === '') {
+                  tempMap.set(newLine.number, value.get(i)!);
+                }
+              }
+            } catch (e) {
+              // Line was deleted, skip it
+            }
+          }
+        }
       });
+      
+      // Second pass: merge with newMap, preserving manual changes
+      tempMap.forEach((element, line) => {
+        if (!newMap.has(line)) {
+          newMap.set(line, element);
+        }
+      });
+      
+      // Third pass: detect types for new lines only
+      for (let i = 1; i <= tr.state.doc.lines; i++) {
+        if (!newMap.has(i)) {
+          const line = tr.state.doc.line(i);
+          const prevElement = i > 1 ? newMap.get(i - 1) : undefined;
+          const element = detectElementType(line.text, prevElement);
+          newMap.set(i, element);
+        }
+      }
     }
     
     return newMap;
@@ -303,11 +336,18 @@ export const smartTab: Command = (view) => {
         });
       }
     }
-    // From a character line, Tab creates a parenthetical
+    // From a character line, Tab creates a parenthetical on new line
+    const insertPos = line.to;
     view.dispatch({
-      changes: { from: line.to, insert: '\n()' },
-      selection: { anchor: line.to + 2 },
+      changes: { from: insertPos, insert: '\n()' },
       effects: setElementType.of({ line: lineNum + 1, element: ScreenplayElement.Parenthetical })
+    });
+    
+    // Set cursor position inside parentheses after a small delay
+    requestAnimationFrame(() => {
+      view.dispatch({
+        selection: { anchor: insertPos + 2 }
+      });
     });
     return true;
   }
@@ -380,11 +420,13 @@ const screenplayPlugin = ViewPlugin.fromClass(class {
   decorations: v => v.decorations
 });
 
-// Auto-detect and format as user types
+// Debounce timer for auto-formatting
+let autoFormatTimer: number | null = null;
+
+// Auto-detect and format as user types with debouncing
 const autoFormatPlugin = EditorView.updateListener.of((update: ViewUpdate) => {
   if (!update.docChanged && !update.transactions.some(tr => tr.effects.length > 0)) return;
   
-  const effects: StateEffect<any>[] = [];
   const elementTypes = update.state.field(elementTypeField);
   
   // Check if any manual element type changes were made
@@ -398,6 +440,12 @@ const autoFormatPlugin = EditorView.updateListener.of((update: ViewUpdate) => {
           const line = update.state.doc.line(effect.value.line);
           const lineText = line.text.trim();
           if (lineText && lineText !== lineText.toUpperCase()) {
+            // Clear any pending timer
+            if (autoFormatTimer !== null) {
+              clearTimeout(autoFormatTimer);
+              autoFormatTimer = null;
+            }
+            
             update.view.dispatch({
               changes: { from: line.from, to: line.to, insert: lineText.toUpperCase() }
             });
@@ -409,40 +457,57 @@ const autoFormatPlugin = EditorView.updateListener.of((update: ViewUpdate) => {
   
   // Only auto-detect if no manual changes were made
   if (!manualChanges && update.docChanged) {
-    // Check each changed line
-    update.changes.iterChangedRanges((fromA, toA, fromB, toB) => {
-      const startLine = update.state.doc.lineAt(fromB).number;
-      const endLine = Math.min(update.state.doc.lines, update.state.doc.lineAt(toB).number + 2);
-      
-      for (let i = startLine; i <= endLine; i++) {
-        const line = update.state.doc.line(i);
-        const currentElement = elementTypes.get(i);
-        
-        // Skip re-detection for character elements - once set, they stay as characters
-        // This prevents lowercase typing from changing the element back to action
-        if (currentElement === ScreenplayElement.Character) {
-          // Auto-capitalize character names as they're typed
-          const lineText = line.text.trim();
-          if (lineText && lineText !== lineText.toUpperCase()) {
-            update.view.dispatch({
-              changes: { from: line.from, to: line.to, insert: lineText.toUpperCase() }
-            });
-          }
-          continue;
-        }
-        
-        const prevElement = i > 1 ? elementTypes.get(i - 1) : undefined;
-        const detectedElement = detectElementType(line.text, prevElement);
-        
-        if (currentElement !== detectedElement) {
-          effects.push(setElementType.of({ line: i, element: detectedElement }));
-        }
-      }
-    });
-    
-    if (effects.length > 0) {
-      update.view.dispatch({ effects });
+    // Clear existing timer
+    if (autoFormatTimer !== null) {
+      clearTimeout(autoFormatTimer);
     }
+    
+    // Set new timer for debounced auto-detection
+    autoFormatTimer = setTimeout(() => {
+      const effects: StateEffect<any>[] = [];
+      
+      // Check each changed line
+      update.changes.iterChangedRanges((fromA, toA, fromB, toB) => {
+        const startLine = update.state.doc.lineAt(fromB).number;
+        const endLine = Math.min(update.state.doc.lines, update.state.doc.lineAt(toB).number + 2);
+        
+        for (let i = startLine; i <= endLine; i++) {
+          const line = update.state.doc.line(i);
+          const currentElement = elementTypes.get(i);
+          
+          // Skip re-detection for character, parenthetical, and dialogue elements
+          // This prevents them from changing back to action while typing
+          if (currentElement === ScreenplayElement.Character ||
+              currentElement === ScreenplayElement.Parenthetical ||
+              currentElement === ScreenplayElement.Dialogue) {
+            
+            // Auto-capitalize character names as they're typed
+            if (currentElement === ScreenplayElement.Character) {
+              const lineText = line.text.trim();
+              if (lineText && lineText !== lineText.toUpperCase()) {
+                update.view.dispatch({
+                  changes: { from: line.from, to: line.to, insert: lineText.toUpperCase() }
+                });
+              }
+            }
+            continue;
+          }
+          
+          const prevElement = i > 1 ? elementTypes.get(i - 1) : undefined;
+          const detectedElement = detectElementType(line.text, prevElement);
+          
+          if (currentElement !== detectedElement) {
+            effects.push(setElementType.of({ line: i, element: detectedElement }));
+          }
+        }
+      });
+      
+      if (effects.length > 0) {
+        update.view.dispatch({ effects });
+      }
+      
+      autoFormatTimer = null;
+    }, 500); // 500ms debounce delay
   }
 });
 
@@ -513,11 +578,11 @@ export function screenplayFormatting(): Extension {
       '.cm-screenplay-parenthetical': {
         marginTop: '0',
         marginBottom: '0',
-        marginLeft: '0 !important',
-        marginRight: '0 !important',
-        paddingLeft: '1.8in !important',
+        marginLeft: '1.8in !important',
+        marginRight: '1.9in !important',
+        paddingLeft: '0 !important',
         display: 'block',
-        width: '4.3in',
+        width: 'auto',
         boxSizing: 'border-box'
       },
       
@@ -525,11 +590,11 @@ export function screenplayFormatting(): Extension {
       '.cm-screenplay-dialogue': {
         marginTop: '0',
         marginBottom: '12pt',
-        marginLeft: '0 !important',
-        marginRight: '0 !important',
-        paddingLeft: '1.0in !important',
+        marginLeft: '1.0in !important',
+        marginRight: '1.0in !important',
+        paddingLeft: '0 !important',
         display: 'block',
-        width: '4.5in',
+        width: 'auto',
         boxSizing: 'border-box'
       },
       

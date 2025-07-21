@@ -84,7 +84,7 @@
 
 .editor {
   flex: 1;
-  overflow: auto;
+  overflow: hidden; /* Remove inner scrollbar */
   background: transparent;
   padding: 60px 20px;
   display: flex;
@@ -113,12 +113,13 @@
 .cm-editor {
   background: var(--light-surface) !important;
   width: 8.5in;
-  min-height: 11in;
+  min-height: auto !important; /* Let content determine height */
   max-width: 8.5in;
-  margin: 0 auto;
+  height: auto !important; /* Allow natural height */
+  margin: 0 auto 60px; /* Add bottom margin for scrolling */
   box-shadow: var(--shadow-xl);
   border-radius: 8px;
-  overflow: visible;
+  overflow: visible !important;
   padding: 1in 1in 1in 1.5in; /* Hollywood standard margins */
   box-sizing: border-box;
   position: relative;
@@ -133,6 +134,9 @@
 /* Ensure the scroller and content backgrounds match */
 .cm-editor .cm-scroller {
   background: transparent !important;
+  overflow: visible !important; /* Prevent internal scrollbar */
+  max-height: none !important;
+  height: auto !important;
 }
 
 .cm-editor .cm-content {
@@ -334,10 +338,10 @@
   color: #ffffff; /* White page numbers */
 }
 
-/* Typewriter mode adjustments */
+/* Font consistency */
 .cm-editor .cm-scroller {
-  font-family: 'Courier New', Courier, monospace;
-  line-height: 12pt;
+  font-family: 'Courier New', Courier, monospace !important;
+  line-height: 12pt !important;
 }
 
 /* Ensure content is selectable and editable */

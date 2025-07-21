@@ -70,12 +70,12 @@
 /* Parentheticals (Wrylies) */
 .cm-screenplay-parenthetical {
   display: block;
-  width: 4.3in; /* Total width including padding */
-  margin-left: 0 !important;
-  margin-right: 0 !important;
+  width: auto;
+  margin-left: 1.8in !important; /* 3.3" from page left - 1.5" page margin */
+  margin-right: 1.9in !important; /* Constrain width */
   margin-top: 0 !important;
   margin-bottom: 0 !important;
-  padding-left: 1.8in !important; /* 1.5in + 0.3in = 1.8in total indent */
+  padding-left: 0 !important;
   text-transform: lowercase;
   text-align: left;
   box-sizing: border-box;
@@ -84,12 +84,12 @@
 /* Dialogue */
 .cm-screenplay-dialogue {
   display: block;
-  width: 4.5in; /* Total width including padding */
-  margin-left: 0 !important;
-  margin-right: 0 !important;
+  width: auto;
+  margin-left: 1.0in !important; /* 2.5" from page left - 1.5" page margin */
+  margin-right: 1.0in !important; /* Constrain width to ~3.5in */
   margin-top: 0 !important;
   margin-bottom: 0 !important;
-  padding-left: 1.0in !important; /* Use padding instead of margin for cursor positioning */
+  padding-left: 0 !important;
   text-align: left;
   position: relative;
   box-sizing: border-box;
