@@ -23,6 +23,7 @@ import {
   TAB_CYCLE_ORDER
 } from './ScreenplayTypes';
 import { insertSuperimposed, insertIntercut, formatFlashback } from './SpecializedElements';
+import { addSmartTypeEntry } from './SmartType';
 
 // State effect to set the element type for a line
 const setElementType = StateEffect.define<{line: number, element: ScreenplayElement}>();
@@ -171,7 +172,9 @@ export const smartEnter: Command = (view) => {
   
   const elementTypes = state.field(elementTypeField);
   const currentElement = elementTypes.get(lineNum) || ScreenplayElement.Action;
-  
+
+  let nextElement = ELEMENT_FLOW[currentElement] || ScreenplayElement.Action;
+
   // If current line is empty and we're in character mode, don't add dialogue
   if (currentElement === ScreenplayElement.Character && !lineText) {
     // Just insert a new line and stay in action mode
@@ -193,8 +196,35 @@ export const smartEnter: Command = (view) => {
       });
     }
   }
-  
-  const nextElement = ELEMENT_FLOW[currentElement] || ScreenplayElement.Action;
+
+  // Handle Action element behavior
+  if (currentElement === ScreenplayElement.Action) {
+    if (!lineText) {
+      const prev = lineNum > 1 ? elementTypes.get(lineNum - 1) : undefined;
+      if (prev === ScreenplayElement.Action) {
+        nextElement = ScreenplayElement.Character;
+      }
+    } else {
+      nextElement = ScreenplayElement.Action;
+    }
+  }
+
+  // Collect SmartType data when completing elements
+  const smartEffects: StateEffect<any>[] = [];
+  if (currentElement === ScreenplayElement.Character && lineText) {
+    smartEffects.push(addSmartTypeEntry.of({ list: 'characters', value: lineText }));
+  }
+  if (currentElement === ScreenplayElement.SceneHeading && lineText) {
+    const match = /^(?:INT\.|EXT\.|I\/E\.|E\/I\.)\s+(.*?)(?:\s+-\s+(\w+))?$/i.exec(lineText.toUpperCase());
+    if (match) {
+      if (match[1]) smartEffects.push(addSmartTypeEntry.of({ list: 'locations', value: match[1].trim() }));
+      if (match[2]) smartEffects.push(addSmartTypeEntry.of({ list: 'times', value: match[2].trim() }));
+    }
+  }
+  if (currentElement === ScreenplayElement.Transition && lineText) {
+    const text = lineText.toUpperCase().endsWith(':') ? lineText.toUpperCase() : lineText.toUpperCase() + ':';
+    smartEffects.push(addSmartTypeEntry.of({ list: 'transitions', value: text }));
+  }
   
   // Insert new line
   const changes = state.changeByRange(range => ({
@@ -204,9 +234,10 @@ export const smartEnter: Command = (view) => {
   
   // Set element type for new line
   const effects = [
-    setElementType.of({ line: lineNum + 1, element: nextElement })
+    setElementType.of({ line: lineNum + 1, element: nextElement }),
+    ...smartEffects
   ];
-  
+
   view.dispatch({ ...changes, effects });
   
   return true;
@@ -262,14 +293,22 @@ export const smartTab: Command = (view) => {
     return true;
   }
   
-  // Always capitalize character names
-  if (currentElement === ScreenplayElement.Character && lineText.length > 0) {
-    const upperText = lineText.toUpperCase();
-    if (lineText !== upperText) {
-      view.dispatch({
-        changes: { from: line.from, to: line.to, insert: upperText }
-      });
+  // Always capitalize character names and allow creating parenthetical
+  if (currentElement === ScreenplayElement.Character) {
+    if (lineText.length > 0) {
+      const upperText = lineText.toUpperCase();
+      if (lineText !== upperText) {
+        view.dispatch({
+          changes: { from: line.from, to: line.to, insert: upperText }
+        });
+      }
     }
+    // From a character line, Tab creates a parenthetical
+    view.dispatch({
+      changes: { from: line.to, insert: '\n()' },
+      selection: { anchor: line.to + 2 },
+      effects: setElementType.of({ line: lineNum + 1, element: ScreenplayElement.Parenthetical })
+    });
     return true;
   }
   
