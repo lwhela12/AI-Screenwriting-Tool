@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import BeatBoard from './components/BeatBoard';
 import Editor from './components/Editor';
+import ProseMirrorEditor from './components/editor-v2/ProseMirrorEditor';
 import OutlineEditor from './components/OutlineEditor';
 import { ProjectManager, ScreenplayProject } from './components/ProjectManager';
 import { ExportDialog } from './components/ExportDialog';
@@ -29,6 +30,7 @@ export const App: React.FC = () => {
   const [beatsData, setBeatsData] = useState<any>(null);
   const [outlineData, setOutlineData] = useState<any>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [useProseMirror, setUseProseMirror] = useState(true); // Toggle for testing
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
 
   const handleProjectSelect = (project: ScreenplayProject) => {
@@ -204,6 +206,14 @@ export const App: React.FC = () => {
           ))}
         </nav>
         <div className="header-actions">
+          <button 
+            className="action-button" 
+            title="Toggle Editor" 
+            onClick={() => setUseProseMirror(!useProseMirror)}
+            style={{ fontSize: '0.8rem' }}
+          >
+            {useProseMirror ? 'PM' : 'CM'}
+          </button>
           <button className="action-button" title="Projects" onClick={() => setShowProjectManager(true)}>📁</button>
           <button 
             className={`action-button ${hasUnsavedChanges ? 'unsaved' : ''}`} 
@@ -220,15 +230,26 @@ export const App: React.FC = () => {
       <main className="app-main">
         <div className={`view-container ${activeView === 'editor' ? 'active' : ''}`}>
           {activeView === 'editor' && currentProject && (
-            <Editor 
-              key={currentProject.id}
-              initialText={currentProject.content} 
-              onContentChange={handleContentChange}
-              projectTitle={currentProject.title}
-              projectAuthor={currentProject.author}
-              projectContact={currentProject.contact}
-              onTitlePageUpdate={handleTitlePageUpdate}
-            />
+            useProseMirror ? (
+              <ProseMirrorEditor
+                key={currentProject.id + '-pm'}
+                initialContent={currentProject.content}
+                onContentChange={handleContentChange}
+                projectTitle={currentProject.title}
+                projectAuthor={currentProject.author}
+                projectContact={currentProject.contact}
+              />
+            ) : (
+              <Editor 
+                key={currentProject.id}
+                initialText={currentProject.content} 
+                onContentChange={handleContentChange}
+                projectTitle={currentProject.title}
+                projectAuthor={currentProject.author}
+                projectContact={currentProject.contact}
+                onTitlePageUpdate={handleTitlePageUpdate}
+              />
+            )
           )}
         </div>
         <div className={`view-container ${activeView === 'board' ? 'active' : ''}`}>
