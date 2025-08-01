@@ -14,17 +14,38 @@ const handleTab: Command = (state, dispatch) => {
   // Don't cycle on page nodes
   if (nodeType === 'page') return false;
   
-  // Special handling for when we're at the end of a node and it might create a new one
-  const atEnd = $from.pos === $from.end();
+  // Tab on action converts to character (Final Draft behavior)
+  if (nodeType === 'action') {
+    const tr = state.tr;
+    const nodeStart = $from.before();
+    
+    // Convert to character
+    tr.setNodeMarkup(nodeStart, screenplaySchema.nodes.character);
+    
+    // If there's existing text, convert to uppercase
+    if (node.content.size > 0) {
+      const text = node.textContent;
+      const upperText = text.toUpperCase();
+      if (text !== upperText) {
+        const start = nodeStart + 1;
+        const end = start + text.length;
+        tr.replaceWith(start, end, screenplaySchema.text(upperText));
+      }
+    }
+    
+    dispatch(tr.scrollIntoView());
+    return true;
+  }
   
-  // Define the cycle order
+  // Define the cycle order (matches Final Draft behavior)
   const cycleMap: Record<string, string> = {
-    'action': 'character',
-    'character': 'parenthetical',
+    'scene_heading': 'action',
+    // 'action' is handled separately above - always converts to character
+    'character': 'parenthetical', 
     'parenthetical': 'dialogue',
-    'dialogue': 'transition',
+    'dialogue': 'parenthetical', // Tab in dialogue creates parenthetical
     'transition': 'scene_heading',
-    'scene_heading': 'action'
+    'centered': 'action'
   };
   
   const nextType = cycleMap[nodeType] || 'action';
@@ -32,32 +53,44 @@ const handleTab: Command = (state, dispatch) => {
   
   if (newNodeType) {
     const tr = state.tr;
+    const nodeStart = $from.before();
     
-    if (atEnd && node.content.size === 0) {
-      // If we're in an empty node, just change its type
-      const nodeStart = $from.before();
-      tr.setNodeMarkup(nodeStart, newNodeType);
+    // Special handling for creating parenthetical from character or dialogue
+    if ((nodeType === 'character' || nodeType === 'dialogue') && nextType === 'parenthetical') {
+      const insertPos = $from.after();
       
-      // Set cursor inside the node
-      const pos = nodeStart + 1;
-      tr.setSelection(TextSelection.create(tr.doc, pos));
-    } else if (atEnd) {
-      // We're at the end of a non-empty node, create a new node after
-      const endPos = $from.after();
-      const newNode = newNodeType.createAndFill();
-      if (newNode) {
-        tr.insert(endPos, newNode);
-        // Place cursor at start of new node
-        tr.setSelection(TextSelection.create(tr.doc, endPos + 1));
+      // Create new parenthetical node
+      const parentheticalNode = screenplaySchema.nodes.parenthetical.create({}, screenplaySchema.text('('));
+      
+      if (nodeType === 'dialogue' && node.content.size === 0) {
+        // Empty dialogue - insert parenthetical BEFORE the dialogue
+        const beforeDialogue = $from.before();
+        tr.insert(beforeDialogue, parentheticalNode);
+        // Move cursor to parenthetical
+        tr.setSelection(TextSelection.create(tr.doc, beforeDialogue + 2)); // +2 for node + opening (
+      } else {
+        // Character or non-empty dialogue - insert AFTER
+        tr.insert(insertPos, parentheticalNode);
+        // Move cursor to parenthetical
+        tr.setSelection(TextSelection.create(tr.doc, insertPos + 2)); // +2 for node + opening (
       }
-    } else {
-      // We're in the middle of a node, just change its type
-      const nodeStart = $from.before();
-      tr.setNodeMarkup(nodeStart, newNodeType);
       
-      // Keep cursor at current position
-      const mappedPos = tr.mapping.map($from.pos);
-      tr.setSelection(TextSelection.create(tr.doc, mappedPos));
+      dispatch(tr.scrollIntoView());
+      return true;
+    }
+    
+    // Change the node type
+    tr.setNodeMarkup(nodeStart, newNodeType);
+    
+    // For certain transitions, preserve/transform content
+    if (nodeType === 'action' && nextType === 'character') {
+      // Convert to uppercase for character names
+      const text = node.textContent;
+      if (text && text !== text.toUpperCase()) {
+        const start = nodeStart + 1;
+        const end = start + text.length;
+        tr.replaceWith(start, end, screenplaySchema.text(text.toUpperCase()));
+      }
     }
     
     dispatch(tr.scrollIntoView());
@@ -80,16 +113,56 @@ const handleEnter: Command = (state, dispatch) => {
     return false;
   }
   
+  const tr = state.tr;
+  const isEmpty = node.content.size === 0;
+  
+  // Special handling for empty nodes - convert to action
+  if (isEmpty && nodeType !== 'action') {
+    const nodeStart = $from.before();
+    tr.setNodeMarkup(nodeStart, screenplaySchema.nodes.action);
+    dispatch(tr.scrollIntoView());
+    return true;
+  }
+  
+  // Special handling for parentheticals - auto-close if needed
+  if (nodeType === 'parenthetical') {
+    const text = node.textContent;
+    // Check if we need to auto-close the parenthesis
+    if (text && !text.endsWith(')')) {
+      const hasOpenParen = text.includes('(');
+      const hasCloseParen = text.includes(')');
+      
+      if (hasOpenParen && !hasCloseParen) {
+        // Add closing parenthesis before creating new element
+        tr.insertText(')', $from.pos);
+      }
+    }
+  }
+  
   // Define what comes after each element type
   const flowMap: Record<string, string> = {
     'scene_heading': 'action',
-    'action': 'action', // Can continue action or start character
+    'action': 'action', // Continue with action
     'character': 'dialogue',
-    'parenthetical': 'dialogue',
-    'dialogue': 'action',
+    'parenthetical': 'dialogue', 
+    'dialogue': 'character', // Next speaker or action
     'transition': 'scene_heading',
     'centered': 'action'
   };
+  
+  // Smart detection for dialogue flow
+  if (nodeType === 'dialogue' && !isEmpty) {
+    // Check if next character name starts being typed (all caps)
+    const text = node.textContent;
+    const lastLine = text.split('\n').pop() || '';
+    if (lastLine && lastLine === lastLine.toUpperCase() && lastLine.trim().length > 0) {
+      // User is typing a character name, switch to character
+      flowMap['dialogue'] = 'character';
+    } else {
+      // Default to action after dialogue
+      flowMap['dialogue'] = 'action';
+    }
+  }
   
   const nextType = flowMap[nodeType] || 'action';
   const newNodeType = screenplaySchema.nodes[nextType];
@@ -97,29 +170,29 @@ const handleEnter: Command = (state, dispatch) => {
   // Get the position after the current node
   const endPos = $from.end();
   
-  // Create a new node and insert it
+  // Create a new node
   const newNode = newNodeType.createAndFill();
   if (!newNode) return false;
   
-  const tr = state.tr;
-  
   // If we're at the end of the node, insert after
   if ($from.pos === endPos) {
-    tr.insert(endPos + 1, newNode);
-    tr.setSelection(state.selection.constructor.near(tr.doc.resolve(endPos + 2)));
+    const insertPos = $from.after();
+    tr.insert(insertPos, newNode);
+    tr.setSelection(TextSelection.create(tr.doc, insertPos + 1));
   } else {
     // Split the current node
     tr.split($from.pos);
     const mappedPos = tr.mapping.map($from.pos);
     
-    // Get the newly created node and change its type
-    const $newPos = tr.doc.resolve(mappedPos + 1);
-    if ($newPos.parent.type.name === node.type.name) {
-      tr.setNodeMarkup($newPos.before(), newNodeType);
+    // Change the type of the new node
+    const $newPos = tr.doc.resolve(mappedPos);
+    if ($newPos.nodeAfter && $newPos.nodeAfter.type.name === nodeType) {
+      const nodeAfterStart = mappedPos;
+      tr.setNodeMarkup(nodeAfterStart, newNodeType);
     }
     
     // Set cursor to the beginning of the new node
-    tr.setSelection(state.selection.constructor.near(tr.doc.resolve(mappedPos + 1)));
+    tr.setSelection(TextSelection.create(tr.doc, mappedPos + 1));
   }
   
   dispatch(tr.scrollIntoView());

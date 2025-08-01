@@ -12,18 +12,7 @@ export const characterCapitalize = new InputRule(
   }
 );
 
-// Auto-format scene headings
-export const sceneHeadingFormat = new InputRule(
-  /^(INT|EXT|EST|I\/E)\.?\s+(.*)$/i,
-  (state, match, start, end) => {
-    const $start = state.doc.resolve(start);
-    if ($start.parent.type.name !== 'scene_heading') return null;
-    
-    const prefix = match[1].toUpperCase();
-    const location = match[2].toUpperCase();
-    return state.tr.insertText(`${prefix}. ${location}`, start, end);
-  }
-);
+// Removed scene heading format - handled by autoFormat plugin
 
 // Auto-format transitions
 export const transitionFormat = new InputRule(
@@ -42,7 +31,6 @@ export function createInputRules() {
   return inputRules({
     rules: [
       characterCapitalize,
-      sceneHeadingFormat,
       transitionFormat
     ]
   });

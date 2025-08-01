@@ -9,6 +9,9 @@ import { screenplaySchema, createPage } from './schema/screenplaySchema';
 import { screenplayKeymap } from './plugins/screenplayKeymap';
 import { pageViewPlugin } from './plugins/pageView';
 import { createInputRules } from './plugins/inputRules';
+import { smartTypePlugin, completionPlugin } from './plugins/smartType';
+import { autoFormatPlugin } from './plugins/autoFormat';
+import { doubleEnterPlugin } from './plugins/doubleEnter';
 import { gapCursor } from 'prosemirror-gapcursor';
 import './ProseMirrorEditor.css';
 
@@ -34,8 +37,26 @@ export const ProseMirrorEditor: React.FC<ProseMirrorEditorProps> = ({
   useEffect(() => {
     if (!editorRef.current || viewRef.current) return;
 
-    // Create initial document with one page
-    const doc = screenplaySchema.nodes.doc.create({}, [createPage(1)]);
+    // Create initial document
+    let doc;
+    
+    if (initialContent) {
+      try {
+        // Try to parse JSON content
+        const parsed = JSON.parse(initialContent);
+        doc = screenplaySchema.nodeFromJSON(parsed);
+      } catch (e) {
+        // Fallback to creating a simple document with the text
+        const actionNode = screenplaySchema.nodes.action.create({}, 
+          initialContent ? screenplaySchema.text(initialContent) : null
+        );
+        const page = screenplaySchema.nodes.page.create({ number: 1 }, [actionNode]);
+        doc = screenplaySchema.nodes.doc.create({}, [page]);
+      }
+    } else {
+      // Create empty document with one page
+      doc = screenplaySchema.nodes.doc.create({}, [createPage(1)]);
+    }
 
     // Create editor state
     const state = EditorState.create({
@@ -43,9 +64,13 @@ export const ProseMirrorEditor: React.FC<ProseMirrorEditorProps> = ({
       schema: screenplaySchema,
       plugins: [
         history(),
+        completionPlugin(), // Must come before keymaps to handle Enter/Tab
+        smartTypePlugin(),
         keymap({ ...screenplayKeymap, 'Mod-z': undo, 'Mod-y': redo }),
         keymap(baseKeymap),
+        autoFormatPlugin(), // Must come before input rules
         createInputRules(),
+        doubleEnterPlugin(),
         gapCursor(),
         pageViewPlugin
       ]
@@ -99,7 +124,7 @@ export const ProseMirrorEditor: React.FC<ProseMirrorEditorProps> = ({
         viewRef.current = null;
       }
     };
-  }, []); // Only create once
+  }, [initialContent]); // Recreate when initial content changes
 
   return (
     <div className="prosemirror-editor-wrapper">
