@@ -44,6 +44,10 @@ Auto-formatting only touches what you just typed: scene headings, character name
 
 Pagination reproduces Final Draft's screenplay template: 54 lines of 12pt Courier per page inside 1 inch margins (7pt character advance, 61 characters of action), two blank lines before scene headings, splits only after a complete sentence with the remainder re-wrapped, `(MORE)` and the `(CONT'D)` cue printed in the page margins as Final Draft does, at least two rows of a speech kept with its cue, dialogue that crosses a page gets `(MORE)` and a `NAME (CONT'D)` cue, scene headings and character cues are never stranded at the bottom of a page, action never leaves a single line behind, and transitions stay with what precedes them. The same engine drives the on-screen page gaps, the page counter, and the PDF export, so they always agree.
 
+The **Scenes** panel beside the script lists every scene with its page and length. Click a scene to jump to it, drag to reorder scenes (the pages move with them), expand a scene to write its synopsis, which is stored with the scene and exports to Final Draft.
+
+The **Outline** tab shows the same scenes as index cards: heading, synopsis, cast, page and length, a colour, and structure labels (Act One, Midpoint…) between cards. Drag a card to reorder the script, add or delete scenes, and open any scene in the editor. The **Beat Board** is a freeform canvas of ideas: double-click to add a beat, drag to arrange, and send a beat into the script as a new scene with the beat's text as its synopsis.
+
 The title page is the first sheet above the script; click any field to edit it. When a character speaks again after only action, the cue gets an automatic `(CONT'D)`, computed from the script so it stays right as you edit. Typing `(` in a character cue offers the standard extensions (V.O., O.S., …).
 
 Final Draft files can be imported from the project screen (**Import .fdx**). Scene numbers, dual dialogue, centered text, page breaks, bold/italic/underline and the title page are preserved, and the FDX export writes them back.

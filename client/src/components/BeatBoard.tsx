@@ -1,203 +1,157 @@
-import React, { useEffect, useState } from 'react';
-import { API_BASE } from '../api';
-import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
-import "./BeatBoard.css";
-import BeatCard, { Beat } from './BeatCard';
-
-interface Lane {
-  id: string;
-  title: string;
-  beatIds: string[];
-}
-
-interface BoardData {
-  beats: Record<string, Beat>;
-  lanes: Lane[];
-}
+import React, { useMemo, useRef, useState } from 'react';
+import { EditorState } from 'prosemirror-state';
+import { EditorView } from 'prosemirror-view';
+import { Beat, BeatBoardData, BEAT_COLORS, CARD_WIDTH, CARD_GAP, boardExtent, emptyBoard, newBeatId, normalizeBeats } from './beats';
+import { scenesOf, sceneAt, insertScene, SceneInfo } from './editor-v2/scenes';
+import './BeatBoard.css';
 
 interface BeatBoardProps {
-  screenplayId?: string;
-  onDataChange?: (data: BoardData) => void;
+  data: unknown;
+  onChange: (data: BeatBoardData) => void;
+  view: EditorView | null;
+  state: EditorState;
+  onOpenScene: (scene: SceneInfo) => void;
 }
 
-export const BeatBoard: React.FC<BeatBoardProps> = ({ screenplayId, onDataChange }) => {
-  const [data, setData] = useState<BoardData>({ beats: {}, lanes: [] });
-  const [newLaneTitle, setNewLaneTitle] = useState('');
-  const [newBeatTitles, setNewBeatTitles] = useState<Record<string, string>>({});
+/**
+ * A freeform board of beats. Double-click the board to add a beat, drag
+ * cards to arrange them, edit in place, and send a beat into the script as
+ * a new scene (its text becomes the scene synopsis).
+ */
+export const BeatBoard: React.FC<BeatBoardProps> = ({ data, onChange, view, state, onOpenScene }) => {
+  const board = useMemo(() => normalizeBeats(data), [data]);
+  const boardRef = useRef<HTMLDivElement>(null);
+  const [drag, setDrag] = useState<{ id: string; dx: number; dy: number } | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
+  const scenes = useMemo(() => scenesOf(state.doc), [state]);
+  const current = sceneAt(scenes, state.selection.from);
 
-  useEffect(() => {
-    if (!screenplayId) {
-      // Fallback to localStorage if no screenplay ID
-      const savedData = localStorage.getItem('beatBoardData');
-      if (savedData) {
-        setData(JSON.parse(savedData));
-      }
-      return;
-    }
+  const update = (beats: Beat[]) => onChange({ version: 2, beats });
+  const patch = (id: string, changes: Partial<Beat>) => update(board.beats.map(b => (b.id === id ? { ...b, ...changes } : b)));
 
-    // Load beats from screenplay
-    fetch(`${API_BASE}/screenplays/${screenplayId}`)
-      .then((res) => res.json())
-      .then((screenplay) => {
-        if (screenplay.beats) {
-          setData(screenplay.beats);
-        }
-      })
-      .catch((error) => {
-        console.error('Failed to load beats:', error);
-        // Fallback to localStorage
-        const savedData = localStorage.getItem(`beatBoardData_${screenplayId}`);
-        if (savedData) {
-          setData(JSON.parse(savedData));
-        }
-      });
-  }, [screenplayId]);
-
-  useEffect(() => {
-    // Notify parent component of data changes
-    if (onDataChange) {
-      onDataChange(data);
-    }
-
-    // Save to localStorage as backup
-    if (screenplayId) {
-      localStorage.setItem(`beatBoardData_${screenplayId}`, JSON.stringify(data));
-    } else {
-      localStorage.setItem('beatBoardData', JSON.stringify(data));
-    }
-  }, [data, screenplayId, onDataChange]);
-
-  const onDragEnd = (result: DropResult) => {
-    const { source, destination, draggableId } = result;
-    if (!destination) return;
-    if (
-      source.droppableId === destination.droppableId &&
-      source.index === destination.index
-    ) {
-      return;
-    }
-    setData((prev) => {
-      const newLanes = [...prev.lanes];
-      const sourceLane = newLanes.find((l) => l.id === source.droppableId)!;
-      const destLane = newLanes.find((l) => l.id === destination.droppableId)!;
-      sourceLane.beatIds.splice(source.index, 1);
-      destLane.beatIds.splice(destination.index, 0, draggableId);
-      return { ...prev, lanes: newLanes };
-    });
+  const addBeat = (x: number, y: number) => {
+    const beat: Beat = { id: newBeatId(), title: '', text: '', color: BEAT_COLORS[0], x: Math.max(0, x), y: Math.max(0, y) };
+    update([...board.beats, beat]);
+    setEditing(beat.id);
   };
 
-  const addLane = () => {
-    const title = newLaneTitle.trim();
-    if (!title) return;
-    setData((prev) => ({
-      ...prev,
-      lanes: [...prev.lanes, { id: `lane-${Date.now()}`, title, beatIds: [] }],
-    }));
-    setNewLaneTitle('');
+  const addBeatAtEnd = () => {
+    const { height } = boardExtent(board);
+    addBeat(CARD_GAP, board.beats.length ? height + CARD_GAP : CARD_GAP);
   };
 
-  const addBeat = (laneId: string) => {
-    const title = (newBeatTitles[laneId] || '').trim();
-    if (!title) return;
-    const id = `beat-${Date.now()}`;
-    const beat: Beat = { id, title, description: '', color: '#ffd966' };
-    setData((prev) => {
-      const newLanes = prev.lanes.map((l) =>
-        l.id === laneId ? { ...l, beatIds: [...l.beatIds, id] } : l,
-      );
-      return {
-        beats: { ...prev.beats, [id]: beat },
-        lanes: newLanes,
-      };
-    });
-    setNewBeatTitles((prev) => ({ ...prev, [laneId]: '' }));
+  const removeBeat = (id: string) => {
+    if (!confirm('Delete this beat?')) return;
+    update(board.beats.filter(b => b.id !== id));
   };
 
-  const editBeat = (id: string) => {
-    const beat = data.beats[id];
-    const title = window.prompt('Beat title', beat.title);
-    if (!title) return;
-    const description = window.prompt('Description', beat.description) || '';
-    const color = window.prompt('Color', beat.color) || beat.color;
-    setData((prev) => ({
-      ...prev,
-      beats: { ...prev.beats, [id]: { ...beat, title, description, color } },
-    }));
+  const sendToScript = (beat: Beat, afterCurrent: boolean) => {
+    if (!view) return;
+    const after = afterCurrent && current && !current.opening ? current.ordinal : null;
+    insertScene(view, after, beat.title, beat.text);
+    const created = scenesOf(view.state.doc);
+    const target = after === null ? created[created.length - 1] : created[after + 1];
+    if (target) onOpenScene(target);
   };
 
-  const deleteBeat = (id: string, laneId: string) => {
-    if (!window.confirm('Delete beat?')) return;
-    setData((prev) => {
-      const newBeats = { ...prev.beats };
-      delete newBeats[id];
-      const newLanes = prev.lanes.map((l) =>
-        l.id === laneId ? { ...l, beatIds: l.beatIds.filter((b) => b !== id) } : l,
-      );
-      return { beats: newBeats, lanes: newLanes };
-    });
+  const onBoardPointerDown = (e: React.PointerEvent) => {
+    if (e.target === boardRef.current && editing) setEditing(null);
   };
+
+  const onBoardDoubleClick = (e: React.MouseEvent) => {
+    if (e.target !== boardRef.current) return;
+    const rect = boardRef.current!.getBoundingClientRect();
+    addBeat(e.clientX - rect.left - CARD_WIDTH / 2, e.clientY - rect.top - 20);
+  };
+
+  const startDrag = (e: React.PointerEvent, beat: Beat) => {
+    if ((e.target as HTMLElement).closest('textarea, input, button')) return;
+    const rect = boardRef.current!.getBoundingClientRect();
+    setDrag({ id: beat.id, dx: e.clientX - rect.left - beat.x, dy: e.clientY - rect.top - beat.y });
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const onDragMove = (e: React.PointerEvent) => {
+    if (!drag) return;
+    const rect = boardRef.current!.getBoundingClientRect();
+    patch(drag.id, { x: Math.max(0, e.clientX - rect.left - drag.dx), y: Math.max(0, e.clientY - rect.top - drag.dy) });
+  };
+
+  const endDrag = () => setDrag(null);
+
+  const extent = boardExtent(board.beats.length ? board : emptyBoard());
+  const boardStyle = { minWidth: extent.width + CARD_GAP * 2, minHeight: extent.height + CARD_GAP * 2 };
 
   return (
     <div className="beat-board">
-      <div style={{ padding: '8px' }}>
-        <input
-          placeholder="New lane"
-          value={newLaneTitle}
-          onChange={(e) => setNewLaneTitle(e.target.value)}
-        />
-        <button onClick={addLane}>Add Lane</button>
+      <div className="beat-board-toolbar">
+        <span className="beat-board-title">Beat Board</span>
+        <span className="beat-board-hint">Double-click the board to add a beat · drag cards to arrange · send a beat to the script as a scene</span>
+        <button className="beat-board-add" onClick={addBeatAtEnd}>
+          + Beat
+        </button>
       </div>
-      <DragDropContext onDragEnd={onDragEnd}>
-        <div className="lanes">
-          {data.lanes.map((lane) => (
-            <Droppable droppableId={lane.id} key={lane.id}>
-              {(provided) => (
-                <div
-                  ref={provided.innerRef}
-                  {...provided.droppableProps}
-                  className="lane"
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h3>{lane.title}</h3>
+      <div className="beat-board-scroll">
+        <div ref={boardRef} className="beat-board-canvas" style={boardStyle} onDoubleClick={onBoardDoubleClick} onPointerDown={onBoardPointerDown}>
+          {board.beats.length === 0 && <div className="beat-board-empty">Double-click anywhere to add your first beat.</div>}
+          {board.beats.map(beat => (
+            <div
+              key={beat.id}
+              className={`beat-card${drag?.id === beat.id ? ' dragging' : ''}${editing === beat.id ? ' editing' : ''}`}
+              style={{ left: beat.x, top: beat.y, background: beat.color, width: CARD_WIDTH }}
+              onPointerDown={e => startDrag(e, beat)}
+              onPointerMove={onDragMove}
+              onPointerUp={endDrag}
+              onPointerCancel={endDrag}
+              onClick={() => setEditing(beat.id)}
+            >
+              <input
+                className="beat-card-title"
+                placeholder="Beat"
+                value={beat.title}
+                onChange={e => patch(beat.id, { title: e.target.value })}
+                onFocus={() => setEditing(beat.id)}
+              />
+              <textarea
+                className="beat-card-text"
+                placeholder="What happens…"
+                value={beat.text}
+                rows={editing === beat.id ? 5 : 3}
+                onChange={e => patch(beat.id, { text: e.target.value })}
+                onFocus={() => setEditing(beat.id)}
+              />
+              {editing === beat.id && (
+                <div className="beat-card-tools" onPointerDown={e => e.stopPropagation()}>
+                  <div className="beat-card-colors">
+                    {BEAT_COLORS.map(c => (
+                      <button
+                        key={c}
+                        className={`beat-color${beat.color === c ? ' selected' : ''}`}
+                        style={{ background: c }}
+                        title="Colour"
+                        onClick={() => patch(beat.id, { color: c })}
+                      />
+                    ))}
                   </div>
-                  <div style={{ marginBottom: '8px' }}>
-                    <input
-                      placeholder="New beat"
-                      value={newBeatTitles[lane.id] || ''}
-                      onChange={(e) =>
-                        setNewBeatTitles((prev) => ({ ...prev, [lane.id]: e.target.value }))
-                      }
-                    />
-                    <button onClick={() => addBeat(lane.id)}>Add Beat</button>
+                  <div className="beat-card-actions">
+                    <button onClick={() => sendToScript(beat, false)} title="Add a scene at the end of the script with this beat as its synopsis">
+                      → Script (end)
+                    </button>
+                    {current && !current.opening && (
+                      <button onClick={() => sendToScript(beat, true)} title={`Add a scene after ${current.heading || 'the current scene'}`}>
+                        → After current scene
+                      </button>
+                    )}
+                    <button className="danger" onClick={() => removeBeat(beat.id)}>
+                      Delete
+                    </button>
                   </div>
-                  {lane.beatIds.map((beatId, index) => {
-                    const beat = data.beats[beatId];
-                    if (!beat) return null;
-                    return (
-                      <Draggable draggableId={beat.id} index={index} key={beat.id}>
-                        {(prov) => (
-                          <div
-                            ref={prov.innerRef}
-                            {...prov.draggableProps}
-                            {...prov.dragHandleProps}
-                          >
-                            <BeatCard
-                              beat={beat}
-                              onEdit={() => editBeat(beat.id)}
-                              onDelete={() => deleteBeat(beat.id, lane.id)}
-                            />
-                          </div>
-                        )}
-                      </Draggable>
-                    );
-                  })}
-                  {provided.placeholder}
                 </div>
               )}
-            </Droppable>
+            </div>
           ))}
         </div>
-      </DragDropContext>
+      </div>
     </div>
   );
 };

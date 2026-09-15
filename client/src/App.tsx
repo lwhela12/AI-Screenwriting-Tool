@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { EditorState } from 'prosemirror-state';
+import { EditorView } from 'prosemirror-view';
 import BeatBoard from './components/BeatBoard';
 import ProseMirrorEditor from './components/editor-v2/ProseMirrorEditor';
-import OutlineEditor from './components/OutlineEditor';
+import OutlineView from './components/OutlineView';
+import { jumpToScene, SceneInfo } from './components/editor-v2/scenes';
+import type { BeatBoardData } from './components/beats';
 import { ProjectManager, ScreenplayProject, isLocalProject, saveLocalProject } from './components/ProjectManager';
 import { ExportDialog } from './components/ExportDialog';
 import { apiFetch } from './api';
@@ -53,6 +57,9 @@ export const App: React.FC = () => {
   const [showProjectManager, setShowProjectManager] = useState(true);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>({ kind: 'clean' });
+  const [editorState, setEditorState] = useState<EditorState | null>(null);
+  const [beats, setBeats] = useState<BeatBoardData | null>(null);
+  const editorViewRef = useRef<EditorView | null>(null);
 
   // Latest editor state lives in refs so the save routine never closes over stale data.
   const contentRef = useRef<string>('');
@@ -142,7 +149,10 @@ export const App: React.FC = () => {
     currentProjectRef.current = project;
     contentRef.current = project.content;
     beatsRef.current = project.beats ?? null;
+    setBeats(project.beats ?? null);
     outlineRef.current = project.outline ?? null;
+    setEditorState(null);
+    editorViewRef.current = null;
     dirtyRef.current = false;
     setSaveState({ kind: 'clean' });
     setShowProjectManager(false);
@@ -160,16 +170,19 @@ export const App: React.FC = () => {
     markDirty();
   };
 
-  const handleBeatsChange = (data: any) => {
+  const handleBeatsChange = (data: BeatBoardData) => {
     if (JSON.stringify(data) === JSON.stringify(beatsRef.current)) return;
     beatsRef.current = data;
+    setBeats(data);
     markDirty();
   };
 
-  const handleOutlineChange = (data: any) => {
-    if (JSON.stringify(data) === JSON.stringify(outlineRef.current)) return;
-    outlineRef.current = data;
-    markDirty();
+  /** Switch to the script and put the cursor at a scene. */
+  const openScene = (scene: SceneInfo) => {
+    setActiveView('editor');
+    requestAnimationFrame(() => {
+      if (editorViewRef.current) jumpToScene(editorViewRef.current, scene);
+    });
   };
 
   const openProjects = async () => {
@@ -259,23 +272,30 @@ export const App: React.FC = () => {
       </header>
 
       <main className="app-main">
+        {/* The editor stays mounted on every tab so the outline and beat board can act on the live script. */}
         <div className={`view-container ${activeView === 'editor' ? 'active' : ''}`}>
-          {activeView === 'editor' && currentProject && (
+          {currentProject && (
             <ProseMirrorEditor
               key={currentProject.id}
               initialContent={contentRef.current}
               onContentChange={handleContentChange}
               titlePage={{ title: currentProject.title, author: currentProject.author || '', contact: currentProject.contact || '' }}
               onTitlePageChange={handleTitlePageChange}
+              onReady={view => {
+                editorViewRef.current = view;
+              }}
+              onStateChange={setEditorState}
             />
           )}
         </div>
         <div className={`view-container ${activeView === 'board' ? 'active' : ''}`}>
-          {activeView === 'board' && currentProject && <BeatBoard screenplayId={currentProject.id} onDataChange={handleBeatsChange} />}
+          {activeView === 'board' && currentProject && editorState && (
+            <BeatBoard data={beats} onChange={handleBeatsChange} view={editorViewRef.current} state={editorState} onOpenScene={openScene} />
+          )}
         </div>
         <div className={`view-container ${activeView === 'outline' ? 'active' : ''}`}>
-          {activeView === 'outline' && currentProject && (
-            <OutlineEditor screenplayId={currentProject.id} onDataChange={handleOutlineChange} />
+          {activeView === 'outline' && currentProject && editorState && (
+            <OutlineView view={editorViewRef.current} state={editorState} onOpenScene={openScene} />
           )}
         </div>
       </main>

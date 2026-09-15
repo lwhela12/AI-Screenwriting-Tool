@@ -15,6 +15,7 @@ import { clipboardPlugin } from './plugins/clipboard';
 import { contentToDoc, docToContent } from './docConverter';
 import { ELEMENT_LABELS, isElementType } from './schema/screenplaySchema';
 import { TitleSheet, TitlePageData } from './TitleSheet';
+import { SceneNavigator } from './SceneNavigator';
 import './ProseMirrorEditor.css';
 
 interface ProseMirrorEditorProps {
@@ -25,6 +26,10 @@ interface ProseMirrorEditorProps {
   /** Title page fields; when given, the title page is shown above the script. */
   titlePage?: TitlePageData;
   onTitlePageChange?: (data: TitlePageData) => void;
+  /** Called once with the live view so other panels (outline, beat board) can act on the script. */
+  onReady?: (view: EditorView) => void;
+  /** Called after every transaction with the new state. */
+  onStateChange?: (state: EditorState) => void;
 }
 
 interface Status {
@@ -44,12 +49,34 @@ function statusFor(state: EditorState): Status {
   };
 }
 
-export const ProseMirrorEditor: React.FC<ProseMirrorEditorProps> = ({ initialContent = '', onContentChange, titlePage, onTitlePageChange }) => {
+export const ProseMirrorEditor: React.FC<ProseMirrorEditorProps> = ({ initialContent = '', onContentChange, titlePage, onTitlePageChange, onReady, onStateChange }) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onContentChange);
   onChangeRef.current = onContentChange;
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
+  const onStateChangeRef = useRef(onStateChange);
+  onStateChangeRef.current = onStateChange;
   const [status, setStatus] = useState<Status>({ element: 'Action', page: 1, pageCount: 1 });
+  const [editorState, setEditorState] = useState<EditorState | null>(null);
+  const [showScenes, setShowScenes] = useState(() => {
+    try {
+      return localStorage.getItem('editor.showScenes') !== 'false';
+    } catch {
+      return true;
+    }
+  });
+  const toggleScenes = () => {
+    setShowScenes(v => {
+      try {
+        localStorage.setItem('editor.showScenes', String(!v));
+      } catch {
+        /* ignore */
+      }
+      return !v;
+    });
+  };
 
   useEffect(() => {
     if (!editorRef.current || viewRef.current) return;
@@ -77,6 +104,8 @@ export const ProseMirrorEditor: React.FC<ProseMirrorEditorProps> = ({ initialCon
       dispatchTransaction(transaction) {
         const newState = view.state.apply(transaction);
         view.updateState(newState);
+        setEditorState(newState);
+        onStateChangeRef.current?.(newState);
         if (transaction.docChanged || transaction.selectionSet) {
           setStatus(statusFor(newState));
         }
@@ -88,6 +117,9 @@ export const ProseMirrorEditor: React.FC<ProseMirrorEditorProps> = ({ initialCon
 
     viewRef.current = view;
     setStatus(statusFor(state));
+    setEditorState(state);
+    onReadyRef.current?.(view);
+    onStateChangeRef.current?.(state);
     view.focus();
 
     return () => {
@@ -106,11 +138,19 @@ export const ProseMirrorEditor: React.FC<ProseMirrorEditorProps> = ({ initialCon
           <span className="toolbar-sep">•</span>
           Page {status.page} of {status.pageCount}
         </span>
-        <span className="toolbar-hint">Enter on an empty line opens the element menu · ⌘1–⌘7 set element type</span>
+        <span className="toolbar-right">
+          <span className="toolbar-hint">Enter on an empty line opens the element menu · ⌘1–⌘8 set element type</span>
+          <button className={`toolbar-button ${showScenes ? 'active' : ''}`} onClick={toggleScenes} title="Show or hide the scene navigator">
+            Scenes
+          </button>
+        </span>
       </div>
-      <div className="editor-scroll-container">
-        {titlePage && onTitlePageChange && <TitleSheet data={titlePage} onChange={onTitlePageChange} />}
-        <div ref={editorRef} className="prosemirror-editor" />
+      <div className="editor-body">
+        {showScenes && editorState && <SceneNavigator view={viewRef.current} state={editorState} />}
+        <div className="editor-scroll-container">
+          {titlePage && onTitlePageChange && <TitleSheet data={titlePage} onChange={onTitlePageChange} />}
+          <div ref={editorRef} className="prosemirror-editor" />
+        </div>
       </div>
     </div>
   );

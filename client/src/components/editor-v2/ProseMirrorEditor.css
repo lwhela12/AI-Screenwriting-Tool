@@ -42,11 +42,199 @@
   font-size: 12px;
 }
 
+.editor-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .editor-scroll-container {
   flex: 1 1 auto;
   min-height: 0;
+  min-width: 0;
   overflow-y: auto;
   padding: 32px 16px 120px;
+}
+
+.toolbar-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.toolbar-button {
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
+}
+
+.toolbar-button.active {
+  background: #eef2ff;
+  border-color: #a5b4fc;
+  color: #3730a3;
+}
+
+/* Scene navigator ---------------------------------------------------------- */
+
+.scene-navigator {
+  flex: 0 0 300px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: #fff;
+  border-right: 1px solid #d1d5db;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  color: #111827;
+}
+
+.scene-navigator-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e5e7eb;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.scene-navigator-list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.scene-row {
+  display: grid;
+  grid-template-columns: 34px 1fr auto;
+  gap: 6px;
+  align-items: baseline;
+  padding: 6px 10px 6px 8px;
+  border-left: 3px solid transparent;
+  cursor: pointer;
+}
+
+.scene-row:hover {
+  background: #f9fafb;
+}
+
+.scene-row.current {
+  background: #eef2ff;
+  border-left-color: #6366f1;
+}
+
+.scene-row.drop-before {
+  box-shadow: inset 0 2px 0 #6366f1;
+}
+
+.scene-row.drop-after {
+  box-shadow: inset 0 -2px 0 #6366f1;
+}
+
+.scene-row.dragging {
+  opacity: 0.4;
+}
+
+.scene-row .scene-number {
+  color: #9ca3af;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.scene-row .scene-heading-text {
+  font-weight: 600;
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scene-row .scene-heading-text.opening {
+  font-weight: 500;
+  color: #6b7280;
+  text-transform: none;
+}
+
+.scene-row .scene-page {
+  color: #9ca3af;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.scene-row .scene-structure {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #4338ca;
+  margin: 2px 0 2px 0;
+}
+
+.scene-row .scene-preview {
+  grid-column: 2 / -1;
+  color: #6b7280;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scene-row .scene-synopsis {
+  grid-column: 2 / -1;
+  font: inherit;
+  font-size: 12px;
+  width: 100%;
+  min-height: 48px;
+  resize: vertical;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  padding: 4px 6px;
+  color: #111827;
+  background: #fff;
+}
+
+.scene-row .scene-synopsis::placeholder {
+  color: #b0b5bd;
+}
+
+.scene-row .scene-cast {
+  grid-column: 2 / -1;
+  color: #9ca3af;
+  font-size: 11px;
+}
+
+.scene-color-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.scene-navigator-footer {
+  padding: 8px 12px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.scene-navigator-footer button {
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.scene-navigator-footer button:hover {
+  background: #f3f4f6;
 }
 
 .prosemirror-editor {

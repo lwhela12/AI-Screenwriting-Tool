@@ -77,18 +77,26 @@ export const screenplaySchema = new Schema({
       content: 'block+'
     },
 
+    // Declared first so it is the block ProseMirror creates when it must fill empty content.
+    action: textBlock('action', 'p'),
+
     scene_heading: {
       content: 'text*',
       group: 'block',
-      attrs: { number: { default: null } }, // scene number from Final Draft, e.g. "12" or "A12"
+      attrs: {
+        number: { default: null }, // scene number, e.g. "12" or "A12"
+        synopsis: { default: null }, // writer's summary, shown in the navigator and outline
+        color: { default: null }, // outline card colour
+        structure: { default: null } // structure label placed before this scene, e.g. "Act Two"
+      },
       parseDOM: [{ tag: 'h2.scene-heading', getAttrs: (dom: any) => ({ number: dom.getAttribute('data-number') || null }) }],
       toDOM(node) {
         const attrs: Record<string, string> = { class: 'scene-heading' };
         if (node.attrs.number) attrs['data-number'] = node.attrs.number;
+        if (node.attrs.color) attrs['data-color'] = node.attrs.color;
         return ['h2', attrs, 0];
       }
     },
-    action: textBlock('action', 'p'),
     character: {
       content: 'text*',
       group: 'block',

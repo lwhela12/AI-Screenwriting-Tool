@@ -80,7 +80,23 @@ function paragraphToNode(paragraph: Element, dual: 'left' | 'right' | null): PMN
   if (type === 'action' && paragraph.getAttribute('Alignment') === 'Center') type = 'centered';
 
   const attrs: Record<string, any> = {};
-  if (type === 'scene_heading') attrs.number = paragraph.getAttribute('Number') || null;
+  if (type === 'scene_heading') {
+    attrs.number = paragraph.getAttribute('Number') || null;
+    const props = Array.from(paragraph.children).find(c => c.tagName === 'SceneProperties');
+    if (props) {
+      const color = props.getAttribute('Color');
+      if (color && !/^#F{12}$/i.test(color)) attrs.color = fdxColorToCss(color);
+      const summary = Array.from(props.children).find(c => c.tagName === 'Summary');
+      if (summary) {
+        const lines: string[] = [];
+        for (const p of Array.from(summary.children)) {
+          if (p.tagName === 'Paragraph') lines.push(inlineContent(p).map(n => n.text || '').join(''));
+        }
+        const text = lines.join('\n').trim();
+        if (text) attrs.synopsis = text;
+      }
+    }
+  }
   if (type === 'character') attrs.dual = dual;
 
   let content = inlineContent(paragraph, UPPERCASE_ELEMENTS.has(type));
@@ -90,6 +106,19 @@ function paragraphToNode(paragraph: Element, dual: 'left' | 'right' | null): PMN
     if (hasContd(full)) content = truncateRuns(content, stripContd(full).length);
   }
   return screenplaySchema.nodes[type].create(attrs, content);
+}
+
+/** Final Draft colours are 48-bit "#RRRRGGGGBBBB"; keep the high byte of each channel. */
+function fdxColorToCss(color: string): string {
+  const m = /^#([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{4})$/i.exec(color);
+  if (!m) return color;
+  return '#' + m.slice(1).map(c => c.slice(0, 2)).join('').toLowerCase();
+}
+
+function cssColorToFdx(color: string): string {
+  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(color);
+  if (!m) return color;
+  return '#' + m.slice(1).map(c => (c + c).toUpperCase()).join('');
 }
 
 /** Keep only the first `length` characters of a run of text nodes, preserving marks. */
@@ -216,7 +245,20 @@ function paragraphXML(node: PMNode, startsNewPage: boolean, indent: string, cont
   if (type === 'scene_heading' && node.attrs.number) attrs.push(`Number="${escapeXML(String(node.attrs.number))}"`);
   if (startsNewPage) attrs.push('StartsNewPage="Yes"');
   const suffix = continued ? cueDisplayText(node.textContent, true).slice(node.textContent.length) : '';
-  return `${indent}<Paragraph ${attrs.join(' ')}>\n${textRuns(node, indent + '  ', suffix)}\n${indent}</Paragraph>`;
+  let props = '';
+  if (type === 'scene_heading' && (node.attrs.synopsis || node.attrs.color)) {
+    const colorAttr = node.attrs.color ? ` Color="${escapeXML(cssColorToFdx(node.attrs.color))}"` : '';
+    const summary = node.attrs.synopsis
+      ? `\n${indent}    <Summary>\n` +
+        String(node.attrs.synopsis)
+          .split('\n')
+          .map(line => `${indent}      <Paragraph>\n${indent}        <Text>${escapeXML(line)}</Text>\n${indent}      </Paragraph>`)
+          .join('\n') +
+        `\n${indent}    </Summary>\n${indent}  `
+      : '';
+    props = `${indent}  <SceneProperties${colorAttr} Title="">${summary}</SceneProperties>\n`;
+  }
+  return `${indent}<Paragraph ${attrs.join(' ')}>\n${props}${textRuns(node, indent + '  ', suffix)}\n${indent}</Paragraph>`;
 }
 
 /** Serialize a document as Final Draft XML. */
