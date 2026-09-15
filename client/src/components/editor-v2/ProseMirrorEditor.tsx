@@ -12,6 +12,8 @@ import { smartTypePlugin, completionPlugin } from './plugins/smartType';
 import { autoFormatPlugin } from './plugins/autoFormat';
 import { elementMenuPlugin } from './plugins/elementMenu';
 import { clipboardPlugin } from './plugins/clipboard';
+import { searchPlugin } from './plugins/search';
+import { FindBar } from './FindBar';
 import { contentToDoc, docToContent } from './docConverter';
 import { ELEMENT_LABELS, isElementType } from './schema/screenplaySchema';
 import { TitleSheet, TitlePageData } from './TitleSheet';
@@ -92,6 +94,7 @@ export const ProseMirrorEditor: React.FC<ProseMirrorEditorProps> = ({ initialCon
         keymap(baseKeymap),
         autoFormatPlugin(),
         clipboardPlugin(),
+        searchPlugin(),
         dropCursor(),
         gapCursor(),
         pageViewPlugin
@@ -145,6 +148,7 @@ export const ProseMirrorEditor: React.FC<ProseMirrorEditorProps> = ({ initialCon
           </button>
         </span>
       </div>
+      {editorState && <FindBar view={viewRef.current} state={editorState} />}
       <div className="editor-body">
         {showScenes && editorState && <SceneNavigator view={viewRef.current} state={editorState} />}
         <div className="editor-scroll-container">

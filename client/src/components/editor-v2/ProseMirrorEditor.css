@@ -79,6 +79,97 @@
   color: #3730a3;
 }
 
+/* Find and replace --------------------------------------------------------- */
+
+.find-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  background: #f9fafb;
+  border-bottom: 1px solid #d1d5db;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 12px;
+  color: #374151;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+}
+
+.find-bar .find-input {
+  font: inherit;
+  font-size: 13px;
+  padding: 4px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  min-width: 180px;
+  outline: none;
+  background: #fff;
+  color: #111827;
+}
+
+.find-bar .find-input:focus {
+  border-color: #a5b4fc;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.find-bar button {
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
+}
+
+.find-bar button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.find-bar button:not(:disabled):hover {
+  background: #f3f4f6;
+}
+
+.find-bar .find-count {
+  min-width: 80px;
+  color: #6b7280;
+  font-variant-numeric: tabular-nums;
+}
+
+.find-bar .find-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #6b7280;
+  cursor: pointer;
+}
+
+.find-bar .find-sep {
+  width: 1px;
+  height: 20px;
+  background: #d1d5db;
+  margin: 0 4px;
+}
+
+.find-bar .find-close {
+  margin-left: auto;
+  border: none;
+  background: none;
+  color: #9ca3af;
+}
+
+.ProseMirror.screenplay .search-match {
+  background: #fef08a;
+  border-radius: 2px;
+}
+
+.ProseMirror.screenplay .search-match-current {
+  background: #f59e0b;
+  color: #fff;
+}
+
 /* Scene navigator ---------------------------------------------------------- */
 
 .scene-navigator {

@@ -38,6 +38,7 @@ The script editor follows Final Draft's typing model. The document is a flat lis
 | **Backspace** at start of element | Removes an empty element, or joins the text onto the previous element |
 | **⌘1 – ⌘8** (Ctrl on Windows) | Scene Heading, Action, Character, Parenthetical, Dialogue, Transition, Shot, Centered |
 | **⌘⇧D** | Dual dialogue: prints the speech under the cursor beside the one before it (press again to separate) |
+| **⌘F** | Find and replace (Enter/⌘G next, Shift-Enter/⇧⌘G previous, Esc closes; match case and whole word options; replacing inside a heading or cue keeps it capitalised) |
 | **⌘S** | Save (autosave also runs three seconds after you stop typing) |
 
 Auto-formatting only touches what you just typed: scene headings, character names and transitions are upper-cased as you type; `int.`/`ext.` at the start of an action line becomes a scene heading; a line ending in `TO:` becomes a transition; `> text <` becomes centered text; `(` in an empty dialogue element starts a parenthetical. SmartType suggests known characters, locations, times and transitions (Tab or Enter accepts, Escape dismisses).
