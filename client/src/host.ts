@@ -4,6 +4,7 @@ import { parseFDX } from './utils/fdx';
 import { parseFountain } from './utils/fountain';
 import { contentToDoc, docToContent, textToDoc } from './components/editor-v2/docConverter';
 import { PAGE } from './components/editor-v2/pagination/layout';
+import { importPdf } from './utils/pdfImport';
 
 /**
  * The bridge to a native host (the macOS app's WKWebView).
@@ -28,7 +29,9 @@ type HostMessage =
   | { type: 'changed'; text: string }
   | { type: 'save' }
   | { type: 'log'; message: string }
-  | { type: 'wrapCheck'; result: WrapCheckResult };
+  | { type: 'wrapCheck'; result: WrapCheckResult }
+  /** A file the page produced (export): the host shows a save panel and writes it. */
+  | { type: 'export'; filename: string; mime: string; base64: string };
 
 export interface WrapCheckResult {
   elements: number;
@@ -52,9 +55,13 @@ export function postToHost(message: HostMessage): void {
 }
 
 /** Functions the native side calls through evaluateJavaScript. */
+export type HostFormat = 'screenplay' | 'fdx' | 'fountain' | 'txt' | 'pdf';
+
 export interface ScreenplayHostApi {
-  /** Replace the open document. `format` tells us how to read `text`. */
-  load: (text: string, format: 'screenplay' | 'fdx' | 'fountain' | 'txt', meta?: Partial<HostDocument>) => void;
+  /** Replace the open document. `format` tells us how to read `text` (base64 for pdf). */
+  load: (text: string, format: HostFormat, meta?: Partial<HostDocument>) => void;
+  /** Produce an export; the result reaches the host as an `export` message. */
+  exportAs: (format: 'pdf' | 'fdx' | 'fountain' | 'txt') => void;
   /** The current document, serialized. */
   document: () => HostDocument | null;
   /** Compare the browser's line wrapping with the pagination engine's, element by element. */
@@ -67,6 +74,23 @@ interface HostBindings {
   loadDocument: (doc: HostDocument) => void;
   getDocument: () => HostDocument | null;
   setTheme: (name: string) => void;
+  exportAs: (format: 'pdf' | 'fdx' | 'fountain' | 'txt') => void;
+}
+
+function base64ToBytes(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+/** Send a produced file to the host. Used by the exporters when running in the app. */
+export async function sendFileToHost(filename: string, blob: Blob): Promise<void> {
+  const buffer = await blob.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  postToHost({ type: 'export', filename, mime: blob.type || 'application/octet-stream', base64: btoa(binary) });
 }
 
 /** Parse a file's text into a host document. Exported for the browser build's importer too. */
@@ -156,7 +180,17 @@ export function wrapCheck(view: EditorView): WrapCheckResult {
 /** Install `window.__screenplay` and tell the host we are ready. */
 export function installHostApi(bindings: HostBindings): void {
   const api: ScreenplayHostApi = {
-    load: (text, format, meta) => bindings.loadDocument(documentFromText(text, format, meta)),
+    load: (text, format, meta) => {
+      if (format === 'pdf') {
+        const bytes = base64ToBytes(text);
+        importPdf(bytes.buffer as ArrayBuffer)
+          .then(imported => bindings.loadDocument({ title: imported.title || meta?.title || '', author: imported.author || '', contact: imported.contact || '', content: docToContent(imported.doc), beats: null }))
+          .catch(err => postToHost({ type: 'log', message: `pdf import failed: ${err?.message || err}\n${err?.stack || ''}` }));
+        return;
+      }
+      bindings.loadDocument(documentFromText(text, format, meta));
+    },
+    exportAs: format => bindings.exportAs(format),
     document: () => bindings.getDocument(),
     wrapCheck: () => {
       const view = bindings.getView();

@@ -2,15 +2,12 @@
 
 This repository contains the source code for an open‑source screenwriting application inspired by **Final Draft 13**.  It provides professional screenplay formatting, planning tools such as a beat board and outline editor, real‑time collaboration and AI‑assisted writing features.
 
-## Monorepo Structure
+## Structure
 
-This project is organized as a monorepo with three main packages:
+- **client** – the editor and every feature (React, ProseMirror, the pagination engine, importers and exporters). Runs in a browser for development and inside the Mac app.
+- **mac** – the native macOS shell: a document-based SwiftUI app hosting the editor in a web view. Scripts are files on disk.
 
-- **client** – React front‑end that renders the UI.
-- **server** – Node.js/Express server for collaboration APIs.
-- **ai_service** – Python FastAPI microservice that powers AI features.
-
-Each package contains its own `README` with more details.
+There is no server: the app owns files, and the browser build keeps scripts in the browser's own storage while developing.
 
 ## Features
 
@@ -70,44 +67,12 @@ cd mac
 
 ## Quick Start
 
-1. **Install Dependencies**
-
-   ```bash
-   git clone <this‑repo>
-   cd <this‑repo>
-   npm install
-   ```
-
-   If you plan to run the AI service locally, also install the Python dependencies:
-
-   ```bash
-   cd ai_service
-   python3 -m venv .venv
-   source .venv/bin/activate
-   pip install -r requirements.txt
-   ```
-
-2. **Run the Application**
-
-   In separate terminals:
-
-   ```bash
-   # Start the API/collaboration server
-   npm run dev:server
-
-   # Start the Electron/Tauri client
-   npm run dev:client
-
-   # Run the AI service (optional)
-   cd ai_service
-   uvicorn main:app --reload
-   ```
-
-   The app will open in a desktop window.  By default, it connects to the local API server and AI service.
-
-3. **Environment Variables**
-
-   Create a `.env` file in the project root to configure ports, database connection strings and API keys (e.g., OpenAI API key).  See `.env.example` (to be provided) for defaults.  Never commit secrets to the repository.
+```bash
+npm run install:all      # root + client dependencies
+npm run dev              # the editor in a browser at http://localhost:3000 (scripts kept in browser storage)
+npm test                 # the editor's test suite
+npm run app:install      # build the Mac app and put it in /Applications (needs Xcode and XcodeGen)
+```
 
 ## Contributing
 

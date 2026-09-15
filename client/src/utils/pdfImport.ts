@@ -277,10 +277,30 @@ export function pdfLinesToScript(allLines: PdfLine[]): PdfImport {
   return { doc, ...meta };
 }
 
+/** WebKit's ReadableStream cannot be iterated with `for await`, which pdf.js relies on. */
+function polyfillStreamIteration(): void {
+  const proto = (globalThis as any).ReadableStream?.prototype;
+  if (!proto || Symbol.asyncIterator in proto) return;
+  proto[Symbol.asyncIterator] = async function* (this: ReadableStream) {
+    const reader = this.getReader();
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) return;
+        yield value;
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  };
+}
+
 /** Browser entry point: load pdf.js, extract, classify. */
 export async function importPdf(data: ArrayBuffer): Promise<PdfImport> {
-  // Loaded on demand so pdf.js stays out of the main bundle.
-  const [pdfjs, worker] = await Promise.all([import('pdfjs-dist'), import('pdfjs-dist/build/pdf.worker.min.mjs?url')]);
+  polyfillStreamIteration();
+  // Loaded on demand so pdf.js stays out of the main bundle. The legacy build
+  // is used because the modern one needs stream async-iteration that WebKit lacks.
+  const [pdfjs, worker] = await Promise.all([import('pdfjs-dist/legacy/build/pdf.mjs'), import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url')]);
   (pdfjs as any).GlobalWorkerOptions.workerSrc = worker.default;
   const lines = await extractPdfLines(data, pdfjs);
   return pdfLinesToScript(lines);

@@ -6,6 +6,7 @@ import { contentToDoc, contentToElements, elementsToText } from '../components/e
 import { docToFDX } from './fdx';
 import { docToFountain } from './fountain';
 import { layoutFromDoc } from '../components/editor-v2/pagination/fromDoc';
+import { isHosted, sendFileToHost } from '../host';
 
 function notify(message: string, kind: 'info' | 'success' | 'error'): () => void {
   const el = document.createElement('div');
@@ -23,6 +24,10 @@ function safeFilename(title: string, ext: string): string {
 }
 
 function downloadBlob(filename: string, blob: Blob): void {
+  if (isHosted()) {
+    void sendFileToHost(filename, blob);
+    return;
+  }
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

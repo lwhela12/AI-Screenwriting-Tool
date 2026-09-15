@@ -11,6 +11,7 @@ import { isHosted, installHostApi, postToHost, serializeDocument, HostDocument }
 import { ProjectManager, ScreenplayProject, isLocalProject, saveLocalProject } from './components/ProjectManager';
 import { ExportDialog } from './components/ExportDialog';
 import { apiFetch } from './api';
+import { exportToPDF, exportToFDX, exportToFountain, exportToText } from './utils/exporters';
 import type { TitlePageData } from './components/editor-v2/TitleSheet';
 import './App.css';
 
@@ -187,6 +188,15 @@ export const App: React.FC = () => {
       },
       setTheme: (name: string) => {
         document.documentElement.dataset.theme = name;
+      },
+      exportAs: format => {
+        const project = currentProjectRef.current;
+        if (!project) return;
+        const current = { ...project, content: contentRef.current || project.content };
+        if (format === 'pdf') void exportToPDF(current);
+        else if (format === 'fdx') exportToFDX(current);
+        else if (format === 'fountain') exportToFountain(current);
+        else exportToText(current);
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps

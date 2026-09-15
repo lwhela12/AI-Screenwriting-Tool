@@ -35,6 +35,12 @@
       <key>LSItemContentTypes</key><array><string>com.lucaswhelan.fountain</string></array>
     </dict>
     <dict>
+      <key>CFBundleTypeName</key><string>PDF Script</string>
+      <key>CFBundleTypeRole</key><string>Viewer</string>
+      <key>LSHandlerRank</key><string>None</string>
+      <key>LSItemContentTypes</key><array><string>com.adobe.pdf</string></array>
+    </dict>
+    <dict>
       <key>CFBundleTypeName</key><string>Plain Text Script</string>
       <key>CFBundleTypeRole</key><string>Editor</string>
       <key>LSHandlerRank</key><string>Alternate</string>

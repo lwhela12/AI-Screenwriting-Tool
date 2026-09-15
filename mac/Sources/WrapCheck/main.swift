@@ -15,8 +15,10 @@ guard args.count >= 3 else {
 }
 let webDir = URL(fileURLWithPath: args[1], isDirectory: true)
 let scriptURL = URL(fileURLWithPath: args[2])
-let format = args.count > 3 ? args[3] : (scriptURL.pathExtension.lowercased() == "fdx" ? "fdx" : scriptURL.pathExtension.lowercased() == "fountain" ? "fountain" : "screenplay")
-let text = try String(contentsOf: scriptURL, encoding: .utf8)
+let ext = scriptURL.pathExtension.lowercased()
+let format = args.count > 3 ? args[3] : (ext == "fdx" ? "fdx" : ext == "fountain" ? "fountain" : ext == "pdf" ? "pdf" : ext == "txt" ? "txt" : "screenplay")
+let fileData = try Data(contentsOf: scriptURL)
+let text = format == "pdf" ? fileData.base64EncodedString() : String(decoding: fileData, as: UTF8.self)
 
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
@@ -45,8 +47,8 @@ final class Runner {
         switch event {
         case .ready:
             bridge.load(ScriptLoad(text: text, format: format, title: scriptURL.lastPathComponent))
-            // Give React and the page layout a moment to settle before measuring.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [unowned self] in
+            // Give React and the page layout a moment to settle before measuring (PDF import takes longer).
+            DispatchQueue.main.asyncAfter(deadline: .now() + (format == "pdf" ? 8 : 2.5)) { [unowned self] in
                 bridge.requestWrapCheck()
             }
         case .wrapCheck(let result):

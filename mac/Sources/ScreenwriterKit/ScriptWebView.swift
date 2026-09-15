@@ -39,6 +39,8 @@ public enum HostEvent {
     case save
     case log(String)
     case wrapCheck([String: Any])
+    /// The page produced a file to save (an export).
+    case export(filename: String, mime: String, data: Data)
 }
 
 /// Serves the bundled editor over `screenwriter://web/...`. A real origin
@@ -141,6 +143,10 @@ public final class ScriptBridge: NSObject, WKScriptMessageHandler, WKNavigationD
             onEvent?(.log(body["message"] as? String ?? ""))
         case "wrapCheck":
             onEvent?(.wrapCheck(body["result"] as? [String: Any] ?? [:]))
+        case "export":
+            if let filename = body["filename"] as? String, let base64 = body["base64"] as? String, let data = Data(base64Encoded: base64) {
+                onEvent?(.export(filename: filename, mime: body["mime"] as? String ?? "application/octet-stream", data: data))
+            }
         default:
             break
         }
@@ -161,6 +167,11 @@ public final class ScriptBridge: NSObject, WKScriptMessageHandler, WKNavigationD
         call("window.__screenplay && window.__screenplay.wrapCheck()")
     }
 
+    /// Ask the page for an export; the file arrives as an `.export` event.
+    public func exportAs(_ format: String) {
+        call("window.__screenplay && window.__screenplay.exportAs(\(json(format)))")
+    }
+
     private func call(_ script: String) {
         webView?.evaluateJavaScript(script) { _, error in
             if let error { NSLog("bridge: %@", error.localizedDescription) }
@@ -176,16 +187,25 @@ public final class ScriptBridge: NSObject, WKScriptMessageHandler, WKNavigationD
     }
 }
 
+/// Hands a window's bridge to SwiftUI menu commands.
+@MainActor
+public final class ScriptBridgeBox: ObservableObject {
+    public weak var bridge: ScriptBridge?
+    public init() {}
+}
+
 /// SwiftUI wrapper: one web view per document window.
 public struct ScriptWebView: NSViewRepresentable {
     public var load: ScriptLoad
     public var theme: String
+    public var bridgeBox: ScriptBridgeBox?
     public var onChanged: (String) -> Void
     public var onSave: () -> Void
 
-    public init(load: ScriptLoad, theme: String, onChanged: @escaping (String) -> Void, onSave: @escaping () -> Void) {
+    public init(load: ScriptLoad, theme: String, bridgeBox: ScriptBridgeBox? = nil, onChanged: @escaping (String) -> Void, onSave: @escaping () -> Void) {
         self.load = load
         self.theme = theme
+        self.bridgeBox = bridgeBox
         self.onChanged = onChanged
         self.onSave = onSave
     }
@@ -199,6 +219,7 @@ public struct ScriptWebView: NSViewRepresentable {
             return WKWebView()
         }
         let view = ScriptBridge.makeWebView(bridge: coordinator.bridge, directory: directory)
+        bridgeBox?.bridge = coordinator.bridge
         coordinator.pendingLoad = load
         coordinator.theme = theme
         coordinator.onChanged = onChanged
@@ -257,6 +278,23 @@ public struct ScriptWebView: NSViewRepresentable {
                 NSLog("web: %@", message)
             case .wrapCheck:
                 break
+            case .export(let filename, _, let data):
+                Self.saveExport(filename: filename, data: data)
+            }
+        }
+
+        /// Standard save panel for an exported file.
+        static func saveExport(filename: String, data: Data) {
+            let panel = NSSavePanel()
+            panel.nameFieldStringValue = filename
+            panel.canCreateDirectories = true
+            panel.begin { response in
+                guard response == .OK, let url = panel.url else { return }
+                do {
+                    try data.write(to: url, options: .atomic)
+                } catch {
+                    NSAlert(error: error).runModal()
+                }
             }
         }
     }

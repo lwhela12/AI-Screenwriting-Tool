@@ -8,18 +8,34 @@ extension UTType {
     static let fountain = UTType(importedAs: "com.lucaswhelan.fountain", conformingTo: .plainText)
 }
 
+extension ScriptLoad {
+    /// PDFs travel to the page as base64; everything else as text.
+    init(document: ScriptDocument, title: String) {
+        if document.format == "pdf" {
+            self.init(text: document.data.base64EncodedString(), format: "pdf", title: title)
+        } else {
+            self.init(text: String(decoding: document.data, as: UTF8.self), format: document.format, title: title)
+        }
+    }
+}
+
 /// A script on disk. The web editor parses and serializes; this holds the
 /// bytes and knows which reader the page should use.
 struct ScriptDocument: FileDocument {
-    static var readableContentTypes: [UTType] { [.screenplayScript, .finalDraft, .fountain, .plainText] }
+    static var readableContentTypes: [UTType] { [.screenplayScript, .finalDraft, .fountain, .pdf, .plainText] }
     static var writableContentTypes: [UTType] { [.screenplayScript] }
 
-    var text: String
-    /// `screenplay`, `fdx`, `fountain` or `txt`.
+    var data: Data
+    /// `screenplay`, `fdx`, `fountain`, `pdf` or `txt`.
     var format: String
 
+    var text: String {
+        get { String(decoding: data, as: UTF8.self) }
+        set { data = Data(newValue.utf8) }
+    }
+
     init(text: String = "", format: String = "screenplay") {
-        self.text = text
+        self.data = Data(text.utf8)
         self.format = format
     }
 
@@ -27,22 +43,23 @@ struct ScriptDocument: FileDocument {
         guard let data = configuration.file.regularFileContents else {
             throw CocoaError(.fileReadCorruptFile)
         }
-        text = String(decoding: data, as: UTF8.self)
+        self.data = data
         let type = configuration.contentType
-        if type.conforms(to: .screenplayScript) {
+        let head = String(decoding: data.prefix(64), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        if type.conforms(to: .pdf) || head.hasPrefix("%PDF") {
+            format = "pdf"
+        } else if type.conforms(to: .screenplayScript) || head.hasPrefix("{") {
             format = "screenplay"
-        } else if type.conforms(to: .finalDraft) || text.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("<") {
+        } else if type.conforms(to: .finalDraft) || head.hasPrefix("<") {
             format = "fdx"
         } else if type.conforms(to: .fountain) {
             format = "fountain"
-        } else if text.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("{") {
-            format = "screenplay"
         } else {
             format = "txt"
         }
     }
 
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        FileWrapper(regularFileWithContents: Data(text.utf8))
+        FileWrapper(regularFileWithContents: data)
     }
 }

@@ -15,9 +15,22 @@ enum AppTheme: String, CaseIterable, Identifiable {
     }
 }
 
+/// The focused window's bridge, so menu commands can reach its page.
+struct FocusedBridgeKey: FocusedValueKey {
+    typealias Value = ScriptBridgeBox
+}
+
+extension FocusedValues {
+    var scriptBridge: ScriptBridgeBox? {
+        get { self[FocusedBridgeKey.self] }
+        set { self[FocusedBridgeKey.self] = newValue }
+    }
+}
+
 @main
 struct ScreenwriterApp: App {
     @AppStorage("theme") private var theme = AppTheme.paper.rawValue
+    @FocusedValue(\.scriptBridge) private var focusedBridge
 
     var body: some Scene {
         DocumentGroup(newDocument: ScriptDocument()) { configuration in
@@ -26,6 +39,15 @@ struct ScreenwriterApp: App {
         }
         .defaultSize(width: 1440, height: 900)
         .commands {
+            CommandGroup(after: .saveItem) {
+                Menu("Export") {
+                    Button("PDF…") { focusedBridge?.bridge?.exportAs("pdf") }
+                    Button("Final Draft (.fdx)…") { focusedBridge?.bridge?.exportAs("fdx") }
+                    Button("Fountain…") { focusedBridge?.bridge?.exportAs("fountain") }
+                    Button("Plain Text…") { focusedBridge?.bridge?.exportAs("txt") }
+                }
+                .disabled(focusedBridge?.bridge == nil)
+            }
             CommandMenu("View") {
                 Picker("Theme", selection: $theme) {
                     ForEach(AppTheme.allCases) { t in
@@ -42,6 +64,7 @@ private struct ScriptWindow: View {
     @Binding var document: ScriptDocument
     let fileURL: URL?
     let theme: String
+    @StateObject private var bridgeBox = ScriptBridgeBox()
 
     private var title: String {
         fileURL?.deletingPathExtension().lastPathComponent ?? "Untitled"
@@ -49,8 +72,9 @@ private struct ScriptWindow: View {
 
     var body: some View {
         ScriptWebView(
-            load: ScriptLoad(text: document.text, format: document.format, title: title),
+            load: ScriptLoad(document: document, title: title),
             theme: theme,
+            bridgeBox: bridgeBox,
             onChanged: { text in
                 // The page hands back the whole serialized document on every change.
                 document.text = text
@@ -61,5 +85,6 @@ private struct ScriptWindow: View {
             }
         )
         .ignoresSafeArea()
+        .focusedSceneValue(\.scriptBridge, bridgeBox)
     }
 }

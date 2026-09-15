@@ -1,24 +1,16 @@
 {
   "name": "ai-screenwriting-tool",
   "version": "1.0.0",
-  "description": "AI-powered screenwriting tool with professional script editor",
+  "description": "Screenwriting app: page-accurate screenplay editor with outlining, beats and reports; macOS shell in mac/",
   "private": true,
   "scripts": {
-    "dev": "concurrently -n \"server,client,ai\" -c \"blue,green,yellow\" \"npm run dev:server\" \"npm run dev:client\" \"npm run dev:ai\"",
-    "dev:server": "cd server && npm run dev",
-    "dev:client": "cd client && npm run dev",
-    "dev:ai": "cd ai_service && python -m uvicorn app:app --reload --port 8000",
-    "install:all": "npm install && cd server && npm install && cd ../client && npm install && cd ../ai_service && pip install -r requirements.txt",
-    "install:node": "npm install && cd server && npm install && cd ../client && npm install",
-    "build": "npm run build:server && npm run build:client",
-    "build:server": "cd server && npm run build",
-    "build:client": "cd client && npm run build",
-    "start": "concurrently -n \"server,ai\" -c \"blue,yellow\" \"npm run start:server\" \"npm run start:ai\"",
-    "start:server": "cd server && npm start",
-    "start:client": "cd client && npm run preview",
-    "start:ai": "cd ai_service && python -m uvicorn app:app --port 8000",
-    "clean": "rm -rf node_modules server/node_modules client/node_modules server/dist client/dist",
-    "clean:install": "npm run clean && npm run install:all"
+    "dev": "cd client && npm run dev",
+    "build": "cd client && npm run build",
+    "test": "cd client && npm test",
+    "typecheck": "cd client && npm run typecheck",
+    "install:all": "npm install && cd client && npm install",
+    "app": "cd mac && ./build-app.sh",
+    "app:install": "cd mac && ./build-app.sh --install"
   },
   "devDependencies": {
     "concurrently": "^8.2.0"
