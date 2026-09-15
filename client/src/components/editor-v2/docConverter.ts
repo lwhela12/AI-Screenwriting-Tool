@@ -19,6 +19,7 @@ const ELEMENT_TO_EXPORT: Record<ElementType, ScreenplayElement['type']> = {
   parenthetical: 'parenthetical',
   dialogue: 'dialogue',
   transition: 'transition',
+  shot: 'scene-heading',
   centered: 'action'
 };
 

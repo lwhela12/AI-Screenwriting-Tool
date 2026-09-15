@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { apiFetch } from '../api';
+import { parseFDX } from '../utils/fdx';
+import { docToContent } from './editor-v2/docConverter';
 import './ProjectManager.css';
 
 export interface ScreenplayProject {
@@ -66,10 +68,47 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({ onProjectSelect 
   const [newProjectTitle, setNewProjectTitle] = useState('');
   const [newProjectAuthor, setNewProjectAuthor] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     void loadProjects();
   }, []);
+
+  /** Create a project (on the server, or locally when it is unreachable) and open it. */
+  const createProject = async (draft: Omit<ScreenplayProject, 'id' | 'createdAt' | 'updatedAt'>): Promise<ScreenplayProject | null> => {
+    const now = new Date().toISOString();
+    try {
+      return await apiFetch<ScreenplayProject>('/screenplays', { method: 'POST', body: JSON.stringify(draft) });
+    } catch (err: any) {
+      if (!(err instanceof TypeError)) {
+        setError(`Could not create screenplay: ${err?.message || 'unknown error'}`);
+        return null;
+      }
+      const project = { ...draft, id: newLocalId(), createdAt: now, updatedAt: now };
+      saveLocalProject(project);
+      return project;
+    }
+  };
+
+  const importFDX = async (file: File) => {
+    try {
+      const xml = await file.text();
+      const imported = parseFDX(xml);
+      const fallbackTitle = file.name.replace(/\.(fdx|xml)$/i, '');
+      const project = await createProject({
+        title: imported.title || fallbackTitle,
+        author: imported.author || '',
+        contact: imported.contact,
+        content: docToContent(imported.doc),
+        format: 'screenplay'
+      });
+      if (!project) return;
+      setProjects(prev => [project, ...prev]);
+      onProjectSelect(project);
+    } catch (err: any) {
+      setError(`Could not import "${file.name}": ${err?.message || 'unknown error'}`);
+    }
+  };
 
   const loadProjects = async () => {
     const local = loadLocalProjects();
@@ -93,7 +132,6 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({ onProjectSelect 
 
   const createNewProject = async () => {
     if (!newProjectTitle.trim()) return;
-    const now = new Date().toISOString();
     const draft = {
       title: newProjectTitle.trim(),
       author: newProjectAuthor.trim(),
@@ -101,17 +139,8 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({ onProjectSelect 
       format: 'screenplay'
     };
 
-    let project: ScreenplayProject;
-    try {
-      project = await apiFetch<ScreenplayProject>('/screenplays', { method: 'POST', body: JSON.stringify(draft) });
-    } catch (err: any) {
-      if (!(err instanceof TypeError)) {
-        setError(`Could not create screenplay: ${err?.message || 'unknown error'}`);
-        return;
-      }
-      project = { ...draft, id: newLocalId(), createdAt: now, updatedAt: now };
-      saveLocalProject(project);
-    }
+    const project = await createProject(draft);
+    if (!project) return;
 
     setProjects(prev => [project, ...prev]);
     setShowNewDialog(false);
@@ -162,6 +191,20 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({ onProjectSelect 
           <span className="icon">+</span>
           New Screenplay
         </button>
+        <button className="btn-secondary" onClick={() => fileInput.current?.click()} title="Import a Final Draft .fdx file">
+          Import .fdx
+        </button>
+        <input
+          ref={fileInput}
+          type="file"
+          accept=".fdx,.xml,application/xml,text/xml"
+          style={{ display: 'none' }}
+          onChange={e => {
+            const file = e.target.files?.[0];
+            e.target.value = '';
+            if (file) void importFDX(file);
+          }}
+        />
       </div>
 
       <div className="project-list">

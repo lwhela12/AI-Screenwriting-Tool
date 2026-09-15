@@ -16,6 +16,7 @@ export type ElementType =
   | 'parenthetical'
   | 'dialogue'
   | 'transition'
+  | 'shot'
   | 'centered';
 
 /** Order used for the element menu and for Shift-Tab cycling. */
@@ -26,6 +27,7 @@ export const ELEMENT_ORDER: ElementType[] = [
   'parenthetical',
   'dialogue',
   'transition',
+  'shot',
   'centered'
 ];
 
@@ -36,11 +38,12 @@ export const ELEMENT_LABELS: Record<ElementType, string> = {
   parenthetical: 'Parenthetical',
   dialogue: 'Dialogue',
   transition: 'Transition',
+  shot: 'Shot',
   centered: 'Centered'
 };
 
 /** Element types whose text is always upper case. */
-export const UPPERCASE_ELEMENTS: ReadonlySet<string> = new Set(['scene_heading', 'character', 'transition']);
+export const UPPERCASE_ELEMENTS: ReadonlySet<string> = new Set(['scene_heading', 'character', 'transition', 'shot']);
 
 /**
  * Final Draft style element flow.
@@ -54,6 +57,7 @@ export const ELEMENT_FLOW: Record<ElementType, { enter: ElementType; tab: Elemen
   parenthetical: { enter: 'dialogue', tab: 'dialogue' },
   dialogue: { enter: 'action', tab: 'parenthetical' },
   transition: { enter: 'scene_heading', tab: 'scene_heading' },
+  shot: { enter: 'action', tab: 'action' },
   centered: { enter: 'action', tab: 'action' }
 };
 
@@ -73,9 +77,29 @@ export const screenplaySchema = new Schema({
       content: 'block+'
     },
 
-    scene_heading: textBlock('scene-heading', 'h2'),
+    scene_heading: {
+      content: 'text*',
+      group: 'block',
+      attrs: { number: { default: null } }, // scene number from Final Draft, e.g. "12" or "A12"
+      parseDOM: [{ tag: 'h2.scene-heading', getAttrs: (dom: any) => ({ number: dom.getAttribute('data-number') || null }) }],
+      toDOM(node) {
+        const attrs: Record<string, string> = { class: 'scene-heading' };
+        if (node.attrs.number) attrs['data-number'] = node.attrs.number;
+        return ['h2', attrs, 0];
+      }
+    },
     action: textBlock('action', 'p'),
-    character: textBlock('character'),
+    character: {
+      content: 'text*',
+      group: 'block',
+      attrs: { dual: { default: null } }, // 'left' | 'right' when part of a dual-dialogue pair
+      parseDOM: [{ tag: 'div.character', getAttrs: (dom: any) => ({ dual: dom.getAttribute('data-dual') || null }) }],
+      toDOM(node) {
+        const attrs: Record<string, string> = { class: 'character' };
+        if (node.attrs.dual) attrs['data-dual'] = node.attrs.dual;
+        return ['div', attrs, 0];
+      }
+    },
     parenthetical: textBlock('parenthetical'),
     dialogue: textBlock('dialogue'),
     transition: {
@@ -88,6 +112,7 @@ export const screenplaySchema = new Schema({
         return ['div', { class: flushLeft ? 'transition transition-left' : 'transition' }, 0];
       }
     },
+    shot: textBlock('shot', 'h3'),
     centered: textBlock('centered'),
 
     page_break: {

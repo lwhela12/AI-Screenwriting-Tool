@@ -113,7 +113,7 @@ export function elementMenuPlugin(): Plugin<ElementMenuState> {
             return true;
         }
 
-        if (/^[1-7]$/.test(event.key) && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        if (/^[1-9]$/.test(event.key) && Number(event.key) <= count && !event.metaKey && !event.ctrlKey && !event.altKey) {
           event.preventDefault();
           choose(view, Number(event.key) - 1);
           return true;

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { b, outline } from './helpers';
 import { contentToDoc, docToContent, docToElements, contentToElements, elementsToText } from '../src/components/editor-v2/docConverter';
-import { elementsToFDX } from '../src/utils/exporters';
+import { docToFDX } from '../src/utils/fdx';
 
 const legacyText = `INT. KITCHEN - DAY
 
@@ -70,7 +70,7 @@ describe('export elements', () => {
     const content = docToContent(b.doc(b.sh('INT. A - DAY'), b.ch('BOB'), b.d('Hi.')));
     const elements = contentToElements(content);
     expect(elements.map(e => e.type)).toEqual(['scene-heading', 'character', 'dialogue']);
-    const fdx = elementsToFDX(elements, { title: 'Test & Co' });
+    const fdx = docToFDX(contentToDoc(content), { title: 'Test & Co' });
     expect(fdx).toContain('<Paragraph Type="Scene Heading">');
     expect(fdx).toContain('<Paragraph Type="Dialogue">');
     expect(fdx).toContain('TEST &amp; CO');

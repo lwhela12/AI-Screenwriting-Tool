@@ -20,6 +20,7 @@ export type LayoutElementType =
   | 'parenthetical'
   | 'dialogue'
   | 'transition'
+  | 'shot'
   | 'centered'
   | 'page_break';
 
@@ -50,6 +51,7 @@ export const COLUMNS: Record<LayoutElementType | 'more' | 'contd', { indent: num
   parenthetical: { indent: 16, width: 25 },
   dialogue: { indent: 10, width: 35 },
   transition: { indent: 40, width: 20, align: 'right' },
+  shot: { indent: 0, width: 60 },
   centered: { indent: 0, width: 60, align: 'center' },
   page_break: { indent: 0, width: 60 },
   more: { indent: 16, width: 25 },
@@ -231,7 +233,7 @@ class Paginator {
     const spacer = this.spacerFor(index);
     const lines = el.lines.length;
     let keep = 0;
-    if (el.type === 'scene_heading') keep = this.keepWithNextRows(index) + 1; // +1 for the blank before it
+    if (el.type === 'scene_heading' || el.type === 'shot') keep = this.keepWithNextRows(index) + 1; // +1 for the blank before it
 
     if (spacer + lines + keep <= this.remaining) {
       this.placeWhole(index);
@@ -288,7 +290,7 @@ class Paginator {
     if (!last || last.kind !== 'text') return false;
     const prevIndex = last.elementIndex;
     const prevEl = this.elements[prevIndex];
-    if (prevEl.type === 'scene_heading' || prevEl.type === 'transition' || prevEl.type === 'page_break') return false;
+    if (prevEl.type === 'scene_heading' || prevEl.type === 'shot' || prevEl.type === 'transition' || prevEl.type === 'page_break') return false;
     let start = this.rows.length;
     while (start > 0 && this.rows[start - 1].elementIndex === prevIndex && this.rows[start - 1].kind === 'text') start--;
     const movedRows = this.rows.length - start;

@@ -36,12 +36,14 @@ The script editor follows Final Draft's typing model. The document is a flat lis
 | **Tab** | Scene Heading: adds ` - ` for the time, then moves to Action. Action → Character, Character → Parenthetical, Parenthetical → Dialogue, Dialogue → Parenthetical, Transition → Scene Heading. An empty element is converted in place instead of creating a new one |
 | **Shift-Tab** | Cycles the current element to the previous type |
 | **Backspace** at start of element | Removes an empty element, or joins the text onto the previous element |
-| **⌘1 – ⌘7** (Ctrl on Windows) | Scene Heading, Action, Character, Parenthetical, Dialogue, Transition, Centered |
+| **⌘1 – ⌘8** (Ctrl on Windows) | Scene Heading, Action, Character, Parenthetical, Dialogue, Transition, Shot, Centered |
 | **⌘S** | Save (autosave also runs three seconds after you stop typing) |
 
 Auto-formatting only touches what you just typed: scene headings, character names and transitions are upper-cased as you type; `int.`/`ext.` at the start of an action line becomes a scene heading; a line ending in `TO:` becomes a transition; `> text <` becomes centered text; `(` in an empty dialogue element starts a parenthetical. SmartType suggests known characters, locations, times and transitions (Tab or Enter accepts, Escape dismisses).
 
 Pagination follows the industry rules: 55 lines of 12pt Courier per page, dialogue that crosses a page gets `(MORE)` and a `NAME (CONT'D)` cue, scene headings and character cues are never stranded at the bottom of a page, action never leaves a single line behind, and transitions stay with what precedes them. The same engine drives the on-screen page gaps, the page counter, and the PDF export, so they always agree.
+
+Final Draft files can be imported from the project screen (**Import .fdx**). Scene numbers, dual dialogue, centered text, page breaks, bold/italic/underline and the title page are preserved, and the FDX export writes them back.
 
 Run the editor tests with `cd client && npm test`.
 

@@ -2,7 +2,8 @@ import React from 'react';
 import { pdf } from '@react-pdf/renderer';
 import { ScreenplayProject } from '../components/ProjectManager';
 import { ScreenplayDocument, ScreenplayData, ScreenplayElement } from './screenplayPDF';
-import { contentToElements, elementsToText } from '../components/editor-v2/docConverter';
+import { contentToDoc, contentToElements, elementsToText } from '../components/editor-v2/docConverter';
+import { docToFDX } from './fdx';
 import { layoutElements, LayoutElementType } from '../components/editor-v2/pagination/layout';
 
 const EXPORT_TO_LAYOUT: Record<ScreenplayElement['type'], LayoutElementType> = {
@@ -71,46 +72,8 @@ export async function exportToPDF(project: ScreenplayProject): Promise<void> {
   }
 }
 
-const FDX_TYPES: Record<ScreenplayElement['type'], string> = {
-  'scene-heading': 'Scene Heading',
-  action: 'Action',
-  character: 'Character',
-  parenthetical: 'Parenthetical',
-  dialogue: 'Dialogue',
-  transition: 'Transition'
-};
-
-function escapeXML(text: string): string {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
-}
-
-/** Build a Final Draft XML document from export elements. */
-export function elementsToFDX(elements: ScreenplayElement[], meta: { title: string; author?: string; contact?: string }): string {
-  const paragraphs = elements
-    .map(el => `    <Paragraph Type="${FDX_TYPES[el.type]}">\n      <Text>${escapeXML(el.text)}</Text>\n    </Paragraph>`)
-    .join('\n');
-
-  const titleLines = [meta.title.toUpperCase(), '', 'Written by', '', meta.author || '']
-    .concat(meta.contact ? ['', '', ...meta.contact.split('\n')] : [])
-    .map(line => `      <Paragraph Alignment="Center">\n        <Text>${escapeXML(line)}</Text>\n      </Paragraph>`)
-    .join('\n');
-
-  return `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<FinalDraft DocumentType="Script" Template="No" Version="5">
-  <Content>
-${paragraphs}
-  </Content>
-  <TitlePage>
-    <Content>
-${titleLines}
-    </Content>
-  </TitlePage>
-</FinalDraft>
-`;
-}
-
 export function exportToFDX(project: ScreenplayProject): void {
-  const fdx = elementsToFDX(contentToElements(project.content), project);
+  const fdx = docToFDX(contentToDoc(project.content), project);
   downloadText(safeFilename(project.title, 'fdx'), fdx, 'application/xml');
 }
 

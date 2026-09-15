@@ -113,6 +113,26 @@
   width: 60ch;
 }
 
+.ProseMirror.screenplay .shot {
+  text-transform: uppercase;
+  font-weight: normal;
+  width: 60ch;
+}
+
+/* Scene numbers (from Final Draft) sit in the left margin. */
+.ProseMirror.screenplay .scene-heading[data-number]::before {
+  content: attr(data-number);
+  position: absolute;
+  left: -1in;
+  width: 0.8in;
+  text-align: right;
+  color: #6b7280;
+}
+
+.ProseMirror.screenplay .scene-heading {
+  position: relative;
+}
+
 .ProseMirror.screenplay .action {
   width: 60ch;
 }
