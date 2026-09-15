@@ -57,6 +57,17 @@ Scripts can be imported from the project screen (**Import script…**): Final Dr
 
 Run the editor tests with `cd client && npm test`.
 
+## macOS App
+
+The native Mac app lives in `mac/`: a SwiftUI document-based shell around the same web editor, built with XcodeGen and Xcode. Scripts are files on disk (`.screenplay`, our JSON format), and Final Draft `.fdx`, Fountain and plain-text files open directly.
+
+```bash
+cd mac
+./build-app.sh              # builds client/ and Screenwriter.app into mac/.build
+./build-app.sh --install    # also copies it to /Applications
+./build-app.sh --check path/to/script.fdx   # verifies WebKit wraps every line exactly as the pagination engine does
+```
+
 ## Quick Start
 
 1. **Install Dependencies**

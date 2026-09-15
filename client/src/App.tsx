@@ -7,6 +7,7 @@ import OutlineView from './components/OutlineView';
 import ReportsView from './components/ReportsView';
 import { jumpToScene, SceneInfo } from './components/editor-v2/scenes';
 import type { BeatBoardData } from './components/beats';
+import { isHosted, installHostApi, postToHost, serializeDocument, HostDocument } from './host';
 import { ProjectManager, ScreenplayProject, isLocalProject, saveLocalProject } from './components/ProjectManager';
 import { ExportDialog } from './components/ExportDialog';
 import { apiFetch } from './api';
@@ -35,7 +36,7 @@ type SaveState =
   | { kind: 'local'; at: Date }
   | { kind: 'error'; message: string };
 
-const AUTOSAVE_DELAY_MS = 3000;
+const AUTOSAVE_DELAY_MS = isHosted() ? 400 : 3000;
 
 function describeSave(state: SaveState): { text: string; className: string } {
   const time = (d: Date) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -53,10 +54,13 @@ function describeSave(state: SaveState): { text: string; className: string } {
   }
 }
 
+const HOSTED = isHosted();
+
 export const App: React.FC = () => {
   const [activeView, setActiveView] = useState<ViewType>('editor');
   const [currentProject, setCurrentProject] = useState<ScreenplayProject | null>(null);
-  const [showProjectManager, setShowProjectManager] = useState(true);
+  const [showProjectManager, setShowProjectManager] = useState(!HOSTED);
+  const [hostGeneration, setHostGeneration] = useState(0);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>({ kind: 'clean' });
   const [editorState, setEditorState] = useState<EditorState | null>(null);
@@ -82,9 +86,23 @@ export const App: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /** In the native app the host owns the file: every change is handed over as the serialized document. */
+  const hostDocument = (): HostDocument | null => {
+    const project = currentProjectRef.current;
+    if (!project) return null;
+    return { title: project.title, author: project.author || '', contact: project.contact || '', content: contentRef.current || project.content, beats: beatsRef.current ?? null };
+  };
+
   const save = useCallback(async (): Promise<boolean> => {
     const project = currentProjectRef.current;
     if (!project) return true;
+    if (HOSTED) {
+      const doc = hostDocument();
+      if (doc) postToHost({ type: 'changed', text: serializeDocument(doc) });
+      dirtyRef.current = false;
+      setSaveState({ kind: 'clean', at: new Date() });
+      return true;
+    }
     if (!dirtyRef.current) return true;
     if (savingRef.current) {
       // A save is in flight; the dirty flag will trigger another pass when it finishes.
@@ -145,6 +163,34 @@ export const App: React.FC = () => {
 
   const currentProjectRef = useRef<ScreenplayProject | null>(null);
   currentProjectRef.current = currentProject;
+
+  // Native host: expose the bridge once; the host loads the document through it.
+  useEffect(() => {
+    if (!HOSTED) return;
+    installHostApi({
+      getView: () => editorViewRef.current,
+      getDocument: hostDocument,
+      loadDocument: (doc: HostDocument) => {
+        const now = new Date().toISOString();
+        const project: ScreenplayProject = { id: `host-${Date.now()}`, title: doc.title || 'Untitled', author: doc.author, contact: doc.contact, content: doc.content, beats: doc.beats, createdAt: now, updatedAt: now };
+        currentProjectRef.current = project;
+        setCurrentProject(project);
+        contentRef.current = project.content;
+        beatsRef.current = project.beats ?? null;
+        setBeats(project.beats ?? null);
+        dirtyRef.current = false;
+        setEditorState(null);
+        editorViewRef.current = null;
+        setShowProjectManager(false);
+        setActiveView('editor');
+        setHostGeneration(g => g + 1);
+      },
+      setTheme: (name: string) => {
+        document.documentElement.dataset.theme = name;
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleProjectSelect = (project: ScreenplayProject) => {
     setCurrentProject(project);
@@ -234,6 +280,9 @@ export const App: React.FC = () => {
   if (showProjectManager) {
     return <ProjectManager onProjectSelect={handleProjectSelect} />;
   }
+  if (HOSTED && !currentProject) {
+    return <div className="app-container" />; // the host is about to hand us the document
+  }
 
   const saveInfo = describeSave(saveState);
 
@@ -257,9 +306,11 @@ export const App: React.FC = () => {
           ))}
         </nav>
         <div className="header-actions">
-          <button className="action-button" title="Projects" onClick={() => void openProjects()}>
-            📁
-          </button>
+          {!HOSTED && (
+            <button className="action-button" title="Projects" onClick={() => void openProjects()}>
+              📁
+            </button>
+          )}
           <button
             className={`action-button ${saveState.kind === 'dirty' || saveState.kind === 'error' ? 'unsaved' : ''}`}
             title="Save (⌘S)"
@@ -278,7 +329,7 @@ export const App: React.FC = () => {
         <div className={`view-container ${activeView === 'editor' ? 'active' : ''}`}>
           {currentProject && (
             <ProseMirrorEditor
-              key={currentProject.id}
+              key={`${currentProject.id}-${hostGeneration}`}
               initialContent={contentRef.current}
               onContentChange={handleContentChange}
               titlePage={{ title: currentProject.title, author: currentProject.author || '', contact: currentProject.contact || '' }}

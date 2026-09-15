@@ -1,0 +1,49 @@
+# XcodeGen spec — regenerate with `xcodegen generate` (build-app.sh does it).
+# The editor itself is the web build in client/; build-app.sh copies
+# client/dist to mac/web, which ships inside the bundle as Resources/web.
+name: Screenwriter
+options:
+  bundleIdPrefix: com.lucaswhelan
+  deploymentTarget:
+    macOS: "15.0"
+  createIntermediateGroups: true
+  xcodeVersion: "26.3"
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    ENABLE_USER_SCRIPT_SANDBOXING: true
+
+targets:
+  Screenwriter:
+    type: application
+    platform: macOS
+    scheme: {}
+    sources:
+      - path: Sources/ScreenwriterApp
+        excludes:
+          - "Info.plist"
+      - path: Sources/ScreenwriterKit
+      - path: web
+        type: folder
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_NAME: Screenwriter
+        PRODUCT_BUNDLE_IDENTIFIER: com.lucaswhelan.screenwriter
+        INFOPLIST_FILE: Sources/ScreenwriterApp/Info.plist
+        GENERATE_INFOPLIST_FILE: false
+        ENABLE_HARDENED_RUNTIME: true
+        CODE_SIGN_ENTITLEMENTS: App/Screenwriter.entitlements
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+  wrapcheck:
+    type: tool
+    platform: macOS
+    scheme: {}
+    sources:
+      - path: Sources/WrapCheck
+      - path: Sources/ScreenwriterKit
+    settings:
+      base:
+        PRODUCT_NAME: wrapcheck
