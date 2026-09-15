@@ -7,10 +7,11 @@ import { baseKeymap } from 'prosemirror-commands';
 import { dropCursor } from 'prosemirror-dropcursor';
 import { gapCursor } from 'prosemirror-gapcursor';
 import { screenplayKeymap } from './plugins/screenplayKeymap';
-import { pageViewPlugin, estimateLayout } from './plugins/pageView';
+import { pageViewPlugin, pageStatus } from './plugins/pageView';
 import { smartTypePlugin, completionPlugin } from './plugins/smartType';
 import { autoFormatPlugin } from './plugins/autoFormat';
 import { elementMenuPlugin } from './plugins/elementMenu';
+import { clipboardPlugin } from './plugins/clipboard';
 import { contentToDoc, docToContent } from './docConverter';
 import { ELEMENT_LABELS, isElementType } from './schema/screenplaySchema';
 import './ProseMirrorEditor.css';
@@ -31,16 +32,11 @@ interface Status {
 function statusFor(state: EditorState): Status {
   const { $from } = state.selection;
   const typeName = $from.parent.type.name;
-  const layout = estimateLayout(state.doc);
-  let page = 1;
-  for (const pos of layout.breaks) {
-    if ($from.pos >= pos) page += 1;
-    else break;
-  }
+  const { page, pageCount } = pageStatus(state);
   return {
     element: isElementType(typeName) ? ELEMENT_LABELS[typeName] : '',
     page,
-    pageCount: layout.pageCount
+    pageCount
   };
 }
 
@@ -64,6 +60,7 @@ export const ProseMirrorEditor: React.FC<ProseMirrorEditorProps> = ({ initialCon
         keymap(screenplayKeymap),
         keymap(baseKeymap),
         autoFormatPlugin(),
+        clipboardPlugin(),
         dropCursor(),
         gapCursor(),
         pageViewPlugin
@@ -104,7 +101,6 @@ export const ProseMirrorEditor: React.FC<ProseMirrorEditorProps> = ({ initialCon
           <span className="toolbar-element">{status.element}</span>
           <span className="toolbar-sep">•</span>
           Page {status.page} of {status.pageCount}
-          <span className="toolbar-hint">(estimated)</span>
         </span>
         <span className="toolbar-hint">Enter on an empty line opens the element menu · ⌘1–⌘7 set element type</span>
       </div>

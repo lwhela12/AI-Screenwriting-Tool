@@ -1,89 +1,106 @@
 import { ScreenplayElement } from './screenplayPDF';
 
-export interface ParseOptions {
-  strictMode?: boolean; // If true, enforces stricter parsing rules
-}
-
+/**
+ * Infers screenplay elements from plain text.
+ *
+ * Two shapes of input are recognised:
+ *
+ *  - "paragraph" text, where each line is a whole element (what Final Draft
+ *    and most editors put on the clipboard). Detected when any line is longer
+ *    than a printed line could be, or when there are no blank lines at all.
+ *  - "wrapped" text, such as a .txt export, where elements are separated by
+ *    blank lines and long elements are hard-wrapped over several lines.
+ *
+ * Indentation, when present, is used as a further hint: deeply indented
+ * capitals are character cues, indented text is dialogue.
+ */
 export class ScreenplayParser {
-  private static readonly SCENE_HEADING_PREFIXES = [
-    'INT.', 'EXT.', 'INT./EXT.', 'EXT./INT.', 'I/E.', 'E/I.',
-    'INT ', 'EXT ', 'INT./EXT ', 'EXT./INT ', 'I/E ', 'E/I '
-  ];
-  
-  private static readonly TRANSITIONS = [
-    'CUT TO:', 'FADE IN:', 'FADE OUT:', 'FADE TO:', 'DISSOLVE TO:',
-    'MATCH CUT TO:', 'SMASH CUT TO:', 'TIME CUT TO:', 'INTERCUT:',
-    'FADE TO BLACK:', 'FADE TO WHITE:', 'CUT TO BLACK:', 'END OF ACT',
-    'CONTINUED:', 'MONTAGE:', 'SERIES OF SHOTS:', 'BACK TO:'
-  ];
+  private static readonly SCENE_HEADING_RE = /^(INT|EXT|EST|INT\.?\/EXT|EXT\.?\/INT|I\/E|E\/I)[.\s]/i;
 
-  private static readonly EXTENSIONS = [
-    '(V.O.)', '(O.S.)', '(O.C.)', '(CONT\'D)', '(CONT.)', 
-    '(V.O)', '(O.S)', '(O.C)', '(CONTD)', '(CONT)', '(VO)', '(OS)', '(OC)'
-  ];
+  private static readonly TRANSITIONS = new Set([
+    'CUT TO:', 'FADE IN:', 'FADE OUT.', 'FADE OUT:', 'FADE TO:', 'FADE TO BLACK.', 'FADE TO BLACK:', 'FADE TO WHITE.',
+    'DISSOLVE TO:', 'MATCH CUT TO:', 'SMASH CUT TO:', 'SMASH CUT:', 'JUMP CUT TO:', 'TIME CUT TO:', 'TIME CUT:',
+    'INTERCUT:', 'INTERCUT WITH:', 'CUT TO BLACK.', 'CUT TO BLACK:', 'BACK TO:', 'WIPE TO:', 'IRIS IN:', 'IRIS OUT.',
+    'END OF ACT', 'THE END'
+  ]);
 
-  static parse(scriptText: string, options: ParseOptions = {}): ScreenplayElement[] {
-    const lines = scriptText.split('\n');
+  static parse(scriptText: string): ScreenplayElement[] {
+    const rawLines = scriptText.replace(/\r\n?/g, '\n').split('\n');
+    const nonEmpty = rawLines.filter(l => l.trim().length > 0);
+    if (nonEmpty.length === 0) return [];
+
+    const hasBlank = rawLines.some((l, i) => l.trim().length === 0 && i > 0 && i < rawLines.length - 1);
+    const maxLen = Math.max(...nonEmpty.map(l => l.trim().length));
+    const paragraphMode = maxLen > 65 || !hasBlank;
+    const hasIndent = nonEmpty.some(l => /^\s{4,}\S/.test(l));
+
     const elements: ScreenplayElement[] = [];
+    let prev: ScreenplayElement['type'] | null = null;
     let inDialogue = false;
-    let lastCharacter = '';
 
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      const trimmedLine = line.trim();
-      
-      // Skip empty lines
-      if (!trimmedLine) {
+    for (let i = 0; i < rawLines.length; i++) {
+      const line = rawLines[i];
+      const trimmed = line.trim();
+      if (!trimmed) {
+        inDialogue = false;
+        prev = null;
+        continue;
+      }
+      const indent = line.length - line.trimStart().length;
+      const push = (type: ScreenplayElement['type'], text: string) => {
+        elements.push({ type, text });
+        prev = type;
+      };
+
+      if (this.isSceneHeading(trimmed)) {
+        push('scene-heading', trimmed.toUpperCase());
         inDialogue = false;
         continue;
       }
 
-      // Check for scene heading
-      if (this.isSceneHeading(trimmedLine)) {
-        elements.push({ type: 'scene-heading', text: trimmedLine.toUpperCase() });
+      if (this.isTransition(trimmed)) {
+        push('transition', trimmed.toUpperCase());
         inDialogue = false;
         continue;
       }
 
-      // Check for transition
-      if (this.isTransition(trimmedLine)) {
-        elements.push({ type: 'transition', text: trimmedLine.toUpperCase() });
-        inDialogue = false;
+      if (this.isParenthetical(trimmed) && (prev === 'character' || prev === 'dialogue' || prev === 'parenthetical')) {
+        push('parenthetical', trimmed);
+        inDialogue = true;
         continue;
       }
 
-      // Check for parenthetical
-      if (this.isParenthetical(trimmedLine) && inDialogue) {
-        elements.push({ type: 'parenthetical', text: trimmedLine });
+      const cueAllowed = paragraphMode || !inDialogue || (hasIndent && indent >= 15);
+      if (cueAllowed && this.isCharacterCue(trimmed, rawLines, i)) {
+        push('character', this.cleanCharacterName(trimmed));
+        inDialogue = true;
         continue;
       }
 
-      // Check for character name - more flexible detection
-      if (trimmedLine === trimmedLine.toUpperCase() && 
-          trimmedLine.length > 1 && 
-          trimmedLine.length < 35 &&
-          !this.isSceneHeading(trimmedLine) &&
-          !this.isTransition(trimmedLine) &&
-          !this.isParenthetical(trimmedLine)) {
-        
-        // Additional check: if previous line was empty or action, this might be a character
-        const prevElement = elements[elements.length - 1];
-        if (!prevElement || prevElement.type === 'action' || prevElement.type === 'scene-heading' || prevElement.type === 'transition') {
-          lastCharacter = this.cleanCharacterName(trimmedLine);
-          elements.push({ type: 'character', text: lastCharacter });
-          inDialogue = true;
-          continue;
-        }
-      }
-
-      // If we're in dialogue mode, treat non-empty lines as dialogue
-      if (inDialogue && trimmedLine) {
-        elements.push({ type: 'dialogue', text: trimmedLine });
+      if (inDialogue && (prev === 'character' || prev === 'parenthetical')) {
+        push('dialogue', trimmed);
+        if (paragraphMode) inDialogue = false;
         continue;
       }
 
-      // Everything else is action
-      elements.push({ type: 'action', text: trimmedLine });
+      if (inDialogue && prev === 'dialogue' && !paragraphMode) {
+        // Hard-wrapped continuation of the previous dialogue line.
+        elements[elements.length - 1].text += ' ' + trimmed;
+        continue;
+      }
+
+      if (hasIndent && indent >= 8 && (prev === 'dialogue' || prev === 'parenthetical')) {
+        push('dialogue', trimmed);
+        continue;
+      }
+
+      if (!paragraphMode && prev === 'action') {
+        // Hard-wrapped continuation of the previous action paragraph.
+        elements[elements.length - 1].text += ' ' + trimmed;
+        continue;
+      }
+
+      push('action', trimmed);
       inDialogue = false;
     }
 
@@ -91,141 +108,43 @@ export class ScreenplayParser {
   }
 
   private static isSceneHeading(line: string): boolean {
-    const upperLine = line.toUpperCase();
-    return this.SCENE_HEADING_PREFIXES.some(prefix => upperLine.startsWith(prefix));
+    return this.SCENE_HEADING_RE.test(line);
   }
 
   private static isTransition(line: string): boolean {
-    const upperLine = line.toUpperCase();
-    return this.TRANSITIONS.includes(upperLine) || 
-           (upperLine.endsWith(':') && upperLine === line && line.length < 20);
+    const upper = line.toUpperCase();
+    if (upper !== line) return false;
+    if (this.TRANSITIONS.has(upper)) return true;
+    return /^[A-Z][A-Z .'-]*TO:$/.test(upper) && upper.length < 30;
   }
 
   private static isParenthetical(line: string): boolean {
     return line.startsWith('(') && line.endsWith(')');
   }
 
-  private static isCharacterName(trimmedLine: string, originalLine: string): boolean {
-    // Character names are typically:
-    // 1. In ALL CAPS
-    // 2. Centered (have significant leading whitespace)
-    // 3. Not too long (less than 35 characters)
-    // 4. May have extensions like (V.O.) or (CONT'D)
-    
-    if (trimmedLine !== trimmedLine.toUpperCase()) return false;
-    if (trimmedLine.length > 35) return false;
-    if (this.isSceneHeading(trimmedLine)) return false;
-    if (this.isTransition(trimmedLine)) return false;
-    
-    // Check if it's a valid character name pattern
-    const nameWithoutExtension = this.removeExtensions(trimmedLine);
-    
-    // Must have at least 2 characters and not be just numbers or punctuation
-    if (nameWithoutExtension.length < 2) return false;
-    if (/^\d+$/.test(nameWithoutExtension)) return false;
-    if (/^[^A-Z]+$/.test(nameWithoutExtension)) return false;
-    
-    // In the actual formatter, character names don't need specific indentation
-    // They're detected by context and pattern
-    return !nameWithoutExtension.includes('.') && 
-           !nameWithoutExtension.includes('-') &&
-           nameWithoutExtension.split(' ').every(word => word.length < 15);
-  }
+  /**
+   * An all-caps line of reasonable length that is followed by something that
+   * could be its dialogue. A capitalised action beat that is followed by a
+   * blank line or by another capitalised line is left as action.
+   */
+  private static isCharacterCue(trimmed: string, lines: string[], index: number): boolean {
+    if (trimmed !== trimmed.toUpperCase()) return false;
+    if (trimmed.length < 2 || trimmed.length > 40) return false;
+    if (/[.!?]$/.test(trimmed)) return false;
+    const name = trimmed.replace(/\s*\([^)]*\)\s*$/, '').trim();
+    if (!/[A-Z]/.test(name)) return false;
 
-  private static isDialogueLine(line: string): boolean {
-    // In the editor, dialogue is any non-empty line after a character name
-    // We'll be more flexible here and just check if it has content
-    return line.trim().length > 0;
+    for (let j = index + 1; j < lines.length; j++) {
+      const next = lines[j].trim();
+      if (!next) return false; // a blank line: nothing spoken follows
+      if (this.isSceneHeading(next) || this.isTransition(next)) return false;
+      if (next === next.toUpperCase() && !next.startsWith('(')) return false; // another cue or a caps beat
+      return true;
+    }
+    return false;
   }
 
   private static cleanCharacterName(name: string): string {
-    // Keep the name in uppercase but clean it up
-    let cleaned = name.toUpperCase();
-    
-    // Remove any trailing colons
-    if (cleaned.endsWith(':')) {
-      cleaned = cleaned.slice(0, -1);
-    }
-    
-    return cleaned.trim();
-  }
-
-  private static removeExtensions(name: string): string {
-    let cleanedName = name;
-    
-    // Remove extensions
-    this.EXTENSIONS.forEach(ext => {
-      if (cleanedName.includes(ext)) {
-        cleanedName = cleanedName.replace(ext, '').trim();
-      }
-    });
-    
-    return cleanedName;
-  }
-
-  // Advanced parsing method that handles multi-line dialogue and action
-  static parseAdvanced(scriptText: string): ScreenplayElement[] {
-    const elements = this.parse(scriptText);
-    const mergedElements: ScreenplayElement[] = [];
-    
-    for (let i = 0; i < elements.length; i++) {
-      const current = elements[i];
-      const next = elements[i + 1];
-      
-      // Merge consecutive action lines
-      if (current.type === 'action' && next?.type === 'action') {
-        const mergedText = [current.text];
-        let j = i + 1;
-        
-        while (j < elements.length && elements[j].type === 'action') {
-          mergedText.push(elements[j].text);
-          j++;
-        }
-        
-        mergedElements.push({
-          type: 'action',
-          text: mergedText.join(' ')
-        });
-        
-        i = j - 1; // Skip the merged elements
-      } else {
-        mergedElements.push(current);
-      }
-    }
-    
-    return mergedElements;
-  }
-
-  // Utility method to format raw text into screenplay format
-  static formatRawText(rawText: string): string {
-    const lines = rawText.split('\n');
-    const formatted: string[] = [];
-    
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) {
-        formatted.push('');
-        continue;
-      }
-      
-      // Simple heuristics for formatting
-      if (trimmed.toUpperCase() === trimmed && trimmed.length < 30) {
-        // Likely a character name or scene heading
-        if (this.SCENE_HEADING_PREFIXES.some(p => trimmed.toUpperCase().startsWith(p))) {
-          formatted.push(trimmed.toUpperCase());
-        } else {
-          // Center character names (approximately)
-          formatted.push(' '.repeat(25) + trimmed.toUpperCase());
-        }
-      } else if (trimmed.startsWith('(') && trimmed.endsWith(')')) {
-        // Parenthetical
-        formatted.push(' '.repeat(20) + trimmed);
-      } else {
-        // Action or dialogue - needs context to determine
-        formatted.push(trimmed);
-      }
-    }
-    
-    return formatted.join('\n');
+    return name.replace(/:$/, '').trim().toUpperCase();
   }
 }

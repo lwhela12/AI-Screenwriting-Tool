@@ -4,9 +4,10 @@ import { TextSelection } from 'prosemirror-state';
 import { undo, history } from 'prosemirror-history';
 import { b, stateFor, outline, cursor, viewFor, type } from './helpers';
 import { autoFormatPlugin } from '../src/components/editor-v2/plugins/autoFormat';
+import { clipboardPlugin } from '../src/components/editor-v2/plugins/clipboard';
 import { setElementTypeCommand } from '../src/components/editor-v2/plugins/commands';
 
-const plugins = () => [history(), autoFormatPlugin()];
+const plugins = () => [history(), autoFormatPlugin(), clipboardPlugin()];
 let views: EditorView[] = [];
 
 function open(doc: any): EditorView {

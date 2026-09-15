@@ -57,121 +57,193 @@
 
 /* The page ---------------------------------------------------------------- */
 
+/*
+ * Geometry is the pagination engine's: 12pt Courier at 10 characters per
+ * inch, 1.5in left margin, 1in top margin, 55 lines of body. Element widths
+ * are set in `ch` so the browser wraps on exactly the grid the engine uses.
+ */
 .ProseMirror.screenplay {
+  --line: 12pt;
+  --left-margin: 1.5in;
+  --top-margin: 1in;
+  --bottom-margin: 0.8333in;
+  --page-width: 8.5in;
+  --page-gap: 0.4in;
+  --gap-bleed: 60px; /* how far the gap extends past the sheet to hide its side shadow */
+  --desk: #e5e7eb; /* must match .prosemirror-editor-wrapper's background */
+
   background: #fff;
   color: #000;
-  min-height: 11in;
-  padding: 1in 1in 1in 1.5in;
+  width: var(--page-width);
+  padding: var(--top-margin) 1in var(--bottom-margin) var(--left-margin);
   box-sizing: border-box;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
   outline: none;
   white-space: pre-wrap;
-  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: normal;
+  hyphens: none;
   font-family: 'Courier Prime', 'Courier New', Courier, monospace;
-  font-size: 12pt;
-  line-height: 12pt;
+  font-size: var(--line);
+  line-height: var(--line);
+  font-variant-ligatures: none;
+  font-kerning: none;
+  letter-spacing: 0;
+  position: relative;
 }
 
 .ProseMirror.screenplay > * {
-  margin: 0;
+  margin: var(--line) 0 0 0;
   padding: 0;
   font: inherit;
-  min-height: 12pt;
+  min-height: var(--line);
 }
 
-/* Blank line between elements, except inside a dialogue block. */
-.ProseMirror.screenplay > * + * {
-  margin-top: 12pt;
-}
-
-.ProseMirror.screenplay > .character + .parenthetical,
-.ProseMirror.screenplay > .character + .dialogue,
-.ProseMirror.screenplay > .parenthetical + .dialogue,
-.ProseMirror.screenplay > .dialogue + .parenthetical,
-.ProseMirror.screenplay > .parenthetical + .parenthetical,
-.ProseMirror.screenplay > .dialogue + .dialogue {
+.ProseMirror.screenplay > :first-child,
+.ProseMirror.screenplay > .no-spacer,
+.ProseMirror.screenplay > .page-gap {
   margin-top: 0;
 }
 
-/* Element geometry, measured from the 1.5in left margin. */
+/* Element columns, in characters from the left margin. */
 
 .ProseMirror.screenplay .scene-heading {
   text-transform: uppercase;
   font-weight: normal;
+  width: 60ch;
 }
 
 .ProseMirror.screenplay .action {
-  text-align: left;
+  width: 60ch;
 }
 
 .ProseMirror.screenplay .character {
   text-transform: uppercase;
-  margin-left: 2.2in;
-  margin-right: 0.5in;
+  margin-left: 22ch;
+  width: 38ch;
 }
 
 .ProseMirror.screenplay .parenthetical {
-  margin-left: 1.6in;
-  margin-right: 1.9in;
+  margin-left: 16ch;
+  width: 25ch;
 }
 
 .ProseMirror.screenplay .dialogue {
-  margin-left: 1in;
-  margin-right: 1.5in;
+  margin-left: 10ch;
+  width: 35ch;
 }
 
 .ProseMirror.screenplay .transition {
   text-transform: uppercase;
   text-align: right;
+  margin-left: 40ch;
+  width: 20ch;
 }
 
 .ProseMirror.screenplay .transition.transition-left {
   text-align: left;
+  margin-left: 0;
+  width: 60ch;
 }
 
 .ProseMirror.screenplay .centered {
   text-align: center;
+  width: 60ch;
 }
 
 .ProseMirror.screenplay hr.page-break {
   border: none;
   border-top: 1px dashed #9ca3af;
   height: 0;
-  margin-top: 12pt;
+  min-height: 0;
+  margin: 0;
 }
 
 .ProseMirror.screenplay hr.page-break.ProseMirror-selectednode {
   border-top-color: #2563eb;
 }
 
-/* Estimated page break marker (a decoration, not part of the document). */
-.page-break-indicator {
-  position: relative;
-  height: 0;
-  margin: 24pt 0;
-  border-top: 1px dashed #c7cbd1;
+/* Page gaps (decorations from the pagination engine) ----------------------- */
+
+/*
+ * The gap spans the full sheet width, so it is pulled left by the page margin
+ * plus the indent of the element it sits inside. The selector is more specific
+ * than the `> *` margin reset above so this margin wins.
+ */
+.ProseMirror.screenplay .page-gap,
+.ProseMirror.screenplay > .page-gap {
+  display: block;
+  box-sizing: border-box;
+  width: var(--page-width);
+  margin: 0 0 0 calc(-1 * var(--left-margin) - var(--indent, 0ch));
+  padding: 0;
+  min-height: 0;
   user-select: none;
   pointer-events: none;
+  font: inherit;
+  white-space: pre;
+  text-align: left;
 }
 
-.page-break-indicator::after {
-  content: attr(data-label);
+.page-gap-more,
+.page-gap-contd {
+  height: var(--line);
+  line-height: var(--line);
+}
+
+.page-gap-more {
+  padding-left: calc(var(--left-margin) + 16ch);
+}
+
+.page-gap-contd {
+  padding-left: calc(var(--left-margin) + 22ch);
+  text-transform: uppercase;
+}
+
+.page-gap-fill {
+  height: var(--fill, 0pt);
+}
+
+.page-gap-margin-bottom {
+  height: var(--bottom-margin);
+}
+
+/*
+ * The band is the desk showing between two sheets. It is wider than the sheet
+ * so it also covers the sheet's side shadow, and the sheet above casts a soft
+ * shadow onto it.
+ */
+.page-gap-band {
+  position: relative;
+  height: var(--page-gap);
+  margin-left: calc(-1 * var(--gap-bleed));
+  width: calc(var(--page-width) + 2 * var(--gap-bleed));
+  background: var(--desk);
+}
+
+.page-gap-band::before {
+  content: '';
   position: absolute;
-  right: -1in;
-  top: -7px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  font-size: 11px;
-  color: #9ca3af;
-  background: #fff;
-  padding: 0 4px;
+  left: var(--gap-bleed);
+  right: var(--gap-bleed);
+  top: 0;
+  height: 14px;
+  background: linear-gradient(rgba(0, 0, 0, 0.14), rgba(0, 0, 0, 0));
+}
+
+.page-gap-margin-top {
+  position: relative;
+  height: var(--top-margin);
+}
+
+.page-gap-number {
+  position: absolute;
+  top: 0.5in;
+  right: 1in;
+  line-height: var(--line);
 }
 
 /* Keep the empty elements clickable and the cursor visible. */
-.ProseMirror.screenplay > *:empty::before,
-.ProseMirror.screenplay .ProseMirror-trailingBreak {
-  content: '';
-}
-
 .ProseMirror-gapcursor:after {
   border-top: 1px solid #000;
 }
@@ -227,8 +299,7 @@
 /* Print -------------------------------------------------------------------- */
 
 @media print {
-  .prosemirror-editor-wrapper .toolbar,
-  .page-break-indicator {
+  .prosemirror-editor-wrapper .toolbar {
     display: none;
   }
   .editor-scroll-container {
@@ -237,5 +308,15 @@
   }
   .ProseMirror.screenplay {
     box-shadow: none;
+  }
+  .page-gap-band {
+    background: none;
+    box-shadow: none;
+    break-before: page;
+    height: 0;
+  }
+  .page-gap-margin-bottom,
+  .page-gap-fill {
+    height: 0;
   }
 }

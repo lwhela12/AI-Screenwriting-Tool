@@ -1,5 +1,5 @@
 import { Plugin, Transaction, TextSelection, EditorState } from 'prosemirror-state';
-import { Fragment, Slice, Node as PMNode } from 'prosemirror-model';
+import { Fragment } from 'prosemirror-model';
 import { screenplaySchema, UPPERCASE_ELEMENTS, isElementType } from '../schema/screenplaySchema';
 import { setElementType, uppercaseNodeText, autoFormatKey } from './commands';
 
@@ -21,20 +21,6 @@ function detectActionConversion(text: string): 'scene_heading' | 'transition' | 
   if (KNOWN_TRANSITIONS.test(trimmed) || GENERIC_TRANSITION.test(trimmed)) return 'transition';
   if (CENTERED.test(trimmed)) return 'centered';
   return null;
-}
-
-function uppercaseFragment(fragment: Fragment): Fragment {
-  const nodes: PMNode[] = [];
-  fragment.forEach(node => {
-    if (node.isText && node.text) {
-      nodes.push(screenplaySchema.text(node.text.toUpperCase(), node.marks));
-    } else if (node.content.size > 0) {
-      nodes.push(node.copy(uppercaseFragment(node.content)));
-    } else {
-      nodes.push(node);
-    }
-  });
-  return Fragment.fromArray(nodes);
 }
 
 /**
@@ -97,12 +83,6 @@ export function autoFormatPlugin(): Plugin {
         }
 
         return false;
-      },
-
-      transformPasted(slice, view) {
-        const typeName = view.state.selection.$from.parent.type.name;
-        if (!UPPERCASE_ELEMENTS.has(typeName)) return slice;
-        return new Slice(uppercaseFragment(slice.content), slice.openStart, slice.openEnd);
       }
     },
 

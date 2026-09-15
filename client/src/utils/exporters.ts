@@ -3,6 +3,21 @@ import { pdf } from '@react-pdf/renderer';
 import { ScreenplayProject } from '../components/ProjectManager';
 import { ScreenplayDocument, ScreenplayData, ScreenplayElement } from './screenplayPDF';
 import { contentToElements, elementsToText } from '../components/editor-v2/docConverter';
+import { layoutElements, LayoutElementType } from '../components/editor-v2/pagination/layout';
+
+const EXPORT_TO_LAYOUT: Record<ScreenplayElement['type'], LayoutElementType> = {
+  'scene-heading': 'scene_heading',
+  action: 'action',
+  character: 'character',
+  parenthetical: 'parenthetical',
+  dialogue: 'dialogue',
+  transition: 'transition'
+};
+
+/** Paginate export elements with the same engine the editor uses. */
+export function layoutForExport(elements: ScreenplayElement[]) {
+  return layoutElements(elements.map(e => ({ type: EXPORT_TO_LAYOUT[e.type], text: e.text })));
+}
 
 function notify(message: string, kind: 'info' | 'success' | 'error'): () => void {
   const el = document.createElement('div');
@@ -41,7 +56,7 @@ export async function exportToPDF(project: ScreenplayProject): Promise<void> {
       title: project.title,
       author: project.author,
       contact: project.contact,
-      elements: contentToElements(project.content)
+      layout: layoutForExport(contentToElements(project.content))
     };
     const blob = await pdf(React.createElement(ScreenplayDocument, { data }) as any).toBlob();
     downloadBlob(safeFilename(project.title, 'pdf'), blob);
