@@ -1,0 +1,243 @@
+/*
+ * Theme tokens. One palette per theme drives the chrome, the panels and the
+ * page, mirroring the native app's theme list. The page keeps its own tone
+ * so that light themes show paper and dark themes a dark page.
+ *
+ *   --desk           the surface the pages sit on
+ *   --chrome         toolbar and status bar
+ *   --panel          sidebar and inspector
+ *   --ink / --muted / --faint   text on chrome and panels
+ *   --line           hairlines inside panels
+ *   --accent         the single accent: current scene, active element, sprint
+ *   --page / --page-ink          the sheet and its text
+ */
+
+:root,
+:root[data-theme='paper'] {
+  --desk: #e6e4df;
+  --chrome: #f7f6f3;
+  --chrome-border: #dad7d0;
+  --panel: #f1efea;
+  --ink: #1e1c19;
+  --muted: #726e66;
+  --faint: #8a857b;
+  --line: #e2dfd8;
+  --accent: #2f5bea;
+  --accent-ink: #ffffff;
+  --accent-soft: #e6ecfd;
+  --current: #dfe6fb;
+  --page: #fffefb;
+  --page-ink: #161412;
+  --page-shadow: 0 1px 2px rgba(20, 18, 14, 0.06), 0 12px 32px rgba(20, 18, 14, 0.1);
+  --page-edge-shadow: rgba(20, 18, 14, 0.14);
+  --highlight: #fef08a;
+  --highlight-current: #f59e0b;
+  --danger: #b91c1c;
+  color-scheme: light;
+}
+
+:root[data-theme='sepia'] {
+  --desk: #e4dacb;
+  --chrome: #efe7da;
+  --chrome-border: #d6c9b5;
+  --panel: #eae1d2;
+  --ink: #2b231a;
+  --muted: #7d6b57;
+  --faint: #948269;
+  --line: #dccfbb;
+  --accent: #b5561f;
+  --accent-ink: #ffffff;
+  --accent-soft: #f3e2d3;
+  --current: #eedcc8;
+  --page: #f9f3e8;
+  --page-ink: #2a2118;
+  --page-shadow: 0 1px 2px rgba(60, 40, 20, 0.08), 0 12px 32px rgba(60, 40, 20, 0.14);
+  --page-edge-shadow: rgba(60, 40, 20, 0.16);
+  --highlight: #f6dfa4;
+  --highlight-current: #d97706;
+  --danger: #9f2a1a;
+  color-scheme: light;
+}
+
+:root[data-theme='midnight'] {
+  --desk: #08121f;
+  --chrome: #0d182a;
+  --chrome-border: #1a2942;
+  --panel: #0b1626;
+  --ink: #e8edf3;
+  --muted: #8a97ab;
+  --faint: #5a6a80;
+  --line: #1a2942;
+  --accent: #25b3b0;
+  --accent-ink: #04201f;
+  --accent-soft: #0f2c33;
+  --current: #12303a;
+  --page: #141a24;
+  --page-ink: #e3e8ef;
+  --page-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px rgba(0, 0, 0, 0.45);
+  --page-edge-shadow: rgba(0, 0, 0, 0.5);
+  --highlight: #4a4520;
+  --highlight-current: #b45309;
+  --danger: #f87171;
+  color-scheme: dark;
+}
+
+:root {
+  --ui-font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+  --mono-font: 'Courier Prime', 'Courier New', Courier, monospace;
+  --radius: 8px;
+  --radius-sm: 6px;
+  --control-height: 28px;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--ui-font);
+  color: var(--ink);
+  background: var(--desk);
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Shared control styles. Panels and views use these instead of their own. */
+
+.ui-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--control-height);
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ui-button:hover {
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.ui-button.active {
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.ui-button.outlined {
+  border-color: var(--chrome-border);
+  background: var(--chrome);
+  color: var(--ink);
+}
+
+.ui-button.outlined:hover {
+  background: var(--panel);
+}
+
+.ui-button.danger {
+  color: var(--danger);
+}
+
+.ui-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.ui-button svg {
+  flex: 0 0 auto;
+}
+
+.ui-input,
+.ui-textarea {
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--chrome);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  outline: none;
+  width: 100%;
+}
+
+.ui-input:focus,
+.ui-textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.ui-textarea {
+  resize: vertical;
+  line-height: 19px;
+}
+
+.ui-input::placeholder,
+.ui-textarea::placeholder {
+  color: var(--faint);
+}
+
+.ui-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-bottom: 6px;
+}
+
+.ui-chip {
+  display: inline-block;
+  font-size: 11.5px;
+  color: var(--ink);
+  background: var(--chrome);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 9px;
+}
+
+/* Popups shared by the editor's element menu and completions. */
+.ui-popup {
+  position: fixed;
+  z-index: 1000;
+  min-width: 200px;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--chrome);
+  border: 1px solid var(--chrome-border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  font-family: var(--ui-font);
+  font-size: 13px;
+  padding: 4px 0;
+  color: var(--ink);
+}
+
+.ui-popup-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.ui-popup-item:hover {
+  background: var(--panel);
+}
+
+.ui-popup-item.selected {
+  background: var(--accent-soft);
+  color: var(--ink);
+}

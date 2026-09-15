@@ -13,11 +13,16 @@ import { autoFormatPlugin } from './plugins/autoFormat';
 import { elementMenuPlugin } from './plugins/elementMenu';
 import { clipboardPlugin } from './plugins/clipboard';
 import { searchPlugin } from './plugins/search';
+import { focusPlugin, focusKey } from './plugins/focus';
 import { FindBar } from './FindBar';
 import { contentToDoc, docToContent } from './docConverter';
-import { ELEMENT_LABELS, isElementType } from './schema/screenplaySchema';
+import { ELEMENT_LABELS, isElementType, ELEMENT_ORDER, ElementType } from './schema/screenplaySchema';
+import { setElementTypeCommand } from './plugins/commands';
+import { countWords } from './reports';
 import { TitleSheet, TitlePageData } from './TitleSheet';
 import { SceneNavigator } from './SceneNavigator';
+import { Inspector } from './Inspector';
+import { ChevronDownIcon } from '../../icons';
 import './ProseMirrorEditor.css';
 
 interface ProseMirrorEditorProps {
@@ -32,10 +37,13 @@ interface ProseMirrorEditorProps {
   onReady?: (view: EditorView) => void;
   /** Called after every transaction with the new state. */
   onStateChange?: (state: EditorState) => void;
+  showScenes?: boolean;
+  showInspector?: boolean;
+  focusMode?: boolean;
 }
 
 interface Status {
-  element: string;
+  element: ElementType | null;
   page: number;
   pageCount: number;
 }
@@ -44,14 +52,20 @@ function statusFor(state: EditorState): Status {
   const { $from } = state.selection;
   const typeName = $from.parent.type.name;
   const { page, pageCount } = pageStatus(state);
-  return {
-    element: isElementType(typeName) ? ELEMENT_LABELS[typeName] : '',
-    page,
-    pageCount
-  };
+  return { element: isElementType(typeName) ? typeName : null, page, pageCount };
 }
 
-export const ProseMirrorEditor: React.FC<ProseMirrorEditorProps> = ({ initialContent = '', onContentChange, titlePage, onTitlePageChange, onReady, onStateChange }) => {
+export const ProseMirrorEditor: React.FC<ProseMirrorEditorProps> = ({
+  initialContent = '',
+  onContentChange,
+  titlePage,
+  onTitlePageChange,
+  onReady,
+  onStateChange,
+  showScenes = true,
+  showInspector = true,
+  focusMode = false
+}) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onContentChange);
@@ -60,25 +74,10 @@ export const ProseMirrorEditor: React.FC<ProseMirrorEditorProps> = ({ initialCon
   onReadyRef.current = onReady;
   const onStateChangeRef = useRef(onStateChange);
   onStateChangeRef.current = onStateChange;
-  const [status, setStatus] = useState<Status>({ element: 'Action', page: 1, pageCount: 1 });
+  const [status, setStatus] = useState<Status>({ element: 'action', page: 1, pageCount: 1 });
   const [editorState, setEditorState] = useState<EditorState | null>(null);
-  const [showScenes, setShowScenes] = useState(() => {
-    try {
-      return localStorage.getItem('editor.showScenes') !== 'false';
-    } catch {
-      return true;
-    }
-  });
-  const toggleScenes = () => {
-    setShowScenes(v => {
-      try {
-        localStorage.setItem('editor.showScenes', String(!v));
-      } catch {
-        /* ignore */
-      }
-      return !v;
-    });
-  };
+  const [sessionStartWords, setSessionStartWords] = useState(0);
+  const [elementMenuOpen, setElementMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!editorRef.current || viewRef.current) return;
@@ -95,6 +94,7 @@ export const ProseMirrorEditor: React.FC<ProseMirrorEditorProps> = ({ initialCon
         autoFormatPlugin(),
         clipboardPlugin(),
         searchPlugin(),
+        focusPlugin(),
         dropCursor(),
         gapCursor(),
         pageViewPlugin
@@ -121,6 +121,7 @@ export const ProseMirrorEditor: React.FC<ProseMirrorEditorProps> = ({ initialCon
     viewRef.current = view;
     setStatus(statusFor(state));
     setEditorState(state);
+    setSessionStartWords(countWords(state.doc.textContent));
     onReadyRef.current?.(view);
     onStateChangeRef.current?.(state);
     view.focus();
@@ -133,28 +134,54 @@ export const ProseMirrorEditor: React.FC<ProseMirrorEditorProps> = ({ initialCon
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Focus mode is a plugin state so the dimming follows the cursor.
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    const current = focusKey.getState(view.state)?.enabled ?? false;
+    if (current !== focusMode) view.dispatch(view.state.tr.setMeta(focusKey, { enabled: focusMode }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusMode, editorState === null]);
+
+  const setElement = (type: ElementType) => {
+    const view = viewRef.current;
+    if (!view) return;
+    setElementTypeCommand(type)(view.state, view.dispatch);
+    setElementMenuOpen(false);
+    view.focus();
+  };
+
   return (
-    <div className="prosemirror-editor-wrapper">
-      <div className="toolbar">
-        <span className="toolbar-info">
-          <span className="toolbar-element">{status.element}</span>
-          <span className="toolbar-sep">•</span>
-          Page {status.page} of {status.pageCount}
-        </span>
-        <span className="toolbar-right">
-          <span className="toolbar-hint">Enter on an empty line opens the element menu · ⌘1–⌘8 set element type</span>
-          <button className={`toolbar-button ${showScenes ? 'active' : ''}`} onClick={toggleScenes} title="Show or hide the scene navigator">
-            Scenes
-          </button>
-        </span>
-      </div>
+    <div className={`editor-frame${focusMode ? ' focus' : ''}`}>
       {editorState && <FindBar view={viewRef.current} state={editorState} />}
       <div className="editor-body">
-        {showScenes && editorState && <SceneNavigator view={viewRef.current} state={editorState} />}
+        {showScenes && !focusMode && editorState && <SceneNavigator view={viewRef.current} state={editorState} />}
         <div className="editor-scroll-container">
           {titlePage && onTitlePageChange && <TitleSheet data={titlePage} onChange={onTitlePageChange} />}
           <div ref={editorRef} className="prosemirror-editor" />
         </div>
+        {showInspector && !focusMode && editorState && <Inspector view={viewRef.current} state={editorState} sessionStartWords={sessionStartWords} />}
+      </div>
+      <div className="status-bar">
+        <div className="status-element">
+          <button className="status-element-button" onClick={() => setElementMenuOpen(o => !o)} title="Element type (⌘1–⌘8)">
+            {status.element ? ELEMENT_LABELS[status.element] : '—'} <ChevronDownIcon />
+          </button>
+          {elementMenuOpen && (
+            <div className="ui-popup status-element-menu" onMouseLeave={() => setElementMenuOpen(false)}>
+              {ELEMENT_ORDER.map((type, i) => (
+                <div key={type} className={`ui-popup-item${status.element === type ? ' selected' : ''}`} onClick={() => setElement(type)}>
+                  <span>{ELEMENT_LABELS[type]}</span>
+                  <span className="status-shortcut">⌘{i + 1}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <span>
+          Page {status.page} of {status.pageCount}
+        </span>
+        <span className="status-right">{editorState ? `${countWords(editorState.doc.textContent).toLocaleString()} words` : ''}</span>
       </div>
     </div>
   );

@@ -3,9 +3,9 @@
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  background: #e5e7eb;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  color: #111827;
+  background: var(--desk);
+  font-family: var(--ui-font);
+  color: var(--ink);
 }
 
 .beat-board-toolbar {
@@ -13,8 +13,8 @@
   align-items: center;
   gap: 16px;
   padding: 8px 16px;
-  background: #fff;
-  border-bottom: 1px solid #d1d5db;
+  background: var(--chrome);
+  border-bottom: 1px solid var(--chrome-border);
   font-size: 13px;
 }
 
@@ -24,7 +24,7 @@
 
 .beat-board-hint {
   flex: 1;
-  color: #9ca3af;
+  color: var(--faint);
   font-size: 12px;
 }
 
@@ -33,19 +33,19 @@
   font: inherit;
   font-size: 12px;
   padding: 4px 10px;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--chrome-border);
   border-radius: 6px;
-  background: #fff;
+  background: var(--chrome);
   cursor: pointer;
 }
 
 .beat-board-add:hover,
 .beat-card-actions button:hover {
-  background: #f3f4f6;
+  background: var(--panel);
 }
 
 .beat-card-actions button.danger {
-  color: #b91c1c;
+  color: var(--danger);
 }
 
 .beat-board-scroll {
@@ -58,7 +58,7 @@
   position: relative;
   width: 100%;
   height: 100%;
-  background-image: radial-gradient(#d1d5db 1px, transparent 1px);
+  background-image: radial-gradient(var(--chrome-border) 1px, transparent 1px);
   background-size: 24px 24px;
 }
 
@@ -68,7 +68,7 @@
   left: 0;
   right: 0;
   text-align: center;
-  color: #9ca3af;
+  color: var(--faint);
   pointer-events: none;
 }
 
@@ -77,6 +77,7 @@
   box-sizing: border-box;
   padding: 10px 12px;
   border-radius: 8px;
+  color: #1e1c19; /* cards are pastel in every theme */
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
   cursor: grab;
   user-select: none;
@@ -90,7 +91,7 @@
 }
 
 .beat-card.editing {
-  box-shadow: 0 0 0 2px #6366f1, 0 8px 20px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 0 0 2px var(--accent), 0 8px 20px rgba(0, 0, 0, 0.15);
   z-index: 3;
 }
 
@@ -119,7 +120,7 @@
 .beat-card-text {
   font-size: 13px;
   line-height: 1.35;
-  color: #374151;
+  color: #3b3834;
 }
 
 .beat-card-tools {
@@ -144,7 +145,7 @@
 }
 
 .beat-color.selected {
-  box-shadow: 0 0 0 2px #6366f1;
+  box-shadow: 0 0 0 2px var(--accent);
 }
 
 .beat-card-actions {

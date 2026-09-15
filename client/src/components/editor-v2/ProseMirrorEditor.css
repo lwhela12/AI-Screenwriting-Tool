@@ -1,45 +1,11 @@
-/* Editor chrome ---------------------------------------------------------- */
+/* Editor frame ------------------------------------------------------------ */
 
-.prosemirror-editor-wrapper {
+.editor-frame {
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  background: #e5e7eb;
-}
-
-.prosemirror-editor-wrapper .toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 6px 16px;
-  background: #fff;
-  border-bottom: 1px solid #d1d5db;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  font-size: 13px;
-  color: #374151;
-  flex: 0 0 auto;
-}
-
-.toolbar-info {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.toolbar-element {
-  font-weight: 600;
-  color: #111827;
-}
-
-.toolbar-sep {
-  color: #9ca3af;
-}
-
-.toolbar-hint {
-  color: #9ca3af;
-  font-size: 12px;
+  background: var(--desk);
 }
 
 .editor-body {
@@ -53,285 +19,66 @@
   min-height: 0;
   min-width: 0;
   overflow-y: auto;
-  padding: 32px 16px 120px;
+  padding: 36px 24px 120px;
 }
 
-.toolbar-right {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.toolbar-button {
-  font: inherit;
-  font-size: 12px;
-  padding: 3px 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  background: #fff;
-  color: #374151;
-  cursor: pointer;
-}
-
-.toolbar-button.active {
-  background: #eef2ff;
-  border-color: #a5b4fc;
-  color: #3730a3;
-}
-
-/* Find and replace --------------------------------------------------------- */
-
-.find-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 16px;
-  background: #f9fafb;
-  border-bottom: 1px solid #d1d5db;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  font-size: 12px;
-  color: #374151;
-  flex: 0 0 auto;
-  flex-wrap: wrap;
-}
-
-.find-bar .find-input {
-  font: inherit;
-  font-size: 13px;
-  padding: 4px 8px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  min-width: 180px;
-  outline: none;
-  background: #fff;
-  color: #111827;
-}
-
-.find-bar .find-input:focus {
-  border-color: #a5b4fc;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
-}
-
-.find-bar button {
-  font: inherit;
-  font-size: 12px;
-  padding: 4px 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  background: #fff;
-  color: #374151;
-  cursor: pointer;
-}
-
-.find-bar button:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.find-bar button:not(:disabled):hover {
-  background: #f3f4f6;
-}
-
-.find-bar .find-count {
-  min-width: 80px;
-  color: #6b7280;
-  font-variant-numeric: tabular-nums;
-}
-
-.find-bar .find-option {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: #6b7280;
-  cursor: pointer;
-}
-
-.find-bar .find-sep {
-  width: 1px;
-  height: 20px;
-  background: #d1d5db;
-  margin: 0 4px;
-}
-
-.find-bar .find-close {
-  margin-left: auto;
-  border: none;
-  background: none;
-  color: #9ca3af;
-}
-
-.ProseMirror.screenplay .search-match {
-  background: #fef08a;
-  border-radius: 2px;
-}
-
-.ProseMirror.screenplay .search-match-current {
-  background: #f59e0b;
-  color: #fff;
-}
-
-/* Scene navigator ---------------------------------------------------------- */
-
-.scene-navigator {
-  flex: 0 0 300px;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  background: #fff;
-  border-right: 1px solid #d1d5db;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  font-size: 13px;
-  color: #111827;
-}
-
-.scene-navigator-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  border-bottom: 1px solid #e5e7eb;
-  color: #6b7280;
-  font-size: 12px;
-}
-
-.scene-navigator-list {
-  flex: 1 1 auto;
-  overflow-y: auto;
-  padding: 4px 0;
-}
-
-.scene-row {
-  display: grid;
-  grid-template-columns: 34px 1fr auto;
-  gap: 6px;
-  align-items: baseline;
-  padding: 6px 10px 6px 8px;
-  border-left: 3px solid transparent;
-  cursor: pointer;
-}
-
-.scene-row:hover {
-  background: #f9fafb;
-}
-
-.scene-row.current {
-  background: #eef2ff;
-  border-left-color: #6366f1;
-}
-
-.scene-row.drop-before {
-  box-shadow: inset 0 2px 0 #6366f1;
-}
-
-.scene-row.drop-after {
-  box-shadow: inset 0 -2px 0 #6366f1;
-}
-
-.scene-row.dragging {
-  opacity: 0.4;
-}
-
-.scene-row .scene-number {
-  color: #9ca3af;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-
-.scene-row .scene-heading-text {
-  font-weight: 600;
-  text-transform: uppercase;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.scene-row .scene-heading-text.opening {
-  font-weight: 500;
-  color: #6b7280;
-  text-transform: none;
-}
-
-.scene-row .scene-page {
-  color: #9ca3af;
-  font-size: 11px;
-  white-space: nowrap;
-}
-
-.scene-row .scene-structure {
-  grid-column: 1 / -1;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: #4338ca;
-  margin: 2px 0 2px 0;
-}
-
-.scene-row .scene-preview {
-  grid-column: 2 / -1;
-  color: #6b7280;
-  font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.scene-row .scene-synopsis {
-  grid-column: 2 / -1;
-  font: inherit;
-  font-size: 12px;
-  width: 100%;
-  min-height: 48px;
-  resize: vertical;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
-  padding: 4px 6px;
-  color: #111827;
-  background: #fff;
-}
-
-.scene-row .scene-synopsis::placeholder {
-  color: #b0b5bd;
-}
-
-.scene-row .scene-cast {
-  grid-column: 2 / -1;
-  color: #9ca3af;
-  font-size: 11px;
-}
-
-.scene-color-dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-right: 4px;
-  vertical-align: middle;
-}
-
-.scene-navigator-footer {
-  padding: 8px 12px;
-  border-top: 1px solid #e5e7eb;
-}
-
-.scene-navigator-footer button {
-  font: inherit;
-  font-size: 12px;
-  padding: 4px 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  background: #fff;
-  cursor: pointer;
-}
-
-.scene-navigator-footer button:hover {
-  background: #f3f4f6;
+.editor-frame.focus .editor-scroll-container {
+  padding-top: 64px;
 }
 
 .prosemirror-editor {
   width: 8.5in;
   max-width: 100%;
   margin: 0 auto;
+}
+
+/* Status bar ---------------------------------------------------------------- */
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  height: 28px;
+  padding: 0 16px;
+  background: var(--chrome);
+  border-top: 1px solid var(--chrome-border);
+  font-size: 11.5px;
+  color: var(--muted);
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.status-right {
+  margin-left: auto;
+}
+
+.status-element {
+  position: relative;
+}
+
+.status-element-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--ink);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.status-element-menu {
+  position: absolute;
+  left: 0;
+  bottom: 22px;
+  min-width: 200px;
+}
+
+.status-shortcut {
+  color: var(--faint);
+  font-size: 12px;
 }
 
 /* The page ---------------------------------------------------------------- */
@@ -350,28 +97,32 @@
   --bottom-margin: 1in;
   --page-width: 8.5in;
   --page-gap: 0.4in;
-  --cw: 7pt; /* Final Draft's Courier advance; Courier New is 7.2pt, corrected by letter-spacing */
-  --gap-bleed: 60px; /* how far the gap extends past the sheet to hide its side shadow */
-  --desk: #e5e7eb; /* must match .prosemirror-editor-wrapper's background */
+  --cw: 7pt;
+  --gap-bleed: 60px;
 
-  background: #fff;
-  color: #000;
+  background: var(--page);
+  color: var(--page-ink);
   width: var(--page-width);
   padding: var(--top-margin) 1in var(--bottom-margin) var(--left-margin);
   box-sizing: border-box;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--page-shadow);
   outline: none;
   white-space: pre-wrap;
   overflow-wrap: break-word;
   word-break: normal;
   hyphens: none;
-  font-family: 'Courier Prime', 'Courier New', Courier, monospace;
+  font-family: var(--mono-font);
   font-size: var(--line);
   line-height: var(--line);
   font-variant-ligatures: none;
   font-kerning: none;
   letter-spacing: -0.2pt;
   position: relative;
+  caret-color: var(--accent);
+}
+
+.ProseMirror.screenplay ::selection {
+  background: var(--accent-soft);
 }
 
 .ProseMirror.screenplay > * {
@@ -379,6 +130,7 @@
   padding: 0;
   font: inherit;
   min-height: var(--line);
+  transition: opacity 0.25s ease;
 }
 
 .ProseMirror.screenplay > :first-child,
@@ -387,12 +139,15 @@
   margin-top: 0;
 }
 
-/* Element columns, in characters from the left margin. */
+.ProseMirror.screenplay > .focus-dim {
+  opacity: 0.28;
+}
 
 .ProseMirror.screenplay .scene-heading {
   text-transform: uppercase;
   font-weight: normal;
   width: calc(61 * var(--cw) + 1pt);
+  position: relative;
 }
 
 .ProseMirror.screenplay .shot {
@@ -401,18 +156,13 @@
   width: calc(61 * var(--cw) + 1pt);
 }
 
-/* Scene numbers (from Final Draft) sit in the left margin. */
 .ProseMirror.screenplay .scene-heading[data-number]::before {
   content: attr(data-number);
   position: absolute;
   left: -1in;
   width: 0.8in;
   text-align: right;
-  color: #6b7280;
-}
-
-.ProseMirror.screenplay .scene-heading {
-  position: relative;
+  color: var(--faint);
 }
 
 .ProseMirror.screenplay .action {
@@ -428,7 +178,7 @@
 .ProseMirror.screenplay .parenthetical {
   margin-left: calc(15 * var(--cw));
   width: calc(25 * var(--cw) + 1pt);
-  text-indent: calc(-1 * var(--cw)); /* Final Draft's hanging first line */
+  text-indent: calc(-1 * var(--cw));
 }
 
 .ProseMirror.screenplay .dialogue {
@@ -456,23 +206,44 @@
 
 .ProseMirror.screenplay hr.page-break {
   border: none;
-  border-top: 1px dashed #9ca3af;
+  border-top: 1px dashed var(--faint);
   height: 0;
   min-height: 0;
   margin: 0;
 }
 
 .ProseMirror.screenplay hr.page-break.ProseMirror-selectednode {
-  border-top-color: #2563eb;
+  border-top-color: var(--accent);
+}
+
+/* Dual dialogue: two 25-character columns. */
+.ProseMirror.screenplay .dual-left.character { margin-left: calc(5 * var(--cw)); width: calc(20 * var(--cw) + 1pt); }
+.ProseMirror.screenplay .dual-left.parenthetical { margin-left: calc(3 * var(--cw)); width: calc(22 * var(--cw) + 1pt); }
+.ProseMirror.screenplay .dual-left.dialogue { margin-left: 0; width: calc(25 * var(--cw) + 1pt); }
+.ProseMirror.screenplay .dual-right.character { margin-left: calc(35 * var(--cw)); width: calc(20 * var(--cw) + 1pt); }
+.ProseMirror.screenplay .dual-right.parenthetical { margin-left: calc(33 * var(--cw)); width: calc(22 * var(--cw) + 1pt); }
+.ProseMirror.screenplay .dual-right.dialogue { margin-left: calc(30 * var(--cw)); width: calc(25 * var(--cw) + 1pt); }
+
+.ProseMirror.screenplay .auto-contd {
+  user-select: none;
+}
+
+.ProseMirror.screenplay .search-match {
+  background: var(--highlight);
+  border-radius: 2px;
+}
+
+.ProseMirror.screenplay .search-match-current {
+  background: var(--highlight-current);
+  color: #fff;
+}
+
+.ProseMirror-gapcursor:after {
+  border-top: 1px solid var(--page-ink);
 }
 
 /* Page gaps (decorations from the pagination engine) ----------------------- */
 
-/*
- * The gap spans the full sheet width, so it is pulled left by the page margin
- * plus the indent of the element it sits inside. The selector is more specific
- * than the `> *` margin reset above so this margin wins.
- */
 .ProseMirror.screenplay .page-gap,
 .ProseMirror.screenplay > .page-gap {
   display: block;
@@ -494,41 +265,20 @@
   line-height: var(--line);
 }
 
-.page-gap-more {
-  padding-left: calc(var(--left-margin) + 15 * var(--cw));
-}
+.page-gap-more { padding-left: calc(var(--left-margin) + 15 * var(--cw)); }
+.page-gap-contd { padding-left: calc(var(--left-margin) + 20 * var(--cw)); text-transform: uppercase; }
 
-.page-gap-contd {
-  padding-left: calc(var(--left-margin) + 20 * var(--cw));
-  text-transform: uppercase;
-}
-
-.page-gap-fill {
-  height: var(--fill, 0pt);
-}
+.page-gap-fill { height: var(--fill, 0pt); }
 
 .page-gap-margin-bottom {
   position: relative;
   height: var(--bottom-margin);
 }
 
-.page-gap-margin-bottom .page-gap-more {
-  position: absolute;
-  top: 0;
-  left: 0;
-}
+.page-gap-margin-bottom .page-gap-more { position: absolute; top: 0; left: 0; }
+.page-gap-margin-top .page-gap-contd { position: absolute; bottom: 0; left: 0; }
 
-.page-gap-margin-top .page-gap-contd {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-}
-
-/*
- * The band is the desk showing between two sheets. It is wider than the sheet
- * so it also covers the sheet's side shadow, and the sheet above casts a soft
- * shadow onto it.
- */
+/* The desk showing between two sheets; wider than the sheet to cover its side shadow. */
 .page-gap-band {
   position: relative;
   height: var(--page-gap);
@@ -544,7 +294,7 @@
   right: var(--gap-bleed);
   top: 0;
   height: 14px;
-  background: linear-gradient(rgba(0, 0, 0, 0.14), rgba(0, 0, 0, 0));
+  background: linear-gradient(var(--page-edge-shadow), rgba(0, 0, 0, 0));
 }
 
 .page-gap-margin-top {
@@ -559,52 +309,21 @@
   line-height: var(--line);
 }
 
-/* Dual dialogue: two 25-character columns. The right column is pulled up by
-   the page-view plugin (inline margin) to sit beside the left one. */
-.ProseMirror.screenplay .dual-left.character {
-  margin-left: calc(5 * var(--cw));
-  width: calc(20 * var(--cw) + 1pt);
-}
-.ProseMirror.screenplay .dual-left.parenthetical {
-  margin-left: calc(3 * var(--cw));
-  width: calc(22 * var(--cw) + 1pt);
-}
-.ProseMirror.screenplay .dual-left.dialogue {
-  margin-left: 0;
-  width: calc(25 * var(--cw) + 1pt);
-}
-.ProseMirror.screenplay .dual-right.character {
-  margin-left: calc(35 * var(--cw));
-  width: calc(20 * var(--cw) + 1pt);
-}
-.ProseMirror.screenplay .dual-right.parenthetical {
-  margin-left: calc(33 * var(--cw));
-  width: calc(22 * var(--cw) + 1pt);
-}
-.ProseMirror.screenplay .dual-right.dialogue {
-  margin-left: calc(30 * var(--cw));
-  width: calc(25 * var(--cw) + 1pt);
-}
-
-/* Automatic (CONT'D), rendered as a decoration after the cue. */
-.ProseMirror.screenplay .auto-contd {
-  user-select: none;
-}
-
 /* Title page ------------------------------------------------------------- */
 
 .title-sheet {
   position: relative;
   width: 8.5in;
+  max-width: 100%;
   height: 11in;
   margin: 0 auto 0.4in;
-  background: #fff;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  background: var(--page);
+  box-shadow: var(--page-shadow);
   box-sizing: border-box;
-  font-family: 'Courier Prime', 'Courier New', Courier, monospace;
+  font-family: var(--mono-font);
   font-size: 12pt;
   line-height: 12pt;
-  color: #000;
+  color: var(--page-ink);
 }
 
 .title-sheet input,
@@ -626,12 +345,10 @@
 .title-sheet textarea:focus,
 .title-sheet input:hover,
 .title-sheet textarea:hover {
-  background: #f3f4f6;
+  background: var(--accent-soft);
 }
 
-.title-sheet ::placeholder {
-  color: #b0b5bd;
-}
+.title-sheet ::placeholder { color: var(--faint); }
 
 .title-sheet-center {
   position: absolute;
@@ -641,17 +358,9 @@
   text-align: center;
 }
 
-.title-sheet-center input {
-  text-align: center;
-}
-
-.title-sheet-title {
-  text-transform: uppercase;
-}
-
-.title-sheet-byline {
-  margin: 24pt 0 12pt;
-}
+.title-sheet-center input { text-align: center; }
+.title-sheet-title { text-transform: uppercase; }
+.title-sheet-byline { margin: 24pt 0 12pt; }
 
 .title-sheet-contact {
   position: absolute;
@@ -662,80 +371,250 @@
   white-space: pre;
 }
 
-/* Keep the empty elements clickable and the cursor visible. */
-.ProseMirror-gapcursor:after {
-  border-top: 1px solid #000;
+/* Find and replace --------------------------------------------------------- */
+
+.find-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--chrome-border);
+  font-size: 12px;
+  color: var(--muted);
+  flex: 0 0 auto;
+  flex-wrap: wrap;
 }
 
-/* Popups ------------------------------------------------------------------ */
-
-.ProseMirror-completion-dropdown,
-.ProseMirror-element-menu {
-  position: fixed;
-  z-index: 1000;
-  min-width: 200px;
-  max-height: 260px;
-  overflow-y: auto;
-  background: #fff;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+.find-bar .find-input {
+  font: inherit;
   font-size: 13px;
-  padding: 4px 0;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  min-width: 180px;
+  outline: none;
+  background: var(--chrome);
+  color: var(--ink);
 }
 
-.ProseMirror-completion-item,
-.ProseMirror-element-menu-item {
+.find-bar .find-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.find-bar button {
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--chrome);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.find-bar button:disabled { opacity: 0.5; cursor: default; }
+.find-bar button:not(:disabled):hover { background: var(--panel); }
+.find-bar .find-count { min-width: 80px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.find-bar .find-option { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); cursor: pointer; }
+.find-bar .find-sep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
+.find-bar .find-close { margin-left: auto; border: none; background: none; color: var(--faint); }
+
+/* Scene navigator (left panel) ---------------------------------------------- */
+
+.scene-navigator {
+  flex: 0 0 264px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--panel);
+  border-right: 1px solid var(--chrome-border);
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.scene-navigator-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.scene-navigator-header span:last-child {
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.scene-navigator-list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 0 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.scene-row {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: baseline;
+  padding: 7px 12px 7px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.scene-row:hover { background: var(--chrome); }
+.scene-row.current { background: var(--current); }
+.scene-row.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
+.scene-row.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
+.scene-row.dragging { opacity: 0.4; }
+
+.scene-row .scene-number {
+  color: var(--faint);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.scene-row .scene-heading-text {
+  font-weight: 500;
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scene-row.current .scene-heading-text { font-weight: 600; }
+.scene-row .scene-heading-text.opening { font-weight: 500; color: var(--muted); text-transform: none; }
+.scene-row .scene-page { color: var(--faint); font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.scene-row .scene-structure {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 2px 0;
+}
+
+.scene-row .scene-preview {
+  grid-column: 2 / -1;
+  color: var(--muted);
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scene-row .scene-synopsis {
+  grid-column: 2 / -1;
+  font: inherit;
+  font-size: 12px;
+  width: 100%;
+  min-height: 48px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 4px 6px;
+  color: var(--ink);
+  background: var(--chrome);
+}
+
+.scene-row .scene-cast { grid-column: 2 / -1; color: var(--faint); font-size: 11px; }
+
+.scene-color-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.scene-navigator-footer {
+  padding: 10px 12px;
+  border-top: 1px solid var(--line);
+}
+
+.scene-navigator-footer button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--muted);
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+}
+
+.scene-navigator-footer button:hover { color: var(--ink); }
+
+/* Inspector (right panel) ---------------------------------------------------- */
+
+.inspector {
+  flex: 0 0 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--panel);
+  border-left: 1px solid var(--chrome-border);
+  padding: 16px;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.inspector-meta { font-size: 11px; color: var(--faint); margin-bottom: 4px; }
+.inspector-heading { font: 700 13px/18px var(--mono-font); text-transform: uppercase; }
+.inspector-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.inspector-colors { display: flex; gap: 6px; }
+
+.inspector-color {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  padding: 0;
+  cursor: pointer;
+}
+
+.inspector-color.selected { box-shadow: 0 0 0 2px var(--accent); }
+.inspector-empty { color: var(--faint); font-size: 12.5px; }
+
+.inspector-session {
+  margin-top: auto;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.inspector-stat {
   display: flex;
   justify-content: space-between;
-  gap: 24px;
-  padding: 6px 12px;
-  cursor: pointer;
-  color: #111827;
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
 }
 
-.ProseMirror-completion-item {
-  font-family: 'Courier Prime', 'Courier New', Courier, monospace;
-}
-
-.ProseMirror-completion-item:hover,
-.ProseMirror-element-menu-item:hover {
-  background: #f3f4f6;
-}
-
-.ProseMirror-completion-selected,
-.ProseMirror-element-menu-item.selected {
-  background: #dbeafe;
-  color: #1e3a8a;
-}
-
-.element-shortcut {
-  color: #9ca3af;
-  font-size: 12px;
-}
+.inspector-stat span:last-child { color: var(--ink); }
 
 /* Print -------------------------------------------------------------------- */
 
 @media print {
-  .prosemirror-editor-wrapper .toolbar {
-    display: none;
-  }
-  .editor-scroll-container {
-    padding: 0;
-    overflow: visible;
-  }
-  .ProseMirror.screenplay {
-    box-shadow: none;
-  }
-  .page-gap-band {
-    background: none;
-    box-shadow: none;
-    break-before: page;
-    height: 0;
-  }
-  .page-gap-margin-bottom,
-  .page-gap-fill {
-    height: 0;
-  }
+  .status-bar, .find-bar, .scene-navigator, .inspector, .page-gap-band { display: none; }
+  .editor-scroll-container { padding: 0; overflow: visible; }
+  .ProseMirror.screenplay { box-shadow: none; }
+  .page-gap-margin-bottom, .page-gap-fill { height: 0; }
 }

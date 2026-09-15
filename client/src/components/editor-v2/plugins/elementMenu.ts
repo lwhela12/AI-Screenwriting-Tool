@@ -44,7 +44,7 @@ export function elementMenuPlugin(): Plugin<ElementMenuState> {
 
     if (!menuEl) {
       menuEl = document.createElement('div');
-      menuEl.className = 'ProseMirror-element-menu';
+      menuEl.className = 'ui-popup ProseMirror-element-menu';
       menuEl.setAttribute('role', 'listbox');
       // Keep focus in the editor when the menu is clicked.
       menuEl.addEventListener('mousedown', e => e.preventDefault());
@@ -54,7 +54,7 @@ export function elementMenuPlugin(): Plugin<ElementMenuState> {
     menuEl.innerHTML = '';
     ELEMENT_ORDER.forEach((type, index) => {
       const item = document.createElement('div');
-      item.className = 'ProseMirror-element-menu-item' + (index === state.selected ? ' selected' : '');
+      item.className = 'ui-popup-item' + (index === state.selected ? ' selected' : '');
       item.setAttribute('role', 'option');
       const label = document.createElement('span');
       label.className = 'element-label';

@@ -98,7 +98,7 @@ export const BeatBoard: React.FC<BeatBoardProps> = ({ data, onChange, view, stat
             <div
               key={beat.id}
               className={`beat-card${drag?.id === beat.id ? ' dragging' : ''}${editing === beat.id ? ' editing' : ''}`}
-              style={{ left: beat.x, top: beat.y, background: beat.color, width: CARD_WIDTH }}
+              style={{ left: beat.x, top: beat.y, background: beat.color, width: CARD_WIDTH, color: '#1e1c19' }}
               onPointerDown={e => startDrag(e, beat)}
               onPointerMove={onDragMove}
               onPointerUp={endDrag}

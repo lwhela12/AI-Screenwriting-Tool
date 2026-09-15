@@ -6,56 +6,70 @@ import ProseMirrorEditor from './components/editor-v2/ProseMirrorEditor';
 import OutlineView from './components/OutlineView';
 import ReportsView from './components/ReportsView';
 import { jumpToScene, SceneInfo } from './components/editor-v2/scenes';
-import type { BeatBoardData } from './components/beats';
-import { isHosted, installHostApi, postToHost, serializeDocument, HostDocument } from './host';
 import { ProjectManager, ScreenplayProject, isLocalProject, saveLocalProject } from './components/ProjectManager';
 import { ExportDialog } from './components/ExportDialog';
 import { apiFetch } from './api';
 import { exportToPDF, exportToFDX, exportToFountain, exportToText } from './utils/exporters';
 import type { TitlePageData } from './components/editor-v2/TitleSheet';
+import type { BeatBoardData } from './components/beats';
+import { isHosted, installHostApi, postToHost, serializeDocument, HostDocument } from './host';
+import { openSearch } from './components/editor-v2/plugins/search';
+import { SidebarIcon, InspectorIcon, SearchIcon, FocusIcon, DocIcon, GridIcon, BoardIcon, ReportIcon, ExportIcon, FolderIcon, PaletteIcon } from './icons';
+import './theme.css';
 import './App.css';
 
 type ViewType = 'editor' | 'board' | 'outline' | 'reports';
 
-interface Tab {
-  id: ViewType;
-  label: string;
-  icon: string;
-}
-
-const tabs: Tab[] = [
-  { id: 'editor', label: 'Script Editor', icon: '📝' },
-  { id: 'board', label: 'Beat Board', icon: '📋' },
-  { id: 'outline', label: 'Outline', icon: '📑' },
-  { id: 'reports', label: 'Reports', icon: '📊' }
+const tabs: { id: ViewType; label: string; icon: React.ReactNode }[] = [
+  { id: 'editor', label: 'Script', icon: <DocIcon /> },
+  { id: 'outline', label: 'Outline', icon: <GridIcon /> },
+  { id: 'board', label: 'Beats', icon: <BoardIcon /> },
+  { id: 'reports', label: 'Reports', icon: <ReportIcon /> }
 ];
 
-type SaveState =
-  | { kind: 'clean'; at?: Date }
-  | { kind: 'dirty' }
-  | { kind: 'saving' }
-  | { kind: 'local'; at: Date }
-  | { kind: 'error'; message: string };
+const THEMES = [
+  { id: 'paper', label: 'Paper' },
+  { id: 'sepia', label: 'Sepia' },
+  { id: 'midnight', label: 'Midnight' }
+];
 
-const AUTOSAVE_DELAY_MS = isHosted() ? 400 : 3000;
+type SaveState = { kind: 'clean'; at?: Date } | { kind: 'dirty' } | { kind: 'saving' } | { kind: 'local'; at: Date } | { kind: 'error'; message: string };
+
+const HOSTED = isHosted();
+const AUTOSAVE_DELAY_MS = HOSTED ? 400 : 3000;
 
 function describeSave(state: SaveState): { text: string; className: string } {
   const time = (d: Date) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   switch (state.kind) {
     case 'clean':
-      return { text: state.at ? `Saved ${time(state.at)}` : 'Saved', className: 'save-clean' };
+      return { text: HOSTED ? '' : state.at ? `Saved ${time(state.at)}` : 'Saved', className: 'save-clean' };
     case 'dirty':
-      return { text: 'Unsaved changes', className: 'save-dirty' };
+      return { text: HOSTED ? 'Edited' : 'Unsaved changes', className: 'save-dirty' };
     case 'saving':
       return { text: 'Saving…', className: 'save-saving' };
     case 'local':
-      return { text: `Saved locally ${time(state.at)} (server unreachable)`, className: 'save-local' };
+      return { text: `Saved locally ${time(state.at)}`, className: 'save-local' };
     case 'error':
       return { text: `Save failed: ${state.message}`, className: 'save-error' };
   }
 }
 
-const HOSTED = isHosted();
+function readPref(key: string, fallback: boolean): boolean {
+  try {
+    const v = localStorage.getItem(key);
+    return v === null ? fallback : v === 'true';
+  } catch {
+    return fallback;
+  }
+}
+
+function writePref(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* ignore */
+  }
+}
 
 export const App: React.FC = () => {
   const [activeView, setActiveView] = useState<ViewType>('editor');
@@ -66,6 +80,16 @@ export const App: React.FC = () => {
   const [saveState, setSaveState] = useState<SaveState>({ kind: 'clean' });
   const [editorState, setEditorState] = useState<EditorState | null>(null);
   const [beats, setBeats] = useState<BeatBoardData | null>(null);
+  const [showScenes, setShowScenes] = useState(() => readPref('ui.scenes', true));
+  const [showInspector, setShowInspector] = useState(() => readPref('ui.inspector', true));
+  const [focusMode, setFocusMode] = useState(false);
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem('ui.theme') || 'paper';
+    } catch {
+      return 'paper';
+    }
+  });
   const editorViewRef = useRef<EditorView | null>(null);
 
   // Latest editor state lives in refs so the save routine never closes over stale data.
@@ -75,6 +99,15 @@ export const App: React.FC = () => {
   const dirtyRef = useRef(false);
   const savingRef = useRef(false);
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const currentProjectRef = useRef<ScreenplayProject | null>(null);
+  currentProjectRef.current = currentProject;
+
+  // Theme: the browser build sets it here; the native app sets it through the bridge.
+  useEffect(() => {
+    if (HOSTED) return;
+    document.documentElement.dataset.theme = theme;
+    writePref('ui.theme', theme);
+  }, [theme]);
 
   const markDirty = useCallback(() => {
     dirtyRef.current = true;
@@ -105,10 +138,7 @@ export const App: React.FC = () => {
       return true;
     }
     if (!dirtyRef.current) return true;
-    if (savingRef.current) {
-      // A save is in flight; the dirty flag will trigger another pass when it finishes.
-      return false;
-    }
+    if (savingRef.current) return false;
 
     savingRef.current = true;
     dirtyRef.current = false;
@@ -131,10 +161,7 @@ export const App: React.FC = () => {
         setSaveState({ kind: 'local', at: new Date() });
         ok = true;
       } else {
-        const saved = await apiFetch<ScreenplayProject>(`/screenplays/${project.id}`, {
-          method: 'PUT',
-          body: JSON.stringify(updated)
-        });
+        const saved = await apiFetch<ScreenplayProject>(`/screenplays/${project.id}`, { method: 'PUT', body: JSON.stringify(updated) });
         currentProjectRef.current = saved;
         setCurrentProject(saved);
         setSaveState({ kind: 'clean', at: new Date() });
@@ -142,10 +169,9 @@ export const App: React.FC = () => {
       }
     } catch (error: any) {
       if (error instanceof TypeError) {
-        // Network failure: keep the writer's work in localStorage until the server is back.
         saveLocalProject(updated);
         setSaveState({ kind: 'local', at: new Date() });
-        dirtyRef.current = true; // still needs to reach the server
+        dirtyRef.current = true;
       } else {
         console.error('Failed to save screenplay:', error);
         setSaveState({ kind: 'error', message: error?.message || 'unknown error' });
@@ -154,16 +180,9 @@ export const App: React.FC = () => {
     } finally {
       savingRef.current = false;
     }
-
-    if (dirtyRef.current && ok) {
-      // Edits arrived while saving; schedule another pass.
-      markDirty();
-    }
+    if (dirtyRef.current && ok) markDirty();
     return ok;
   }, [markDirty]);
-
-  const currentProjectRef = useRef<ScreenplayProject | null>(null);
-  currentProjectRef.current = currentProject;
 
   // Native host: expose the bridge once; the host loads the document through it.
   useEffect(() => {
@@ -180,6 +199,7 @@ export const App: React.FC = () => {
         beatsRef.current = project.beats ?? null;
         setBeats(project.beats ?? null);
         dirtyRef.current = false;
+        setSaveState({ kind: 'clean' });
         setEditorState(null);
         editorViewRef.current = null;
         setShowProjectManager(false);
@@ -188,6 +208,7 @@ export const App: React.FC = () => {
       },
       setTheme: (name: string) => {
         document.documentElement.dataset.theme = name;
+        setTheme(name);
       },
       exportAs: format => {
         const project = currentProjectRef.current;
@@ -252,23 +273,38 @@ export const App: React.FC = () => {
     setShowProjectManager(true);
   };
 
-  // Cmd/Ctrl+S saves from anywhere in the app.
+  const toggleScenes = () => setShowScenes(v => (writePref('ui.scenes', String(!v)), !v));
+  const toggleInspector = () => setShowInspector(v => (writePref('ui.inspector', String(!v)), !v));
+
+  const openFind = () => {
+    const view = editorViewRef.current;
+    if (!view) return;
+    setActiveView('editor');
+    openSearch(view.state, view.dispatch);
+  };
+
+  // Global keys: save, focus mode.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 's') {
+      const mod = event.metaKey || event.ctrlKey;
+      if (mod && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 's') {
         event.preventDefault();
         if (autosaveTimer.current) {
           clearTimeout(autosaveTimer.current);
           autosaveTimer.current = null;
         }
         void save();
+      } else if (mod && event.shiftKey && event.key.toLowerCase() === 'f') {
+        event.preventDefault();
+        setFocusMode(f => !f);
+      } else if (event.key === 'Escape' && focusMode) {
+        setFocusMode(false);
       }
     };
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, [save]);
+  }, [save, focusMode]);
 
-  // Warn before the tab closes with unsaved work.
   useEffect(() => {
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
       if (dirtyRef.current || savingRef.current) {
@@ -287,56 +323,67 @@ export const App: React.FC = () => {
     []
   );
 
-  if (showProjectManager) {
-    return <ProjectManager onProjectSelect={handleProjectSelect} />;
-  }
-  if (HOSTED && !currentProject) {
-    return <div className="app-container" />; // the host is about to hand us the document
-  }
+  if (showProjectManager) return <ProjectManager onProjectSelect={handleProjectSelect} />;
+  if (HOSTED && !currentProject) return <div className="app" />;
 
   const saveInfo = describeSave(saveState);
 
   return (
-    <div className="app-container">
-      <header className="app-header">
-        <div className="app-title">
-          <h1>{currentProject?.title || 'AI Screenwriting Tool'}</h1>
-          <span className={`app-subtitle save-status ${saveInfo.className}`}>{saveInfo.text}</span>
+    <div className={`app${HOSTED ? ' hosted' : ''}${focusMode ? ' focus-mode' : ''}`}>
+      <header className="toolbar">
+        <div className="toolbar-group">
+          <button className={`ui-button icon${showScenes ? ' active' : ''}`} onClick={toggleScenes} title="Scenes panel">
+            <SidebarIcon />
+          </button>
         </div>
-        <nav className="tab-navigation">
+        <nav className="toolbar-group tabs" aria-label="Views">
           {tabs.map(tab => (
-            <button
-              key={tab.id}
-              className={`tab-button ${activeView === tab.id ? 'active' : ''}`}
-              onClick={() => setActiveView(tab.id)}
-            >
-              <span className="tab-icon">{tab.icon}</span>
-              <span className="tab-label">{tab.label}</span>
+            <button key={tab.id} className={`ui-button${activeView === tab.id ? ' active' : ''}`} onClick={() => setActiveView(tab.id)}>
+              {tab.icon}
+              <span>{tab.label}</span>
             </button>
           ))}
         </nav>
-        <div className="header-actions">
+        <div className="toolbar-title">
+          <span className="toolbar-title-text">{currentProject?.title || 'Untitled'}</span>
+          <span className={`save-status ${saveInfo.className}`}>{saveInfo.text}</span>
+        </div>
+        <div className="toolbar-group">
+          <button className="ui-button icon" onClick={openFind} title="Find (⌘F)">
+            <SearchIcon />
+          </button>
+          <button className={`ui-button icon${focusMode ? ' active' : ''}`} onClick={() => setFocusMode(f => !f)} title="Focus mode (⇧⌘F)">
+            <FocusIcon />
+          </button>
           {!HOSTED && (
-            <button className="action-button" title="Projects" onClick={() => void openProjects()}>
-              📁
+            <label className="ui-button icon theme-select" title="Theme">
+              <PaletteIcon />
+              <select value={theme} onChange={e => setTheme(e.target.value)} aria-label="Theme">
+                {THEMES.map(t => (
+                  <option key={t.id} value={t.id}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <button className="ui-button icon" onClick={() => setShowExportDialog(true)} disabled={!currentProject} title="Export">
+            <ExportIcon />
+          </button>
+          {!HOSTED && (
+            <button className="ui-button icon" onClick={() => void openProjects()} title="Scripts">
+              <FolderIcon />
             </button>
           )}
-          <button
-            className={`action-button ${saveState.kind === 'dirty' || saveState.kind === 'error' ? 'unsaved' : ''}`}
-            title="Save (⌘S)"
-            onClick={() => void save()}
-          >
-            💾
-          </button>
-          <button className="action-button" title="Export" onClick={() => setShowExportDialog(true)} disabled={!currentProject}>
-            📤
+          <button className={`ui-button icon${showInspector ? ' active' : ''}`} onClick={toggleInspector} title="Inspector">
+            <InspectorIcon />
           </button>
         </div>
       </header>
 
-      <main className="app-main">
+      <main className="views">
         {/* The editor stays mounted on every tab so the outline and beat board can act on the live script. */}
-        <div className={`view-container ${activeView === 'editor' ? 'active' : ''}`}>
+        <div className={`view${activeView === 'editor' ? ' active' : ''}`}>
           {currentProject && (
             <ProseMirrorEditor
               key={`${currentProject.id}-${hostGeneration}`}
@@ -348,20 +395,21 @@ export const App: React.FC = () => {
                 editorViewRef.current = view;
               }}
               onStateChange={setEditorState}
+              showScenes={showScenes}
+              showInspector={showInspector}
+              focusMode={focusMode}
             />
           )}
         </div>
-        <div className={`view-container ${activeView === 'board' ? 'active' : ''}`}>
+        <div className={`view${activeView === 'board' ? ' active' : ''}`}>
           {activeView === 'board' && currentProject && editorState && (
             <BeatBoard data={beats} onChange={handleBeatsChange} view={editorViewRef.current} state={editorState} onOpenScene={openScene} />
           )}
         </div>
-        <div className={`view-container ${activeView === 'outline' ? 'active' : ''}`}>
-          {activeView === 'outline' && currentProject && editorState && (
-            <OutlineView view={editorViewRef.current} state={editorState} onOpenScene={openScene} />
-          )}
+        <div className={`view${activeView === 'outline' ? ' active' : ''}`}>
+          {activeView === 'outline' && currentProject && editorState && <OutlineView view={editorViewRef.current} state={editorState} onOpenScene={openScene} />}
         </div>
-        <div className={`view-container ${activeView === 'reports' ? 'active' : ''}`}>
+        <div className={`view${activeView === 'reports' ? ' active' : ''}`}>
           {activeView === 'reports' && currentProject && editorState && <ReportsView state={editorState} onOpenScene={openScene} />}
         </div>
       </main>

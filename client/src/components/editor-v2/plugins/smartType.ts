@@ -275,7 +275,7 @@ export function completionPlugin(): Plugin<CompletionState> {
 
           if (!dropdown) {
             dropdown = document.createElement('div');
-            dropdown.className = 'ProseMirror-completion-dropdown';
+            dropdown.className = 'ui-popup ProseMirror-completion-dropdown';
             dropdown.addEventListener('mousedown', e => e.preventDefault());
             document.body.appendChild(dropdown);
           }
@@ -283,7 +283,7 @@ export function completionPlugin(): Plugin<CompletionState> {
           dropdown.innerHTML = '';
           completion.options.forEach((option, index) => {
             const item = document.createElement('div');
-            item.className = 'ProseMirror-completion-item' + (index === completion.selected ? ' ProseMirror-completion-selected' : '');
+            item.className = 'ui-popup-item' + (index === completion.selected ? ' selected' : '');
             item.textContent = option.label;
             item.addEventListener('click', () => applyCompletion(view, { ...completion, selected: index }));
             dropdown!.appendChild(item);

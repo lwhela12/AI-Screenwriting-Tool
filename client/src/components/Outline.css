@@ -3,9 +3,9 @@
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  background: #e5e7eb;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  color: #111827;
+  background: var(--desk);
+  font-family: var(--ui-font);
+  color: var(--ink);
 }
 
 .outline-toolbar {
@@ -13,8 +13,8 @@
   align-items: center;
   gap: 16px;
   padding: 8px 16px;
-  background: #fff;
-  border-bottom: 1px solid #d1d5db;
+  background: var(--chrome);
+  border-bottom: 1px solid var(--chrome-border);
   font-size: 13px;
 }
 
@@ -24,7 +24,7 @@
 
 .outline-hint {
   flex: 1;
-  color: #9ca3af;
+  color: var(--faint);
   font-size: 12px;
 }
 
@@ -33,19 +33,19 @@
   font: inherit;
   font-size: 12px;
   padding: 4px 10px;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--chrome-border);
   border-radius: 6px;
-  background: #fff;
+  background: var(--chrome);
   cursor: pointer;
 }
 
 .outline-add:hover,
 .outline-card-actions button:hover {
-  background: #f3f4f6;
+  background: var(--panel);
 }
 
 .outline-card-actions button.danger {
-  color: #b91c1c;
+  color: var(--danger);
 }
 
 .outline-scroll {
@@ -65,7 +65,7 @@
 .outline-empty {
   grid-column: 1 / -1;
   text-align: center;
-  color: #9ca3af;
+  color: var(--faint);
   padding: 60px 0;
 }
 
@@ -85,9 +85,9 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #4338ca;
-  background: #eef2ff;
-  border: 1px solid #c7d2fe;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-soft);
   border-radius: 999px;
   padding: 2px 10px;
   cursor: pointer;
@@ -99,7 +99,7 @@
   width: 100%;
   box-sizing: border-box;
   padding: 3px 8px;
-  border: 1px solid #a5b4fc;
+  border: 1px solid var(--accent);
   border-radius: 6px;
   outline: none;
 }
@@ -114,7 +114,7 @@
 }
 
 .outline-card.current {
-  box-shadow: 0 0 0 2px #6366f1, 0 2px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 0 0 2px var(--accent), 0 2px 6px rgba(0, 0, 0, 0.1);
 }
 
 .outline-card.dragging {
@@ -122,24 +122,24 @@
 }
 
 .outline-card.drop-before {
-  box-shadow: -4px 0 0 #6366f1, 0 2px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: -4px 0 0 var(--accent), 0 2px 6px rgba(0, 0, 0, 0.1);
 }
 
 .outline-card.drop-after {
-  box-shadow: 4px 0 0 #6366f1, 0 2px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: 4px 0 0 var(--accent), 0 2px 6px rgba(0, 0, 0, 0.1);
 }
 
 .outline-card-top {
   display: flex;
   justify-content: space-between;
   font-size: 11px;
-  color: #6b7280;
+  color: var(--muted);
   margin-bottom: 4px;
 }
 
 .outline-card-number {
   font-weight: 700;
-  color: #374151;
+  color: var(--ink);
 }
 
 .outline-card input,
@@ -158,7 +158,7 @@
 }
 
 .outline-card-heading {
-  font-family: 'Courier Prime', 'Courier New', Courier, monospace;
+  font-family: var(--mono-font);
   font-size: 13px;
   font-weight: 700;
   text-transform: uppercase;
@@ -168,7 +168,7 @@
 .outline-card-synopsis {
   font-size: 13px;
   line-height: 1.35;
-  color: #374151;
+  color: var(--ink);
   border-top: 1px solid rgba(0, 0, 0, 0.06) !important;
   padding-top: 6px !important;
 }
@@ -176,7 +176,7 @@
 .outline-card-cast {
   margin-top: 6px;
   font-size: 11px;
-  color: #6b7280;
+  color: var(--muted);
 }
 
 .outline-card-tools {
@@ -203,7 +203,7 @@
 }
 
 .outline-color.selected {
-  box-shadow: 0 0 0 2px #6366f1;
+  box-shadow: 0 0 0 2px var(--accent);
 }
 
 .outline-card-actions {

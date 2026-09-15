@@ -90,7 +90,7 @@ export const OutlineView: React.FC<OutlineViewProps> = ({ view, state, onOpenSce
                 )}
                 <div
                   className={`outline-card${isCurrent ? ' current' : ''}${dragging === scene.ordinal ? ' dragging' : ''}${dropClass}`}
-                  style={{ background: scene.color || '#fff' }}
+                  style={scene.color ? { background: scene.color, color: '#1e1c19' } : { background: 'var(--chrome)' }}
                   draggable
                   onDragStart={e => {
                     setDragging(scene.ordinal);
