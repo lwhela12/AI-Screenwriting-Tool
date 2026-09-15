@@ -509,3 +509,29 @@ button:not(.tab-button):not(.action-button):not(.toolbar button):hover::before {
   transform: scale(1.05);
   box-shadow: var(--shadow-sm);
 }
+/* Save status in the header */
+.save-status { font-size: 0.8rem; }
+.save-status.save-dirty { color: #b45309; }
+.save-status.save-saving { color: #6b7280; }
+.save-status.save-clean { color: #059669; }
+.save-status.save-local { color: #b45309; }
+.save-status.save-error { color: #dc2626; font-weight: 600; }
+.action-button.unsaved { box-shadow: inset 0 0 0 2px #f59e0b; border-radius: 6px; }
+
+/* Export notifications */
+.export-notification {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: white;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  z-index: 10000;
+}
+.export-notification-info { background: #2563eb; }
+.export-notification-success { background: #10b981; }
+.export-notification-error { background: #ef4444; }

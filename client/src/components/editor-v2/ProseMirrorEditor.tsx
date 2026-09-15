@@ -1,135 +1,112 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { EditorState } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
-import { Schema, DOMParser } from 'prosemirror-model';
-import { history, undo, redo } from 'prosemirror-history';
+import { history } from 'prosemirror-history';
 import { keymap } from 'prosemirror-keymap';
 import { baseKeymap } from 'prosemirror-commands';
-import { screenplaySchema, createPage } from './schema/screenplaySchema';
+import { dropCursor } from 'prosemirror-dropcursor';
+import { gapCursor } from 'prosemirror-gapcursor';
 import { screenplayKeymap } from './plugins/screenplayKeymap';
-import { pageViewPlugin } from './plugins/pageView';
-import { createInputRules } from './plugins/inputRules';
+import { pageViewPlugin, estimateLayout } from './plugins/pageView';
 import { smartTypePlugin, completionPlugin } from './plugins/smartType';
 import { autoFormatPlugin } from './plugins/autoFormat';
-import { doubleEnterPlugin } from './plugins/doubleEnter';
-import { gapCursor } from 'prosemirror-gapcursor';
+import { elementMenuPlugin } from './plugins/elementMenu';
+import { contentToDoc, docToContent } from './docConverter';
+import { ELEMENT_LABELS, isElementType } from './schema/screenplaySchema';
 import './ProseMirrorEditor.css';
 
 interface ProseMirrorEditorProps {
+  /** Stored content for the project; read once when the editor mounts. */
   initialContent?: string;
+  /** Called with the serialized document after every change. */
   onContentChange?: (content: string) => void;
-  projectTitle?: string;
-  projectAuthor?: string;
-  projectContact?: string;
 }
 
-export const ProseMirrorEditor: React.FC<ProseMirrorEditorProps> = ({
-  initialContent = '',
-  onContentChange,
-  projectTitle = 'Untitled',
-  projectAuthor,
-  projectContact
-}) => {
+interface Status {
+  element: string;
+  page: number;
+  pageCount: number;
+}
+
+function statusFor(state: EditorState): Status {
+  const { $from } = state.selection;
+  const typeName = $from.parent.type.name;
+  const layout = estimateLayout(state.doc);
+  let page = 1;
+  for (const pos of layout.breaks) {
+    if ($from.pos >= pos) page += 1;
+    else break;
+  }
+  return {
+    element: isElementType(typeName) ? ELEMENT_LABELS[typeName] : '',
+    page,
+    pageCount: layout.pageCount
+  };
+}
+
+export const ProseMirrorEditor: React.FC<ProseMirrorEditorProps> = ({ initialContent = '', onContentChange }) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
-  const [pageStatus, setPageStatus] = useState('Page 1 of 1');
+  const onChangeRef = useRef(onContentChange);
+  onChangeRef.current = onContentChange;
+  const [status, setStatus] = useState<Status>({ element: 'Action', page: 1, pageCount: 1 });
 
   useEffect(() => {
     if (!editorRef.current || viewRef.current) return;
 
-    // Create initial document
-    let doc;
-    
-    if (initialContent) {
-      try {
-        // Try to parse JSON content
-        const parsed = JSON.parse(initialContent);
-        doc = screenplaySchema.nodeFromJSON(parsed);
-      } catch (e) {
-        // Fallback to creating a simple document with the text
-        const actionNode = screenplaySchema.nodes.action.create({}, 
-          initialContent ? screenplaySchema.text(initialContent) : null
-        );
-        const page = screenplaySchema.nodes.page.create({ number: 1 }, [actionNode]);
-        doc = screenplaySchema.nodes.doc.create({}, [page]);
-      }
-    } else {
-      // Create empty document with one page
-      doc = screenplaySchema.nodes.doc.create({}, [createPage(1)]);
-    }
-
-    // Create editor state
     const state = EditorState.create({
-      doc,
-      schema: screenplaySchema,
+      doc: contentToDoc(initialContent),
       plugins: [
         history(),
-        completionPlugin(), // Must come before keymaps to handle Enter/Tab
+        completionPlugin(), // before the keymap so Tab/Enter can accept a suggestion
+        elementMenuPlugin(), // before the keymap so arrows/Enter drive the menu when open
         smartTypePlugin(),
-        keymap({ ...screenplayKeymap, 'Mod-z': undo, 'Mod-y': redo }),
+        keymap(screenplayKeymap),
         keymap(baseKeymap),
-        autoFormatPlugin(), // Must come before input rules
-        createInputRules(),
-        doubleEnterPlugin(),
+        autoFormatPlugin(),
+        dropCursor(),
         gapCursor(),
         pageViewPlugin
       ]
     });
 
-    // Create editor view
     const view = new EditorView(editorRef.current, {
       state,
+      attributes: { class: 'ProseMirror screenplay', spellcheck: 'true' },
       dispatchTransaction(transaction) {
         const newState = view.state.apply(transaction);
         view.updateState(newState);
-        
-        // Update page status and notify parent
-        if (transaction.docChanged || transaction.selection) {
-          const pageCount = newState.doc.content.childCount;
-          const selection = newState.selection;
-          let currentPage = 1;
-          
-          // Find which page the cursor is on
-          let offset = 0;
-          newState.doc.forEach((node, nodeOffset) => {
-            if (nodeOffset <= selection.from && nodeOffset + node.nodeSize > selection.from) {
-              return false; // Found it
-            }
-            currentPage++;
-          });
-          
-          setPageStatus(`Page ${currentPage} of ${pageCount}`);
-          
-          // Notify parent of content change
-          if (transaction.docChanged && onContentChange) {
-            const content = newState.doc.toJSON();
-            onContentChange(JSON.stringify(content));
-          }
+        if (transaction.docChanged || transaction.selectionSet) {
+          setStatus(statusFor(newState));
         }
-      },
-      attributes: {
-        class: 'ProseMirror',
-        spellcheck: 'true'
+        if (transaction.docChanged && onChangeRef.current) {
+          onChangeRef.current(docToContent(newState.doc));
+        }
       }
     });
 
-    // Focus the editor
+    viewRef.current = view;
+    setStatus(statusFor(state));
     view.focus();
 
-    viewRef.current = view;
-
     return () => {
-      if (viewRef.current) {
-        viewRef.current.destroy();
-        viewRef.current = null;
-      }
+      view.destroy();
+      viewRef.current = null;
     };
-  }, [initialContent]); // Recreate when initial content changes
+    // The editor owns its document after mount; a new project remounts it via `key`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="prosemirror-editor-wrapper">
       <div className="toolbar">
-        <span className="toolbar-info">{pageStatus} • Screenplay Format</span>
+        <span className="toolbar-info">
+          <span className="toolbar-element">{status.element}</span>
+          <span className="toolbar-sep">•</span>
+          Page {status.page} of {status.pageCount}
+          <span className="toolbar-hint">(estimated)</span>
+        </span>
+        <span className="toolbar-hint">Enter on an empty line opens the element menu · ⌘1–⌘7 set element type</span>
       </div>
       <div className="editor-scroll-container">
         <div ref={editorRef} className="prosemirror-editor" />

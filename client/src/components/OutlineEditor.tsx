@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { API_BASE } from '../api';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import './OutlineEditor.css';
 
@@ -56,7 +57,7 @@ export const OutlineEditor: React.FC<OutlineEditorProps> = ({ screenplayId, onDa
     }
 
     // Load outline from screenplay
-    fetch(`http://localhost:5001/screenplays/${screenplayId}`)
+    fetch(`${API_BASE}/screenplays/${screenplayId}`)
       .then((res) => res.json())
       .then((screenplay) => {
         if (screenplay.outline) {

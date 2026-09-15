@@ -453,3 +453,21 @@
     border-color: var(--primary-color);
   }
 }
+.notice {
+  max-width: 900px;
+  margin: 0 auto 16px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+.notice-warning { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+.notice-error { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; cursor: pointer; }
+.badge-local {
+  font-size: 0.7em;
+  font-weight: 500;
+  color: #92400e;
+  background: #fef3c7;
+  border-radius: 4px;
+  padding: 1px 6px;
+  vertical-align: middle;
+}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiFetch } from '../api';
 import './ProjectManager.css';
 
 export interface ScreenplayProject {
@@ -10,111 +11,132 @@ export interface ScreenplayProject {
   author?: string;
   contact?: string;
   format?: string;
+  beats?: any;
+  outline?: any;
+}
+
+const LOCAL_KEY = 'screenplayProjects';
+const LOCAL_PREFIX = 'local-';
+
+/** Projects created while the server was unreachable live only in this browser. */
+export function isLocalProject(project: ScreenplayProject): boolean {
+  return project.id.startsWith(LOCAL_PREFIX);
+}
+
+export function loadLocalProjects(): ScreenplayProject[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list.filter(p => p && typeof p.id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveLocalProject(project: ScreenplayProject): void {
+  const projects = loadLocalProjects();
+  const index = projects.findIndex(p => p.id === project.id);
+  if (index >= 0) projects[index] = project;
+  else projects.push(project);
+  try {
+    localStorage.setItem(LOCAL_KEY, JSON.stringify(projects));
+  } catch (err) {
+    console.error('Could not write to localStorage:', err);
+  }
+}
+
+function removeLocalProject(id: string): void {
+  const projects = loadLocalProjects().filter(p => p.id !== id);
+  localStorage.setItem(LOCAL_KEY, JSON.stringify(projects));
+}
+
+function newLocalId(): string {
+  const rand = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+  return `${LOCAL_PREFIX}${rand}`;
 }
 
 interface ProjectManagerProps {
   onProjectSelect: (project: ScreenplayProject) => void;
-  onNewProject: () => void;
 }
 
-export const ProjectManager: React.FC<ProjectManagerProps> = ({ onProjectSelect, onNewProject }) => {
+export const ProjectManager: React.FC<ProjectManagerProps> = ({ onProjectSelect }) => {
   const [projects, setProjects] = useState<ScreenplayProject[]>([]);
+  const [serverOnline, setServerOnline] = useState<boolean | null>(null);
   const [showNewDialog, setShowNewDialog] = useState(false);
   const [newProjectTitle, setNewProjectTitle] = useState('');
   const [newProjectAuthor, setNewProjectAuthor] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadProjects();
+    void loadProjects();
   }, []);
 
   const loadProjects = async () => {
+    const local = loadLocalProjects();
     try {
-      const response = await fetch('http://localhost:5001/screenplays');
-      if (response.ok) {
-        const data = await response.json();
-        setProjects(data);
-      }
-    } catch (error) {
-      console.error('Failed to load screenplays:', error);
-      // Fallback to localStorage if API fails
-      const savedProjects = localStorage.getItem('screenplayProjects');
-      if (savedProjects) {
-        setProjects(JSON.parse(savedProjects));
-      }
+      const remote = await apiFetch<ScreenplayProject[]>('/screenplays');
+      setServerOnline(true);
+      // Local copies of server projects (saved while offline) win if they are newer.
+      const merged = remote.map(r => {
+        const localCopy = local.find(l => l.id === r.id);
+        return localCopy && localCopy.updatedAt > r.updatedAt ? localCopy : r;
+      });
+      const localOnly = local.filter(l => isLocalProject(l));
+      setProjects([...merged, ...localOnly].sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || '')));
+    } catch (err: any) {
+      console.error('Failed to load screenplays:', err);
+      setServerOnline(false);
+      setProjects(local.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || '')));
+      if (!(err instanceof TypeError)) setError(err?.message || 'Could not load screenplays');
     }
   };
 
   const createNewProject = async () => {
     if (!newProjectTitle.trim()) return;
-
-    const newProject: Omit<ScreenplayProject, 'id' | 'createdAt' | 'updatedAt'> = {
-      title: newProjectTitle,
-      author: newProjectAuthor,
+    const now = new Date().toISOString();
+    const draft = {
+      title: newProjectTitle.trim(),
+      author: newProjectAuthor.trim(),
       content: '',
       format: 'screenplay'
     };
 
+    let project: ScreenplayProject;
     try {
-      const response = await fetch('http://localhost:5001/screenplays', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newProject)
-      });
-      
-      if (response.ok) {
-        const savedProject = await response.json();
-        setProjects([...projects, savedProject]);
-        setShowNewDialog(false);
-        setNewProjectTitle('');
-        setNewProjectAuthor('');
-        onProjectSelect(savedProject);
+      project = await apiFetch<ScreenplayProject>('/screenplays', { method: 'POST', body: JSON.stringify(draft) });
+    } catch (err: any) {
+      if (!(err instanceof TypeError)) {
+        setError(`Could not create screenplay: ${err?.message || 'unknown error'}`);
+        return;
       }
-    } catch (error) {
-      console.error('Failed to create screenplay:', error);
-      // Fallback to localStorage
-      const updatedProjects = [...projects, newProject];
-      setProjects(updatedProjects);
-      localStorage.setItem('screenplayProjects', JSON.stringify(updatedProjects));
-      setShowNewDialog(false);
-      setNewProjectTitle('');
-      setNewProjectAuthor('');
-      onProjectSelect(newProject);
+      project = { ...draft, id: newLocalId(), createdAt: now, updatedAt: now };
+      saveLocalProject(project);
     }
+
+    setProjects(prev => [project, ...prev]);
+    setShowNewDialog(false);
+    setNewProjectTitle('');
+    setNewProjectAuthor('');
+    onProjectSelect(project);
   };
 
-  const deleteProject = async (projectId: string) => {
-    if (confirm('Are you sure you want to delete this screenplay?')) {
-      try {
-        const response = await fetch(`http://localhost:5001/screenplays/${projectId}`, {
-          method: 'DELETE'
-        });
-        
-        if (response.ok) {
-          const updatedProjects = projects.filter(p => p.id !== projectId);
-          setProjects(updatedProjects);
-        }
-      } catch (error) {
-        console.error('Failed to delete screenplay:', error);
-        // Fallback to localStorage
-        const updatedProjects = projects.filter(p => p.id !== projectId);
-        setProjects(updatedProjects);
-        localStorage.setItem('screenplayProjects', JSON.stringify(updatedProjects));
+  const deleteProject = async (project: ScreenplayProject) => {
+    if (!confirm(`Delete "${project.title}"? This cannot be undone.`)) return;
+    try {
+      if (!isLocalProject(project)) {
+        await apiFetch<void>(`/screenplays/${project.id}`, { method: 'DELETE' });
       }
+      removeLocalProject(project.id);
+      setProjects(prev => prev.filter(p => p.id !== project.id));
+    } catch (err: any) {
+      setError(`Could not delete screenplay: ${err?.message || 'unknown error'}`);
     }
   };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    if (isNaN(date.getTime())) {
-      return 'Unknown date';
-    }
-    return date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    if (isNaN(date.getTime())) return 'Unknown date';
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
 
   return (
@@ -124,11 +146,19 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({ onProjectSelect,
         <p className="tagline">Professional screenplay writing with AI assistance</p>
       </div>
 
+      {serverOnline === false && (
+        <div className="notice notice-warning">
+          The screenplay server is unreachable. New scripts will be kept in this browser only until it is back.
+        </div>
+      )}
+      {error && (
+        <div className="notice notice-error" onClick={() => setError(null)}>
+          {error}
+        </div>
+      )}
+
       <div className="project-actions">
-        <button 
-          className="btn-primary"
-          onClick={() => setShowNewDialog(true)}
-        >
+        <button className="btn-primary" onClick={() => setShowNewDialog(true)}>
           <span className="icon">+</span>
           New Screenplay
         </button>
@@ -145,21 +175,18 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({ onProjectSelect,
             {projects.map(project => (
               <div key={project.id} className="project-card">
                 <div className="project-info">
-                  <h3>{project.title}</h3>
+                  <h3>
+                    {project.title}
+                    {isLocalProject(project) && <span className="badge-local"> local</span>}
+                  </h3>
                   {project.author && <p className="author">by {project.author}</p>}
                   <p className="date">Last updated: {formatDate(project.updatedAt)}</p>
                 </div>
                 <div className="project-actions">
-                  <button 
-                    className="btn-secondary"
-                    onClick={() => onProjectSelect(project)}
-                  >
+                  <button className="btn-secondary" onClick={() => onProjectSelect(project)}>
                     Open
                   </button>
-                  <button 
-                    className="btn-danger"
-                    onClick={() => deleteProject(project.id)}
-                  >
+                  <button className="btn-danger" onClick={() => void deleteProject(project)}>
                     Delete
                   </button>
                 </div>
@@ -178,7 +205,10 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({ onProjectSelect,
               <input
                 type="text"
                 value={newProjectTitle}
-                onChange={(e) => setNewProjectTitle(e.target.value)}
+                onChange={e => setNewProjectTitle(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') void createNewProject();
+                }}
                 placeholder="Enter screenplay title"
                 autoFocus
               />
@@ -188,22 +218,18 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({ onProjectSelect,
               <input
                 type="text"
                 value={newProjectAuthor}
-                onChange={(e) => setNewProjectAuthor(e.target.value)}
+                onChange={e => setNewProjectAuthor(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') void createNewProject();
+                }}
                 placeholder="Enter author name"
               />
             </div>
             <div className="dialog-actions">
-              <button 
-                className="btn-secondary"
-                onClick={() => setShowNewDialog(false)}
-              >
+              <button className="btn-secondary" onClick={() => setShowNewDialog(false)}>
                 Cancel
               </button>
-              <button 
-                className="btn-primary"
-                onClick={createNewProject}
-                disabled={!newProjectTitle.trim()}
-              >
+              <button className="btn-primary" onClick={() => void createNewProject()} disabled={!newProjectTitle.trim()}>
                 Create
               </button>
             </div>

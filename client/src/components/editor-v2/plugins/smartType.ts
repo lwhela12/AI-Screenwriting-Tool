@@ -1,10 +1,10 @@
-import { Plugin, PluginKey, EditorState, Transaction } from 'prosemirror-state';
-import { EditorView, Decoration, DecorationSet } from 'prosemirror-view';
-import { ResolvedPos } from 'prosemirror-model';
+import { Plugin, PluginKey, EditorState } from 'prosemirror-state';
+import { EditorView } from 'prosemirror-view';
+import { Node as PMNode } from 'prosemirror-model';
 
 export type SmartList = 'characters' | 'locations' | 'times' | 'transitions';
 
-interface SmartTypeData {
+export interface SmartTypeData {
   characters: Set<string>;
   locations: Set<string>;
   times: Set<string>;
@@ -13,10 +13,11 @@ interface SmartTypeData {
 
 interface CompletionItem {
   label: string;
-  type: string;
+  /** What to insert after the label when it is accepted. */
+  suffix: string;
 }
 
-interface CompletionState {
+export interface CompletionState {
   active: boolean;
   from: number;
   to: number;
@@ -24,414 +25,285 @@ interface CompletionState {
   selected: number;
 }
 
-const smartTypeKey = new PluginKey<SmartTypeData>('smartType');
-const completionKey = new PluginKey<CompletionState>('completion');
+const INACTIVE: CompletionState = { active: false, from: 0, to: 0, options: [], selected: 0 };
 
-// Initial data with common screenplay elements
-const initialData: SmartTypeData = {
-  characters: new Set<string>(),
-  locations: new Set<string>(),
-  times: new Set<string>(['DAY', 'NIGHT', 'MORNING', 'AFTERNOON', 'EVENING', 'DAWN', 'DUSK', 'CONTINUOUS', 'LATER', 'MOMENTS LATER']),
-  transitions: new Set<string>(['FADE IN:', 'FADE OUT.', 'CUT TO:', 'DISSOLVE TO:', 'SMASH CUT TO:', 'MATCH CUT TO:', 'FADE TO BLACK.', 'TIME CUT TO:'])
-};
+export const smartTypeKey = new PluginKey<SmartTypeData>('smartType');
+export const completionKey = new PluginKey<CompletionState>('completion');
 
-// Create the smart type data plugin
+const DEFAULT_TIMES = ['DAY', 'NIGHT', 'MORNING', 'AFTERNOON', 'EVENING', 'DAWN', 'DUSK', 'CONTINUOUS', 'LATER', 'MOMENTS LATER', 'SAME'];
+const DEFAULT_TRANSITIONS = ['CUT TO:', 'DISSOLVE TO:', 'SMASH CUT TO:', 'MATCH CUT TO:', 'FADE OUT.', 'FADE TO BLACK.', 'TIME CUT TO:', 'FADE IN:'];
+const SCENE_PREFIXES = ['INT.', 'EXT.', 'I/E.', 'EST.'];
+
+const SCENE_HEADING_RE = /^(INT\.|EXT\.|I\/E\.|E\/I\.|EST\.)\s*(.*)$/i;
+
+function stripExtension(name: string): string {
+  return name.replace(/\s*\([^)]*\)\s*$/, '').trim();
+}
+
+/** Collect SmartType entries from a whole document. */
+export function harvest(doc: PMNode, into: SmartTypeData): boolean {
+  let changed = false;
+  doc.forEach(node => {
+    const text = node.textContent.trim();
+    if (!text) return;
+    if (node.type.name === 'character') {
+      const name = stripExtension(text).toUpperCase();
+      if (name && !into.characters.has(name)) {
+        into.characters.add(name);
+        changed = true;
+      }
+    } else if (node.type.name === 'scene_heading') {
+      const m = SCENE_HEADING_RE.exec(text);
+      if (m) {
+        const [locationPart, timePart] = m[2].split(/\s+-\s+/);
+        const location = (locationPart || '').trim().toUpperCase();
+        if (location && !into.locations.has(location)) {
+          into.locations.add(location);
+          changed = true;
+        }
+        const time = (timePart || '').trim().toUpperCase();
+        if (time && !into.times.has(time)) {
+          into.times.add(time);
+          changed = true;
+        }
+      }
+    } else if (node.type.name === 'transition') {
+      const t = text.toUpperCase();
+      if (!into.transitions.has(t)) {
+        into.transitions.add(t);
+        changed = true;
+      }
+    }
+  });
+  return changed;
+}
+
+function freshData(): SmartTypeData {
+  return {
+    characters: new Set(),
+    locations: new Set(),
+    times: new Set(DEFAULT_TIMES),
+    transitions: new Set(DEFAULT_TRANSITIONS)
+  };
+}
+
+/**
+ * Keeps the SmartType lists (characters, locations, times, transitions)
+ * up to date from the document. Entries are only ever harvested from the
+ * element they belong to, so an all-caps sound effect in an action line
+ * never becomes a "character".
+ */
 export function smartTypePlugin(): Plugin<SmartTypeData> {
-  return new Plugin({
+  return new Plugin<SmartTypeData>({
     key: smartTypeKey,
     state: {
-      init: () => ({
-        characters: new Set(initialData.characters),
-        locations: new Set(initialData.locations),
-        times: new Set(initialData.times),
-        transitions: new Set(initialData.transitions)
-      }),
+      init(_config, state) {
+        const data = freshData();
+        harvest(state.doc, data);
+        return data;
+      },
       apply(tr, data) {
-        // Extract and store new elements from the document
-        const newData = { ...data };
-        let changed = false;
-        
-        tr.doc.forEach((node, offset) => {
-          if (node.type.name === 'page') {
-            node.forEach((child) => {
-              const text = child.textContent.trim();
-              
-              // Extract characters
-              if (child.type.name === 'character' && text.length > 0) {
-                const charName = text.replace(/\s*\([^)]+\)\s*$/, '').toUpperCase();
-                if (!data.characters.has(charName)) {
-                  newData.characters = new Set(data.characters);
-                  newData.characters.add(charName);
-                  changed = true;
-                }
-              }
-              
-              // Extract locations from scene headings
-              if (child.type.name === 'scene_heading') {
-                const match = /^(INT\.|EXT\.|I\/E\.|E\/I\.)\s+([^-]+)/.exec(text.toUpperCase());
-                if (match) {
-                  const location = match[2].trim();
-                  if (!data.locations.has(location)) {
-                    newData.locations = new Set(data.locations);
-                    newData.locations.add(location);
-                    changed = true;
-                  }
-                }
-              }
-              
-              // Extract character names from action lines (first introduction)
-              if (child.type.name === 'action' && text.length > 0) {
-                // Match CAPITALIZED words/phrases (2+ consecutive capital letters)
-                // Common patterns: "JOHN enters", "SARAH CONNOR walks", "DR. SMITH arrives"
-                const charMatches = text.matchAll(/\b([A-Z][A-Z\.\s]{1,30}[A-Z])\b/g);
-                for (const match of charMatches) {
-                  const potentialName = match[1].trim();
-                  // Filter out common words that aren't names
-                  const commonWords = ['THE', 'AND', 'BUT', 'FOR', 'WITH', 'FROM', 'INTO', 'OVER'];
-                  if (!commonWords.includes(potentialName) && 
-                      potentialName.length >= 2 &&
-                      !data.characters.has(potentialName)) {
-                    newData.characters = new Set(data.characters);
-                    newData.characters.add(potentialName);
-                    changed = true;
-                  }
-                }
-              }
-            });
-          }
-        });
-        
-        return changed ? newData : data;
+        const manual = tr.getMeta(smartTypeKey) as SmartTypeData | undefined;
+        if (manual) return manual;
+        if (!tr.docChanged) return data;
+        const next: SmartTypeData = {
+          characters: new Set(data.characters),
+          locations: new Set(data.locations),
+          times: new Set(data.times),
+          transitions: new Set(data.transitions)
+        };
+        return harvest(tr.doc, next) ? next : data;
       }
     }
   });
 }
 
-// Get completions based on context
-function getCompletions(state: EditorState, pos: number): CompletionState | null {
-  const $pos = state.doc.resolve(pos);
-  const node = $pos.node();
-  
-  // Only provide completions within text content
-  if (!$pos.parent.isTextblock) return null;
-  
-  const text = $pos.parent.textContent;
-  const textBefore = text.slice(0, $pos.parentOffset);
-  const trimmed = textBefore.trim();
-  const data = smartTypeKey.getState(state);
-  
-  if (!data) return null;
-  
-  const nodeType = $pos.parent.type.name;
+function matches(list: Set<string>, partial: string, suffix = ''): CompletionItem[] {
+  const upper = partial.toUpperCase();
   const options: CompletionItem[] = [];
-  let from = $pos.pos - textBefore.length;
-  
-  // Scene heading completions
-  if (nodeType === 'scene_heading') {
-    // INT./EXT. prefix
-    const upperText = textBefore.toUpperCase();
-    if (/^(I|E|INT|EXT|I\/E)?$/.test(trimmed.toUpperCase())) {
-      return {
-        active: true,
-        from: $pos.pos - trimmed.length,
-        to: $pos.pos,
-        options: [
-          { label: 'INT.', type: 'keyword' },
-          { label: 'EXT.', type: 'keyword' },
-          { label: 'I/E.', type: 'keyword' }
-        ],
-        selected: 0
-      };
+  list.forEach(entry => {
+    if (entry.startsWith(upper) && entry !== upper) options.push({ label: entry, suffix });
+  });
+  options.sort((a, b) => a.label.localeCompare(b.label));
+  return options;
+}
+
+function completionsAt(state: EditorState): CompletionState | null {
+  const { $from } = state.selection;
+  if (!$from.parent.isTextblock) return null;
+  const data = smartTypeKey.getState(state);
+  if (!data) return null;
+
+  const parent = $from.parent;
+  const typeName = parent.type.name;
+  const textBefore = parent.textContent.slice(0, $from.parentOffset);
+  const nodeStart = $from.start();
+
+  if (typeName === 'scene_heading') {
+    const prefixPartial = /^(I|IN|INT|E|EX|EXT|ES|EST|I\/|I\/E)$/i.exec(textBefore.trim());
+    if (prefixPartial && textBefore.trim().length > 0) {
+      const options = SCENE_PREFIXES.filter(p => p.startsWith(textBefore.trim().toUpperCase())).map(label => ({ label, suffix: ' ' }));
+      if (options.length) return { active: true, from: nodeStart, to: $from.pos, options, selected: 0 };
+      return null;
     }
-    
-    // Location after INT./EXT.
-    const locMatch = /^(INT\.|EXT\.|I\/E\.|E\/I\.)\s+(.*)$/.exec(upperText);
-    if (locMatch) {
-      const partial = locMatch[2].replace(/\s+-.*$/, '').trim();
-      from = $pos.pos - locMatch[2].length;
-      
-      data.locations.forEach(loc => {
-        if (loc.startsWith(partial)) {
-          options.push({ label: loc, type: 'location' });
-        }
-      });
-      
-      if (options.length > 0) {
-        return { active: true, from, to: $pos.pos, options, selected: 0 };
-      }
+
+    const m = SCENE_HEADING_RE.exec(textBefore);
+    if (!m) return null;
+    const rest = m[2];
+    const dash = rest.search(/\s-\s?/);
+    if (dash === -1) {
+      if (!rest.trim()) return null;
+      const from = $from.pos - rest.length;
+      const options = matches(data.locations, rest.trim(), ' - ');
+      return options.length ? { active: true, from, to: $from.pos, options, selected: 0 } : null;
     }
-    
-    // Time of day after " - "
-    const timeMatch = / - ([A-Z]*)$/i.exec(textBefore);
-    if (timeMatch) {
-      from = $pos.pos - timeMatch[1].length;
-      
-      data.times.forEach(time => {
-        if (time.startsWith(timeMatch[1].toUpperCase())) {
-          options.push({ label: time, type: 'time' });
-        }
-      });
-      
-      if (options.length > 0) {
-        return { active: true, from, to: $pos.pos, options, selected: 0 };
-      }
-    }
+    const timePartial = rest.slice(dash).replace(/^\s-\s?/, '');
+    if (!timePartial.length) return null;
+    const from = $from.pos - timePartial.length;
+    const options = matches(data.times, timePartial);
+    return options.length ? { active: true, from, to: $from.pos, options, selected: 0 } : null;
   }
-  
-  // Character name completions
-  if (nodeType === 'character' && text.length > 0) {
-    // Replace the entire character element content
-    const nodeStart = $pos.before();
-    from = nodeStart + 1; // +1 to get inside the node
-    const to = nodeStart + 1 + text.length;
-    
-    const upperText = text.toUpperCase();
-    data.characters.forEach(char => {
-      if (char.startsWith(upperText)) {
-        options.push({ label: char, type: 'character' });
-      }
-    });
-    
-    if (options.length > 0) {
-      return { active: true, from, to, options, selected: 0 };
-    }
+
+  if (typeName === 'character') {
+    const text = parent.textContent;
+    if (!text.trim() || $from.parentOffset !== text.length) return null;
+    if (/\(/.test(text)) return null; // typing an extension such as (V.O.)
+    const options = matches(data.characters, text);
+    return options.length ? { active: true, from: nodeStart, to: nodeStart + text.length, options, selected: 0 } : null;
   }
-  
-  // Transition completions
-  if (nodeType === 'transition' && trimmed.length > 0) {
-    from = $pos.pos - trimmed.length;
-    
-    data.transitions.forEach(trans => {
-      if (trans.toUpperCase().startsWith(trimmed.toUpperCase())) {
-        options.push({ label: trans, type: 'transition' });
-      }
-    });
-    
-    if (options.length > 0) {
-      return { active: true, from, to: $pos.pos, options, selected: 0 };
-    }
+
+  if (typeName === 'transition') {
+    const text = parent.textContent;
+    if (!text.trim() || $from.parentOffset !== text.length) return null;
+    const options = matches(data.transitions, text);
+    return options.length ? { active: true, from: nodeStart, to: nodeStart + text.length, options, selected: 0 } : null;
   }
-  
+
   return null;
 }
 
-// Create the completion UI plugin
-export function completionPlugin(): Plugin<CompletionState> {
-  let completionElement: HTMLElement | null = null;
-  
-  return new Plugin({
-    key: completionKey,
-    state: {
-      init: () => ({ active: false, from: 0, to: 0, options: [], selected: 0 }),
-      apply(tr, state, oldState, newState) {
-        // Check for meta updates (arrow key navigation)
-        const meta = tr.getMeta(completionKey);
-        if (meta) {
-          return meta;
-        }
-        
-        // Clear completions on selection change or doc change
-        if (tr.selection.from !== tr.selection.to || tr.docChanged) {
-          const completions = getCompletions(newState, tr.selection.from);
-          return completions || { active: false, from: 0, to: 0, options: [], selected: 0 };
-        }
-        return state;
-      }
-    },
-    
-    props: {
-      decorations(state) {
-        return DecorationSet.empty; // We'll handle dropdown rendering in the view
-      },
-      
-      handleKeyDown(view, event) {
-        const completion = completionKey.getState(view.state);
-        
-        // Only handle keys if dropdown is actually showing
-        if (!completion || !completion.active || completion.options.length === 0) {
-          return false;
-        }
-        
-        switch (event.key) {
-          case 'ArrowDown':
-            event.preventDefault();
-            const nextSelected = (completion.selected + 1) % completion.options.length;
-            // Update state and force re-render
-            const downTr = view.state.tr.setMeta(completionKey, {
-              ...completion,
-              selected: nextSelected
-            });
-            view.dispatch(downTr);
-            return true;
-            
-          case 'ArrowUp':
-            event.preventDefault();
-            const prevSelected = (completion.selected - 1 + completion.options.length) % completion.options.length;
-            // Update state and force re-render
-            const upTr = view.state.tr.setMeta(completionKey, {
-              ...completion,
-              selected: prevSelected
-            });
-            view.dispatch(upTr);
-            return true;
-            
-          case 'Enter':
-          case 'Tab':
-            event.preventDefault();
-            applyCompletion(view, completion);
-            return true;
-            
-          case 'Escape':
-            event.preventDefault();
-            view.dispatch(view.state.tr.setMeta(completionKey, {
-              active: false, from: 0, to: 0, options: [], selected: 0
-            }));
-            return true;
-        }
-        
-        return false;
-      },
-      
-      handleClick(view, pos, event) {
-        const completion = completionKey.getState(view.state);
-        if (!completion || !completion.active) return false;
-        
-        const target = event.target as HTMLElement;
-        if (target.classList.contains('ProseMirror-completion-item')) {
-          const index = parseInt(target.getAttribute('data-index') || '0');
-          applyCompletion(view, { ...completion, selected: index });
-          return true;
-        }
-        
-        // Click outside closes completions
-        view.dispatch(view.state.tr.setMeta(completionKey, {
-          active: false, from: 0, to: 0, options: [], selected: 0
-        }));
-        return false;
-      },
-      
-      handleTextInput(view, from, to, text) {
-        // Let text input proceed normally - completions will update in view.update
-        return false;
-      }
-    },
-    
-    view(editorView) {
-      return {
-        update(view, prevState) {
-          const state = view.state;
-          const completion = completionKey.getState(state);
-          const prevCompletion = completionKey.getState(prevState);
-          
-          // Check if we should update completions
-          const shouldUpdate = state.selection.from === state.selection.to && 
-                              (state.doc !== prevState.doc || 
-                               state.selection.from !== prevState.selection.from);
-          
-          if (shouldUpdate) {
-            // Always check for new completions on any change
-            const newCompletion = getCompletions(state, state.selection.from);
-            
-            if (newCompletion && newCompletion.options.length > 0) {
-              // Show completions
-              if (!completion || !completion.active || 
-                  newCompletion.from !== completion.from ||
-                  newCompletion.options.length !== completion.options.length) {
-                view.dispatch(state.tr.setMeta(completionKey, newCompletion));
-              }
-            } else if (completion && completion.active) {
-              // Hide completions
-              view.dispatch(state.tr.setMeta(completionKey, {
-                active: false, from: 0, to: 0, options: [], selected: 0
-              }));
-            }
-          }
-          
-          // Update dropdown UI - always update if active to handle selection changes
-          if (completion && completion.active) {
-            if (!completionElement) {
-              completionElement = document.createElement('div');
-              completionElement.className = 'ProseMirror-completion-dropdown';
-              document.body.appendChild(completionElement);
-            }
-            
-            // Update dropdown content
-            completionElement.innerHTML = '';
-            completion.options.forEach((option, index) => {
-              const item = document.createElement('div');
-              item.className = 'ProseMirror-completion-item';
-              if (index === completion.selected) {
-                item.classList.add('ProseMirror-completion-selected');
-              }
-              item.textContent = option.label;
-              item.setAttribute('data-index', String(index));
-              item.onclick = () => {
-                applyCompletion(view, { ...completion, selected: index });
-              };
-              completionElement.appendChild(item);
-            });
-            
-            // Position dropdown
-            const coords = view.coordsAtPos(completion.to);
-            completionElement.style.position = 'fixed';
-            completionElement.style.left = coords.left + 'px';
-            completionElement.style.top = coords.bottom + 'px';
-            
-            // Ensure dropdown is visible
-            const rect = completionElement.getBoundingClientRect();
-            if (rect.bottom > window.innerHeight) {
-              completionElement.style.top = (coords.top - rect.height) + 'px';
-            }
-            if (rect.right > window.innerWidth) {
-              completionElement.style.left = (window.innerWidth - rect.width - 10) + 'px';
-            }
-          } else if (completionElement) {
-            completionElement.remove();
-            completionElement = null;
-          }
-        },
-        
-        destroy() {
-          if (completionElement) {
-            completionElement.remove();
-            completionElement = null;
-          }
-        }
-      };
-    }
-  });
-}
-
-// Apply the selected completion
 function applyCompletion(view: EditorView, completion: CompletionState) {
   const option = completion.options[completion.selected];
   if (!option) return;
-  
   const tr = view.state.tr;
-  tr.replaceWith(completion.from, completion.to, view.state.schema.text(option.label));
-  
-  // Add space after certain completions
-  if (option.type === 'keyword' || option.type === 'location') {
-    tr.insertText(' ');
-  }
-  
-  // Clear completion state
-  tr.setMeta(completionKey, {
-    active: false, from: 0, to: 0, options: [], selected: 0
-  });
-  
+  tr.insertText(option.label + option.suffix, completion.from, completion.to);
+  tr.setMeta(completionKey, INACTIVE);
   view.dispatch(tr);
   view.focus();
 }
 
-// Export function to add an entry manually
+/**
+ * SmartType completion dropdown. Suggestions appear while typing in a scene
+ * heading, character or transition. Tab or Enter accepts, Escape dismisses,
+ * arrow keys move the highlight. Accepting INT./EXT. adds a space and
+ * accepting a location adds " - " so the writer can go straight on to the
+ * time of day, matching Final Draft.
+ */
+export function completionPlugin(): Plugin<CompletionState> {
+  let dropdown: HTMLElement | null = null;
+
+  return new Plugin<CompletionState>({
+    key: completionKey,
+
+    state: {
+      init: () => INACTIVE,
+      apply(tr, state, _old, newState) {
+        const meta = tr.getMeta(completionKey) as CompletionState | undefined;
+        if (meta) return meta;
+        if (tr.docChanged) return completionsAt(newState) || INACTIVE;
+        if (tr.selectionSet) return INACTIVE;
+        return state;
+      }
+    },
+
+    props: {
+      handleKeyDown(view, event) {
+        const completion = completionKey.getState(view.state);
+        if (!completion?.active || completion.options.length === 0) return false;
+        const count = completion.options.length;
+
+        switch (event.key) {
+          case 'ArrowDown':
+            event.preventDefault();
+            view.dispatch(view.state.tr.setMeta(completionKey, { ...completion, selected: (completion.selected + 1) % count }));
+            return true;
+          case 'ArrowUp':
+            event.preventDefault();
+            view.dispatch(view.state.tr.setMeta(completionKey, { ...completion, selected: (completion.selected - 1 + count) % count }));
+            return true;
+          case 'Tab':
+          case 'Enter':
+            event.preventDefault();
+            applyCompletion(view, completion);
+            return true;
+          case 'Escape':
+            event.preventDefault();
+            view.dispatch(view.state.tr.setMeta(completionKey, INACTIVE));
+            return true;
+        }
+        return false;
+      },
+
+      handleDOMEvents: {
+        blur(view) {
+          const completion = completionKey.getState(view.state);
+          if (completion?.active) view.dispatch(view.state.tr.setMeta(completionKey, INACTIVE));
+          return false;
+        }
+      }
+    },
+
+    view() {
+      return {
+        update(view) {
+          const completion = completionKey.getState(view.state);
+          if (!completion?.active || completion.options.length === 0) {
+            if (dropdown) {
+              dropdown.remove();
+              dropdown = null;
+            }
+            return;
+          }
+
+          if (!dropdown) {
+            dropdown = document.createElement('div');
+            dropdown.className = 'ProseMirror-completion-dropdown';
+            dropdown.addEventListener('mousedown', e => e.preventDefault());
+            document.body.appendChild(dropdown);
+          }
+
+          dropdown.innerHTML = '';
+          completion.options.forEach((option, index) => {
+            const item = document.createElement('div');
+            item.className = 'ProseMirror-completion-item' + (index === completion.selected ? ' ProseMirror-completion-selected' : '');
+            item.textContent = option.label;
+            item.addEventListener('click', () => applyCompletion(view, { ...completion, selected: index }));
+            dropdown!.appendChild(item);
+          });
+
+          const coords = view.coordsAtPos(completion.to);
+          dropdown.style.left = `${coords.left}px`;
+          dropdown.style.top = `${coords.bottom + 2}px`;
+          const rect = dropdown.getBoundingClientRect();
+          if (rect.bottom > window.innerHeight) dropdown.style.top = `${coords.top - rect.height - 2}px`;
+          if (rect.right > window.innerWidth) dropdown.style.left = `${window.innerWidth - rect.width - 8}px`;
+        },
+        destroy() {
+          if (dropdown) {
+            dropdown.remove();
+            dropdown = null;
+          }
+        }
+      };
+    }
+  });
+}
+
+/** Add an entry to one of the SmartType lists by hand. */
 export function addSmartTypeEntry(view: EditorView, list: SmartList, value: string) {
   const data = smartTypeKey.getState(view.state);
   if (!data) return;
-  
-  const newData = { ...data };
-  newData[list] = new Set(data[list]);
-  newData[list].add(value.toUpperCase());
-  
-  view.dispatch(view.state.tr.setMeta(smartTypeKey, newData));
+  const next = { ...data, [list]: new Set(data[list]) } as SmartTypeData;
+  next[list].add(value.toUpperCase());
+  view.dispatch(view.state.tr.setMeta(smartTypeKey, next));
 }

@@ -148,11 +148,10 @@ const TitlePage: React.FC<{ title: string; author?: string; contact?: string }> 
       {/* Centered title and author */}
       <View style={{ 
         position: 'absolute',
-        top: '40%',
+        top: '38%',
         left: 0,
         right: 0,
-        alignItems: 'center',
-        transform: [{ translateY: -50 }]
+        alignItems: 'center'
       }}>
         <Text style={{ fontSize: 24, marginBottom: 48, textTransform: 'uppercase' }}>
           {title}

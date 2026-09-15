@@ -24,6 +24,25 @@ Each package contains its own `README` with more details.
 
 For a full description of the planned architecture and feature roadmap, see **design_document.md**.
 
+## Editor Keystrokes
+
+The script editor follows Final Draft's typing model. The document is a flat list of elements; every command acts on the element under the cursor.
+
+| Key | Behaviour |
+|---|---|
+| **Enter** at end of element | Scene Heading → Action, Action → Action, Character → Dialogue, Parenthetical → Dialogue, Dialogue → Action, Transition → Scene Heading |
+| **Enter** mid-element | Splits the element; both halves keep their type |
+| **Enter** on an empty element | Opens the element menu (arrows, digits 1–7, or click) |
+| **Tab** | Scene Heading: adds ` - ` for the time, then moves to Action. Action → Character, Character → Parenthetical, Parenthetical → Dialogue, Dialogue → Parenthetical, Transition → Scene Heading. An empty element is converted in place instead of creating a new one |
+| **Shift-Tab** | Cycles the current element to the previous type |
+| **Backspace** at start of element | Removes an empty element, or joins the text onto the previous element |
+| **⌘1 – ⌘7** (Ctrl on Windows) | Scene Heading, Action, Character, Parenthetical, Dialogue, Transition, Centered |
+| **⌘S** | Save (autosave also runs three seconds after you stop typing) |
+
+Auto-formatting only touches what you just typed: scene headings, character names and transitions are upper-cased as you type; `int.`/`ext.` at the start of an action line becomes a scene heading; a line ending in `TO:` becomes a transition; `> text <` becomes centered text; `(` in an empty dialogue element starts a parenthetical. SmartType suggests known characters, locations, times and transitions (Tab or Enter accepts, Escape dismisses).
+
+Run the editor tests with `cd client && npm test`.
+
 ## Quick Start
 
 1. **Install Dependencies**

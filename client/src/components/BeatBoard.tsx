@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { API_BASE } from '../api';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import "./BeatBoard.css";
 import BeatCard, { Beat } from './BeatCard';
@@ -35,7 +36,7 @@ export const BeatBoard: React.FC<BeatBoardProps> = ({ screenplayId, onDataChange
     }
 
     // Load beats from screenplay
-    fetch(`http://localhost:5001/screenplays/${screenplayId}`)
+    fetch(`${API_BASE}/screenplays/${screenplayId}`)
       .then((res) => res.json())
       .then((screenplay) => {
         if (screenplay.beats) {
