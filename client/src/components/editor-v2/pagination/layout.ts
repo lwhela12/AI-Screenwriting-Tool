@@ -60,27 +60,35 @@ export interface Column {
   indent: number;
   width: number;
   align?: 'right' | 'center';
+  /** Hanging indent: the first line starts this many characters to the left and is that much wider. */
+  hang?: number;
 }
 
 /**
  * Indent from the left margin and column width, in characters, per element.
  * These are Final Draft's screenplay template settings: action 1.5-7.5in,
  * character 3.5-7.25in, parenthetical 3.0-5.5in, dialogue 2.5-6.0in,
- * transition right-aligned at 7.1in.
+ * transition right-aligned at 7.1in. Final Draft's Courier advances 7pt per
+ * character (see CHAR_PT), which is why a 6in action line holds 61
+ * characters; the dialogue and parenthetical widths were measured from
+ * Final Draft's own PDF output.
  */
 export const COLUMNS: Record<LayoutElementType | 'more' | 'contd', Column> = {
-  scene_heading: { indent: 0, width: 60 },
-  action: { indent: 0, width: 60 },
-  character: { indent: 20, width: 37 },
-  parenthetical: { indent: 15, width: 25 },
+  scene_heading: { indent: 0, width: 61 },
+  action: { indent: 0, width: 61 },
+  character: { indent: 20, width: 38 },
+  parenthetical: { indent: 15, width: 25, hang: 1 },
   dialogue: { indent: 10, width: 35 },
   transition: { indent: 36, width: 20, align: 'right' },
-  shot: { indent: 0, width: 60 },
-  centered: { indent: 0, width: 60, align: 'center' },
-  page_break: { indent: 0, width: 60 },
+  shot: { indent: 0, width: 61 },
+  centered: { indent: 0, width: 61, align: 'center' },
+  page_break: { indent: 0, width: 61 },
   more: { indent: 15, width: 25 },
-  contd: { indent: 20, width: 37 }
+  contd: { indent: 20, width: 38 }
 };
+
+/** Character advance of Final Draft's Courier at 12pt, measured from its PDF output. */
+export const CHAR_PT = 7.0;
 
 /** Columns for the two halves of dual dialogue: each half is 25 characters wide. */
 export const DUAL_COLUMNS: Record<DualSide, Partial<Record<LayoutElementType, Column>>> = {
@@ -119,6 +127,12 @@ export interface Row {
   lineIndex: number;
   /** For rows inside a dual-dialogue block. */
   dual?: DualSide;
+  /**
+   * True for rows printed in the page margins that do not consume body
+   * lines: "(MORE)" in the bottom margin and the "(CONT'D)" cue in the top
+   * margin, exactly as Final Draft prints them.
+   */
+  free?: boolean;
   /** For `dual` rows: the printed line on each side (either may be missing). */
   left?: Row;
   right?: Row;
@@ -136,7 +150,7 @@ export interface PageBreak {
   elementIndex: number;
   /** 0 = break before the element; k > 0 = break before wrapped line k of the element. */
   lineIndex: number;
-  /** Rows used on the page that ends here, including a MORE row. */
+  /** Body rows used on the page that ends here (a MORE row is not counted). */
   rowsBefore: number;
   /** "(MORE)" is printed at the bottom of the previous page. */
   more: boolean;
@@ -175,7 +189,8 @@ export interface Layout {
 
 export function wrapElement(el: LayoutElement, side?: DualSide | null): WrappedLine[] {
   if (el.type === 'page_break') return [];
-  return wrapText(el.text, columnFor(el.type, side).width);
+  const col = columnFor(el.type, side);
+  return wrapText(el.text, col.width, col.width + (col.hang || 0));
 }
 
 export function contdCueFor(cue: string): string {
@@ -232,8 +247,8 @@ interface PaginatorOptions {
   breakAtSentences: boolean;
 }
 
-/** Ends with a sentence: ., !, ? possibly followed by closing quotes or parentheses. */
-const SENTENCE_END = /[.!?…]["'”’)\]]*$/;
+/** A sentence end inside running text: ., !, ? (plus closing quotes/parens) followed by whitespace. */
+const SENTENCE_END_IN_TEXT = /[.!?…]["'”’)\]]*(?=\s)/g;
 
 class Paginator {
   pages: Page[] = [];
@@ -246,35 +261,72 @@ class Paginator {
     this.limit = options.linesPerPage;
   }
 
-  /**
-   * Where to split an element that has `lines` lines left and room for `take`.
-   * With sentence breaking on, prefer the last line (at or after `min`) that
-   * ends a sentence; otherwise the line boundary. Never leaves fewer than
-   * `min` lines on either side; returns 0 when no acceptable split exists.
-   */
-  splitPoint(index: number, from: number, lines: number, take: number, min: number): number {
-    if (lines - take < min) take = lines - min;
-    if (take < min) return 0;
-    if (this.options.breakAtSentences) {
-      const el = this.elements[index];
-      for (let k = take; k >= min; k--) {
-        if (SENTENCE_END.test(el.lines[from + k - 1].text)) return k;
-      }
-    }
-    return take;
+  /** Body rows on the current page; margin rows (MORE, CONT'D) do not count. */
+  get bodyRows(): number {
+    let n = 0;
+    for (const r of this.rows) if (!r.free) n++;
+    return n;
   }
 
   get remaining(): number {
-    return this.limit - this.rows.length;
+    return this.limit - this.bodyRows;
   }
 
   get pageNumber(): number {
     return this.pages.length + 1;
   }
 
+  /**
+   * Where to split an element that has `lines` lines left (from wrapped line
+   * `from`) and room for `take` more on this page. Returns how many lines stay,
+   * or 0 when no acceptable split exists. Never leaves fewer than `min` lines
+   * on either side.
+   *
+   * With sentence breaking on (Final Draft's default), the element's text is
+   * cut after the last sentence end that fits, even in the middle of a wrapped
+   * line, and the remainder is re-wrapped from a fresh line on the next page.
+   * The element's wrapped lines are rebuilt to reflect that.
+   */
+  splitPoint(index: number, from: number, lines: number, take: number, min: number, tailMin = 2, forced = false): number {
+    if (lines - take < tailMin) take = lines - tailMin;
+    if (take < min) return 0;
+    if (!this.options.breakAtSentences) return take;
+
+    const el = this.elements[index];
+    const col = columnFor(el.type, el.dualSide);
+    const width = col.width;
+    const headFirstWidth = from === 0 ? width + (col.hang || 0) : width;
+    const startOff = el.lines[from].start;
+    const text = el.text.slice(startOff);
+    let best: { off: number; skip: number; head: WrappedLine[]; tail: WrappedLine[] } | null = null;
+
+    for (const m of text.matchAll(SENTENCE_END_IN_TEXT)) {
+      const off = (m.index || 0) + m[0].length;
+      const head = wrapText(text.slice(0, off).replace(/\s+$/, ''), width, headFirstWidth);
+      if (head.length > take) break; // later sentence ends only get longer
+      if (head.length < min) continue;
+      const skip = text.slice(off).search(/\S/);
+      if (skip < 0) continue; // nothing left to carry
+      const tail = wrapText(text.slice(off + skip), width);
+      if (tail.length < tailMin) continue;
+      best = { off, skip, head, tail };
+    }
+    // No sentence end fits: Final Draft moves the element rather than break
+    // mid-sentence, unless it cannot fit on a page at all.
+    if (!best) return forced ? take : 0;
+
+    const tailStart = startOff + best.off + best.skip;
+    el.lines = [
+      ...el.lines.slice(0, from),
+      ...best.head.map(l => ({ text: l.text, start: startOff + l.start, end: startOff + l.end })),
+      ...best.tail.map(l => ({ text: l.text, start: tailStart + l.start, end: tailStart + l.end }))
+    ];
+    return best.head.length;
+  }
+
   /** Blank rows before an element: none at the top of a page or inside a speech. */
   spacerFor(index: number): number {
-    if (this.rows.length === 0) return 0;
+    if (this.bodyRows === 0) return 0;
     const el = this.elements[index];
     const prev = this.previousElementIndex();
     if (prev === null) return 0;
@@ -307,7 +359,7 @@ class Paginator {
   }
 
   newPage(elementIndex: number, lineIndex: number, more: boolean, contdCue: string | null) {
-    const rowsBefore = this.rows.length;
+    const rowsBefore = this.bodyRows;
     this.pages.push({ number: this.pageNumber, rows: this.rows });
     this.breaks.push({ page: this.pageNumber, elementIndex, lineIndex, rowsBefore, more, contdCue });
     this.rows = [];
@@ -343,7 +395,7 @@ class Paginator {
     if (el.type === 'page_break') {
       el.spacerBefore = false;
       el.page = this.pageNumber;
-      if (this.rows.length > 0) this.newPage(index, 0, false, null);
+      if (this.bodyRows > 0) this.newPage(index, 0, false, null);
       return;
     }
 
@@ -359,7 +411,7 @@ class Paginator {
 
     const splittable = el.type === 'action' || el.type === 'centered';
     const avail = this.remaining - spacer;
-    const take = splittable && avail >= 2 ? this.splitPoint(index, 0, lines, avail, 2) : 0;
+    const take = splittable && avail >= 2 ? this.splitPoint(index, 0, lines, avail, 2, 2, lines > this.limit) : 0;
     if (take > 0) {
       if (spacer) this.pushBlank(index, spacer);
       el.spacerBefore = spacer > 0;
@@ -371,7 +423,7 @@ class Paginator {
       return;
     }
 
-    if (this.rows.length > 0) {
+    if (this.bodyRows > 0) {
       if (el.type === 'transition' && this.pullPreviousForTransition(index)) return;
       this.newPage(index, 0, false, null);
     }
@@ -431,11 +483,10 @@ class Paginator {
 
     const spacer = this.spacerFor(cueIndex);
     const totalBody = body.reduce((sum, i) => sum + this.elements[i].lines.length, 0);
-    const fitsWhole = spacer + cueLines + totalBody <= this.remaining;
-    // If the speech will be split, the page also has to hold the "(MORE)" row.
-    const need = cueLines + this.minimumBodyRows(body) + (fitsWhole || totalBody === 0 ? 0 : 1);
+    // "(MORE)" is printed in the bottom margin, so a split costs no body row.
+    const need = cueLines + this.minimumBodyRows(body);
 
-    if (spacer + need > this.remaining && this.rows.length > 0) {
+    if (spacer + need > this.remaining && this.bodyRows > 0) {
       this.newPage(cueIndex, 0, false, null);
     }
     this.placeWhole(cueIndex);
@@ -447,16 +498,16 @@ class Paginator {
       return;
     }
 
-    // A split is coming: reserve one row for "(MORE)" on this page.
     let pending: { index: number; from: number }[] = body.map(index => ({ index, from: 0 }));
     let contd: string | null = null;
 
     while (pending.length > 0) {
-      let limit = this.remaining - 1;
+      let limit = this.remaining;
       const placedOnThisPage: boolean = this.rows.some(r => r.kind === 'text' && body.includes(r.elementIndex));
       // When the cue (or CONT'D cue) opens the page there is nowhere better to
       // move the speech, so any split that makes progress is allowed.
       const cueAtTop = this.rows.length > 0 && this.rows[0].elementIndex === cueIndex && this.rows[0].kind !== 'blank';
+      void contd;
       let brokeAt: { index: number; line: number } | null = null;
 
       for (let p = 0; p < pending.length; p++) {
@@ -472,9 +523,13 @@ class Paginator {
           limit -= lines;
           continue;
         }
-        if (el.type === 'dialogue' && limit >= 2) {
-          const take = this.splitPoint(index, from, lines, limit, 2);
-          if (take >= 2) {
+        // Final Draft keeps at least two rows of the speech body with the cue
+        // before "(MORE)"; a parenthetical already on the page counts as one.
+        const bodyRowsHere = this.rows.filter(r => r.kind === 'text' && body.includes(r.elementIndex)).length;
+        const headMin = Math.max(1, 2 - bodyRowsHere);
+        if (el.type === 'dialogue' && limit >= headMin) {
+          const take = this.splitPoint(index, from, lines, limit, headMin, 2, cueAtTop);
+          if (take >= headMin) {
             this.pushLines(index, from, from + take);
             brokeAt = { index, line: from + take };
             pending = pending.slice(p);
@@ -497,8 +552,10 @@ class Paginator {
 
       if (!brokeAt) return; // everything placed
 
-      const anyBodyPlaced = placedOnThisPage || this.rows.some(r => r.kind === 'text' && body.includes(r.elementIndex));
-      if (!anyBodyPlaced && !cueAtTop) {
+      const bodyRowsPlaced = this.rows.filter(r => r.kind === 'text' && body.includes(r.elementIndex)).length;
+      const anyBodyPlaced = placedOnThisPage || bodyRowsPlaced > 0;
+      // Final Draft keeps at least two rows of the speech with its cue before "(MORE)".
+      if ((!anyBodyPlaced || bodyRowsPlaced < 2) && !cueAtTop) {
         // Only the cue made it onto this page: move the whole speech down instead.
         this.rollbackTo(cueIndex);
         this.newPage(cueIndex, 0, false, null);
@@ -514,9 +571,9 @@ class Paginator {
       }
 
       contd = contdCueFor(cueText);
-      this.rows.push({ kind: 'more', column: 'more', text: '(MORE)', elementIndex: brokeAt.index, lineIndex: brokeAt.line });
+      this.rows.push({ kind: 'more', column: 'more', text: '(MORE)', elementIndex: brokeAt.index, lineIndex: brokeAt.line, free: true });
       this.newPage(brokeAt.index, brokeAt.line, true, contd);
-      this.rows.push({ kind: 'contd', column: 'contd', text: contd, elementIndex: cueIndex, lineIndex: -1 });
+      this.rows.push({ kind: 'contd', column: 'contd', text: contd, elementIndex: cueIndex, lineIndex: -1, free: true });
 
       const totalPending = pending.reduce((sum, { index, from }) => sum + this.elements[index].lines.length - from, 0);
       if (totalPending <= this.remaining) {
@@ -557,7 +614,7 @@ class Paginator {
     }
 
     const cueIndex = left[0];
-    if (this.spacerFor(cueIndex) + height > this.remaining && this.rows.length > 0) {
+    if (this.spacerFor(cueIndex) + height > this.remaining && this.bodyRows > 0) {
       this.newPage(cueIndex, 0, false, null);
     }
 
@@ -607,15 +664,14 @@ class Paginator {
     this.rows = this.rows.slice(0, cut);
   }
 
-  /** Rows a speech needs on the page with its cue so that the cue is never stranded. */
+  /**
+   * Rows of speech body that must sit with the cue so it is never stranded:
+   * two, counting parenthetical rows (Final Draft's behaviour), or all of
+   * them when the whole body is shorter than that.
+   */
   minimumBodyRows(body: number[]): number {
-    if (body.length === 0) return 0;
-    const first = this.elements[body[0]];
-    if (first.type === 'parenthetical') {
-      const next = body[1] !== undefined ? this.elements[body[1]] : null;
-      return first.lines.length + (next ? Math.min(2, next.lines.length) : 0);
-    }
-    return Math.min(2, first.lines.length);
+    const total = body.reduce((sum, i) => sum + this.elements[i].lines.length, 0);
+    return Math.min(2, total);
   }
 
   finish(): { pages: Page[]; breaks: PageBreak[]; duals: DualBlock[] } {

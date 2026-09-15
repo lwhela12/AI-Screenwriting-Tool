@@ -139,12 +139,14 @@ describe('scene headings', () => {
 describe('dialogue', () => {
   it('splits long dialogue with (MORE) and a (CONT\'D) cue', () => {
     const { pages, breaks } = lay([a(actionOf(45)), ch('ALICE'), d(dialogueOf(12))]);
-    // 45 + blank + cue = 47 rows; 8 remain, reserve 1 for MORE -> 7 lines, MORE.
-    expect(pages[0].rows.length).toBe(55);
-    expect(pages[0].rows[54]).toMatchObject({ kind: 'more', text: '(MORE)' });
-    expect(breaks[0]).toEqual({ page: 2, elementIndex: 2, lineIndex: 7, rowsBefore: 55, more: true, contdCue: "ALICE (CONT'D)" });
-    expect(pageText(pages[1].rows).slice(0, 2)).toEqual(["contd: ALICE (CONT'D)", 'dialogue: dialogue line 08']);
-    expect(pages[1].rows.length).toBe(1 + 5);
+    // 45 + blank + cue = 47 rows; 8 remain and all 8 are used: "(MORE)" is printed in the
+    // bottom margin and the CONT'D cue in the next page's top margin, costing no body rows.
+    expect(pages[0].rows.length).toBe(56);
+    expect(pages[0].rows[55]).toMatchObject({ kind: 'more', text: '(MORE)', free: true });
+    expect(breaks[0]).toEqual({ page: 2, elementIndex: 2, lineIndex: 8, rowsBefore: 55, more: true, contdCue: "ALICE (CONT'D)" });
+    expect(pageText(pages[1].rows).slice(0, 2)).toEqual(["contd: ALICE (CONT'D)", 'dialogue: dialogue line 09']);
+    expect(pages[1].rows[0].free).toBe(true);
+    expect(pages[1].rows.length).toBe(1 + 4);
   });
 
   it('does not double up an existing (CONT\'D) and keeps extensions', () => {
@@ -181,20 +183,26 @@ describe('dialogue', () => {
     expect(pages[1].rows[1]).toMatchObject({ column: 'parenthetical' });
   });
 
-  it('keeps a cue with its parenthetical and two lines of dialogue', () => {
-    const { breaks } = lay([a(actionOf(50)), ch(), p(), d(dialogueOf(4))]);
-    // 50 + blank + cue + paren + 2 lines = 55 leaves no row for (MORE) -> the whole speech moves.
-    expect(breaks[0]).toMatchObject({ elementIndex: 1, lineIndex: 0, more: false });
-    const { pages } = lay([a(actionOf(50)), ch(), p(), d(dialogueOf(4))]);
-    expect(pages[0].rows.length).toBe(50);
+  it('keeps a cue with two rows of body, counting a parenthetical, before (MORE)', () => {
+    const { breaks, pages } = lay([a(actionOf(50)), ch(), p(), d(dialogueOf(4))]);
+    // 50 + blank + cue + paren + 2 lines = 55: the paren counts toward the two rows that must
+    // stay with the cue, so the speech splits here instead of moving whole.
+    expect(breaks[0]).toMatchObject({ elementIndex: 3, lineIndex: 2, more: true });
+    expect(pages[0].rows.length).toBe(56);
+    // One row less: the paren and a single line still make two body rows, so it splits after line 1.
+    const one = lay([a(actionOf(51)), ch(), p(), d(dialogueOf(4))]);
+    expect(one.breaks[0]).toMatchObject({ elementIndex: 3, lineIndex: 1, more: true });
+    // Two rows less: only the paren would fit, which is not enough, so the whole speech moves.
+    const tight = lay([a(actionOf(52)), ch(), p(), d(dialogueOf(4))]);
+    expect(tight.breaks[0]).toMatchObject({ elementIndex: 1, lineIndex: 0, more: false });
   });
 
   it('splits dialogue longer than a page repeatedly with CONT\'D each time', () => {
     const { pages, breaks } = lay([ch('LONG'), d(dialogueOf(120))]);
     expect(pages.length).toBe(3);
     expect(breaks.every(b => b.more && b.contdCue === "LONG (CONT'D)")).toBe(true);
-    expect(pages[0].rows.length).toBe(55);
-    expect(pages[1].rows.length).toBe(55);
+    expect(pages[0].rows.length).toBe(56); // cue + 54 lines + margin MORE
+    expect(pages[1].rows.length).toBe(57); // margin CONT'D + 55 lines + margin MORE
     const printed = pages.flatMap(pg => pg.rows.filter(r => r.kind === 'text' && r.column === 'dialogue')).length;
     expect(printed).toBe(120);
   });

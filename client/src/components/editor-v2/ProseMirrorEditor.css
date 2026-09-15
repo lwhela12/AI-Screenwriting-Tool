@@ -60,8 +60,9 @@
 /*
  * Geometry is the pagination engine's: 12pt Courier at 10 characters per
  * inch, 1.5in left margin, 1in top and bottom margins, 54 lines of body.
- * Element widths are set in `ch` so the browser wraps on exactly the grid
- * the engine uses; the columns are Final Draft's screenplay template.
+ * Element widths are multiples of --cw (7pt, Final Draft's character
+ * advance) so the browser wraps on exactly the grid the engine uses; the
+ * columns are Final Draft's screenplay template.
  */
 .ProseMirror.screenplay {
   --line: 12pt;
@@ -70,6 +71,7 @@
   --bottom-margin: 1in;
   --page-width: 8.5in;
   --page-gap: 0.4in;
+  --cw: 7pt; /* Final Draft's Courier advance; Courier New is 7.2pt, corrected by letter-spacing */
   --gap-bleed: 60px; /* how far the gap extends past the sheet to hide its side shadow */
   --desk: #e5e7eb; /* must match .prosemirror-editor-wrapper's background */
 
@@ -89,7 +91,7 @@
   line-height: var(--line);
   font-variant-ligatures: none;
   font-kerning: none;
-  letter-spacing: 0;
+  letter-spacing: -0.2pt;
   position: relative;
 }
 
@@ -111,13 +113,13 @@
 .ProseMirror.screenplay .scene-heading {
   text-transform: uppercase;
   font-weight: normal;
-  width: 60ch;
+  width: calc(61 * var(--cw) + 1pt);
 }
 
 .ProseMirror.screenplay .shot {
   text-transform: uppercase;
   font-weight: normal;
-  width: 60ch;
+  width: calc(61 * var(--cw) + 1pt);
 }
 
 /* Scene numbers (from Final Draft) sit in the left margin. */
@@ -135,41 +137,42 @@
 }
 
 .ProseMirror.screenplay .action {
-  width: 60ch;
+  width: calc(61 * var(--cw) + 1pt);
 }
 
 .ProseMirror.screenplay .character {
   text-transform: uppercase;
-  margin-left: 20ch;
-  width: 37ch;
+  margin-left: calc(20 * var(--cw));
+  width: calc(38 * var(--cw) + 1pt);
 }
 
 .ProseMirror.screenplay .parenthetical {
-  margin-left: 15ch;
-  width: 25ch;
+  margin-left: calc(15 * var(--cw));
+  width: calc(25 * var(--cw) + 1pt);
+  text-indent: calc(-1 * var(--cw)); /* Final Draft's hanging first line */
 }
 
 .ProseMirror.screenplay .dialogue {
-  margin-left: 10ch;
-  width: 35ch;
+  margin-left: calc(10 * var(--cw));
+  width: calc(35 * var(--cw) + 1pt);
 }
 
 .ProseMirror.screenplay .transition {
   text-transform: uppercase;
   text-align: right;
-  margin-left: 36ch;
-  width: 20ch;
+  margin-left: calc(36 * var(--cw));
+  width: calc(20 * var(--cw) + 1pt);
 }
 
 .ProseMirror.screenplay .transition.transition-left {
   text-align: left;
   margin-left: 0;
-  width: 60ch;
+  width: calc(61 * var(--cw) + 1pt);
 }
 
 .ProseMirror.screenplay .centered {
   text-align: center;
-  width: 60ch;
+  width: calc(61 * var(--cw) + 1pt);
 }
 
 .ProseMirror.screenplay hr.page-break {
@@ -196,7 +199,7 @@
   display: block;
   box-sizing: border-box;
   width: var(--page-width);
-  margin: 0 0 0 calc(-1 * var(--left-margin) - var(--indent, 0ch));
+  margin: 0 0 0 calc(-1 * var(--left-margin) - var(--indent, 0pt));
   padding: 0;
   min-height: 0;
   user-select: none;
@@ -213,11 +216,11 @@
 }
 
 .page-gap-more {
-  padding-left: calc(var(--left-margin) + 15ch);
+  padding-left: calc(var(--left-margin) + 15 * var(--cw));
 }
 
 .page-gap-contd {
-  padding-left: calc(var(--left-margin) + 20ch);
+  padding-left: calc(var(--left-margin) + 20 * var(--cw));
   text-transform: uppercase;
 }
 
@@ -226,7 +229,20 @@
 }
 
 .page-gap-margin-bottom {
+  position: relative;
   height: var(--bottom-margin);
+}
+
+.page-gap-margin-bottom .page-gap-more {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.page-gap-margin-top .page-gap-contd {
+  position: absolute;
+  bottom: 0;
+  left: 0;
 }
 
 /*
@@ -267,28 +283,28 @@
 /* Dual dialogue: two 25-character columns. The right column is pulled up by
    the page-view plugin (inline margin) to sit beside the left one. */
 .ProseMirror.screenplay .dual-left.character {
-  margin-left: 5ch;
-  width: 20ch;
+  margin-left: calc(5 * var(--cw));
+  width: calc(20 * var(--cw) + 1pt);
 }
 .ProseMirror.screenplay .dual-left.parenthetical {
-  margin-left: 3ch;
-  width: 22ch;
+  margin-left: calc(3 * var(--cw));
+  width: calc(22 * var(--cw) + 1pt);
 }
 .ProseMirror.screenplay .dual-left.dialogue {
   margin-left: 0;
-  width: 25ch;
+  width: calc(25 * var(--cw) + 1pt);
 }
 .ProseMirror.screenplay .dual-right.character {
-  margin-left: 35ch;
-  width: 20ch;
+  margin-left: calc(35 * var(--cw));
+  width: calc(20 * var(--cw) + 1pt);
 }
 .ProseMirror.screenplay .dual-right.parenthetical {
-  margin-left: 33ch;
-  width: 22ch;
+  margin-left: calc(33 * var(--cw));
+  width: calc(22 * var(--cw) + 1pt);
 }
 .ProseMirror.screenplay .dual-right.dialogue {
-  margin-left: 30ch;
-  width: 25ch;
+  margin-left: calc(30 * var(--cw));
+  width: calc(25 * var(--cw) + 1pt);
 }
 
 /* Automatic (CONT'D), rendered as a decoration after the cue. */

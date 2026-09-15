@@ -1,6 +1,6 @@
 import React from 'react';
 import { Document, Page, Text, View } from '@react-pdf/renderer';
-import { Layout, Row, PAGE, columnFor } from '../components/editor-v2/pagination/layout';
+import { Layout, Row, PAGE, CHAR_PT, columnFor } from '../components/editor-v2/pagination/layout';
 
 /**
  * PDF output. Every printed line comes from the pagination engine, already
@@ -22,7 +22,8 @@ export interface ScreenplayData {
 }
 
 const PT_PER_IN = 72;
-const CHAR_PT = 7.2; // 10 characters per inch
+/** Built-in Courier advances 7.2pt; letter-spacing brings it to Final Draft's 7pt. */
+const LETTER_SPACING = CHAR_PT - 7.2;
 const LEFT = PAGE.leftMarginIn * PT_PER_IN;
 const RIGHT_EDGE = (PAGE.widthIn - PAGE.rightMarginIn) * PT_PER_IN;
 const TOP = PAGE.topMarginIn * PT_PER_IN;
@@ -39,7 +40,14 @@ function rowLeft(row: Row): number {
   const widthPt = row.text.length * CHAR_PT;
   if (col.align === 'right') return RIGHT_EDGE - widthPt;
   if (col.align === 'center') return (LEFT + RIGHT_EDGE) / 2 - widthPt / 2;
-  return LEFT + col.indent * CHAR_PT;
+  const hang = row.lineIndex === 0 && col.hang ? col.hang : 0;
+  return LEFT + (col.indent - hang) * CHAR_PT;
+}
+
+/** Vertical position of a row: body rows count down the page; margin rows sit outside the body. */
+function rowTop(row: Row, bodyIndex: number): number {
+  if (row.kind === 'contd') return TOP - PAGE.linePt;
+  return TOP + bodyIndex * PAGE.linePt;
 }
 
 const PrintedRow: React.FC<{ row: Row; index: number }> = ({ row, index }) => {
@@ -56,10 +64,11 @@ const PrintedRow: React.FC<{ row: Row; index: number }> = ({ row, index }) => {
     <Text
       style={{
         position: 'absolute',
-        top: TOP + index * PAGE.linePt,
+        top: rowTop(row, index),
         left: rowLeft(row),
         width: RIGHT_EDGE - LEFT + CHAR_PT * 4,
-        fontFamily: 'Courier'
+        fontFamily: 'Courier',
+        letterSpacing: LETTER_SPACING
       }}
     >
       {row.text}
@@ -75,7 +84,8 @@ const PageNumber: React.FC<{ number: number }> = ({ number }) => {
         position: 'absolute',
         top: PAGE.pageNumberTopIn * PT_PER_IN,
         left: RIGHT_EDGE - text.length * CHAR_PT,
-        fontFamily: 'Courier'
+        fontFamily: 'Courier',
+        letterSpacing: LETTER_SPACING
       }}
     >
       {text}
@@ -110,9 +120,14 @@ export const ScreenplayDocument: React.FC<{ data: ScreenplayData }> = ({ data })
     {data.layout.pages.map(page => (
       <Page key={page.number} size="LETTER" style={pageStyle}>
         {page.number > 1 ? <PageNumber number={page.number} /> : null}
-        {page.rows.map((row, i) => (
-          <PrintedRow key={i} row={row} index={i} />
-        ))}
+        {(() => {
+          let body = 0;
+          return page.rows.map((row, i) => {
+            const el = <PrintedRow key={i} row={row} index={body} />;
+            if (!row.free) body++;
+            return el;
+          });
+        })()}
       </Page>
     ))}
   </Document>

@@ -7,7 +7,7 @@ import { layoutFromDoc } from '../src/components/editor-v2/pagination/fromDoc';
 import { elementsToDoc } from '../src/components/editor-v2/docConverter';
 import type { ScreenplayElement } from '../src/utils/screenplayPDF';
 
-const dialogueOf = (lines: number) => Array.from({ length: lines }, (_, i) => `dialogue line ${String(i + 1).padStart(2, '0')}`).join('\n');
+const dialogueOf = (lines: number) => Array.from({ length: lines }, (_, i) => `dialogue line ${String(i + 1).padStart(2, '0')}.`).join('\n');
 
 describe('PDF export', () => {
   it('renders the engine layout to a real PDF with one page per engine page plus the title page', async () => {

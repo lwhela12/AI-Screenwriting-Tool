@@ -4,8 +4,8 @@ import { TextSelection } from 'prosemirror-state';
 import { b, stateFor, viewFor } from './helpers';
 import { pageViewPlugin, pageStatus } from '../src/components/editor-v2/plugins/pageView';
 
-const actionOf = (lines: number) => Array.from({ length: lines }, (_, i) => `line ${String(i + 1).padStart(2, '0')}`).join('\n');
-const dialogueOf = (lines: number) => Array.from({ length: lines }, (_, i) => `dialogue line ${String(i + 1).padStart(2, '0')}`).join('\n');
+const actionOf = (lines: number) => Array.from({ length: lines }, (_, i) => `line ${String(i + 1).padStart(2, '0')}.`).join('\n');
+const dialogueOf = (lines: number) => Array.from({ length: lines }, (_, i) => `dialogue line ${String(i + 1).padStart(2, '0')}.`).join('\n');
 
 let views: EditorView[] = [];
 function open(doc: any): EditorView {
@@ -47,7 +47,7 @@ describe('page view decorations', () => {
     expect(gap.closest('div.dialogue')).not.toBeNull();
     expect(gap.querySelector('.page-gap-more')?.textContent).toBe('(MORE)');
     expect(gap.querySelector('.page-gap-contd')?.textContent).toBe("ALICE (CONT'D)");
-    expect(gap.style.getPropertyValue('--indent')).toBe('10ch');
+    expect(gap.style.getPropertyValue('--indent')).toBe('70pt'); // 10 characters on the 7pt grid
   });
 
   it('marks elements that follow without a blank line', () => {

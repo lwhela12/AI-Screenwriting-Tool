@@ -1,7 +1,7 @@
 import { Plugin, PluginKey, EditorState } from 'prosemirror-state';
 import { Decoration, DecorationSet, EditorView } from 'prosemirror-view';
 import { Node as PMNode } from 'prosemirror-model';
-import { Layout, PAGE, pageAt, columnFor } from '../pagination/layout';
+import { Layout, PAGE, CHAR_PT, pageAt, columnFor } from '../pagination/layout';
 import { layoutFromDoc } from '../pagination/fromDoc';
 import { CONTD } from '../continued';
 
@@ -38,17 +38,18 @@ function pageGapElement(opts: { page: number; fillLines: number; more: boolean; 
   const gap = document.createElement(opts.inline ? 'span' : 'div');
   gap.className = 'page-gap' + (opts.inline ? ' page-gap-inline' : '');
   gap.contentEditable = 'false';
-  gap.style.setProperty('--indent', `${opts.indentCh}ch`);
+  gap.style.setProperty('--indent', `${opts.indentCh * CHAR_PT}pt`);
   gap.style.setProperty('--fill', `${opts.fillLines * PAGE.linePt}pt`);
 
-  if (opts.more) gap.appendChild(div('page-gap-more', '(MORE)'));
   gap.appendChild(div('page-gap-fill'));
-  gap.appendChild(div('page-gap-margin-bottom'));
+  const bottom = div('page-gap-margin-bottom');
+  if (opts.more) bottom.appendChild(div('page-gap-more', '(MORE)')); // printed in the margin, as Final Draft does
+  gap.appendChild(bottom);
   gap.appendChild(div('page-gap-band'));
   const top = div('page-gap-margin-top');
   top.appendChild(div('page-gap-number', `${opts.page}.`));
+  if (opts.contd) top.appendChild(div('page-gap-contd', opts.contd)); // last row of the top margin
   gap.appendChild(top);
-  if (opts.contd) gap.appendChild(div('page-gap-contd', opts.contd));
   return gap;
 }
 

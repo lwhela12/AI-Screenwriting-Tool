@@ -67,13 +67,26 @@ function wrapParagraph(text: string, width: number, base: number): WrappedLine[]
   return lines;
 }
 
-/** Wrap `text` to `width` characters. Hard line breaks (`\n`) always start a new line. */
-export function wrapText(text: string, width: number): WrappedLine[] {
+/**
+ * Wrap `text` to `width` characters. Hard line breaks (`\n`) always start a
+ * new line. `firstWidth` lets the first line be wider (a hanging indent).
+ */
+export function wrapText(text: string, width: number, firstWidth = width): WrappedLine[] {
   const out: WrappedLine[] = [];
   let offset = 0;
   const paragraphs = text.split('\n');
   paragraphs.forEach((para, i) => {
-    out.push(...wrapParagraph(para, width, offset));
+    if (i === 0 && firstWidth !== width) {
+      // Wrap the first line at its own width, then the remainder at the normal width.
+      const first = wrapParagraph(para, firstWidth, offset)[0];
+      out.push(first);
+      const restStart = first.end - offset;
+      if (restStart < para.length) {
+        out.push(...wrapParagraph(para.slice(restStart), width, offset + restStart));
+      }
+    } else {
+      out.push(...wrapParagraph(para, width, offset));
+    }
     offset += para.length + (i < paragraphs.length - 1 ? 1 : 0);
   });
   return out;

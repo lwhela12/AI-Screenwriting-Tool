@@ -7,7 +7,7 @@ import { pageViewPlugin } from '../src/components/editor-v2/plugins/pageView';
 import { toggleDualDialogue } from '../src/components/editor-v2/plugins/commands';
 import { docToFDX, parseFDX } from '../src/utils/fdx';
 
-const actionOf = (lines: number) => Array.from({ length: lines }, (_, i) => `line ${String(i + 1).padStart(2, '0')}`).join('\n');
+const actionOf = (lines: number) => Array.from({ length: lines }, (_, i) => `line ${String(i + 1).padStart(2, '0')}.`).join('\n');
 
 const ch = (text: string, dual: 'left' | 'right' | null = null): LayoutElement => ({ type: 'character', text, dual });
 const d = (text: string): LayoutElement => ({ type: 'dialogue', text });
