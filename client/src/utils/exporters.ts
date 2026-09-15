@@ -4,6 +4,7 @@ import { ScreenplayProject } from '../components/ProjectManager';
 import { ScreenplayDocument, ScreenplayData } from './screenplayPDF';
 import { contentToDoc, contentToElements, elementsToText } from '../components/editor-v2/docConverter';
 import { docToFDX } from './fdx';
+import { docToFountain } from './fountain';
 import { layoutFromDoc } from '../components/editor-v2/pagination/fromDoc';
 
 function notify(message: string, kind: 'info' | 'success' | 'error'): () => void {
@@ -61,6 +62,11 @@ export async function exportToPDF(project: ScreenplayProject): Promise<void> {
 export function exportToFDX(project: ScreenplayProject): void {
   const fdx = docToFDX(contentToDoc(project.content), project);
   downloadText(safeFilename(project.title, 'fdx'), fdx, 'application/xml');
+}
+
+export function exportToFountain(project: ScreenplayProject): void {
+  const text = docToFountain(contentToDoc(project.content), project);
+  downloadText(safeFilename(project.title, 'fountain'), text, 'text/plain');
 }
 
 export function exportToText(project: ScreenplayProject): void {

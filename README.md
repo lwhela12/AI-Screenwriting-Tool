@@ -50,7 +50,9 @@ The **Outline** tab shows the same scenes as index cards: heading, synopsis, cas
 
 The title page is the first sheet above the script; click any field to edit it. When a character speaks again after only action, the cue gets an automatic `(CONT'D)`, computed from the script so it stays right as you edit. Typing `(` in a character cue offers the standard extensions (V.O., O.S., …).
 
-Final Draft files can be imported from the project screen (**Import .fdx**). Scene numbers, dual dialogue, centered text, page breaks, bold/italic/underline and the title page are preserved, and the FDX export writes them back.
+The **Reports** tab gives a character report (scenes, speeches, words, share of dialogue, first and last scene), a scene report (page, length, INT/EXT, time, cast), a who-is-in-which-scene matrix, and dialogue statistics, with CSV download.
+
+Scripts can be imported from the project screen (**Import script…**): Final Draft `.fdx`, Fountain `.fountain`, or plain text. Final Draft files Scene numbers, synopses, dual dialogue, centered text, page breaks, bold/italic/underline and the title page are preserved, and the FDX export writes them back. Fountain import understands sections (structure labels), synopses, scene numbers, forced elements, dual dialogue and emphasis, and Fountain export writes them all.
 
 Run the editor tests with `cd client && npm test`.
 

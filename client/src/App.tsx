@@ -4,6 +4,7 @@ import { EditorView } from 'prosemirror-view';
 import BeatBoard from './components/BeatBoard';
 import ProseMirrorEditor from './components/editor-v2/ProseMirrorEditor';
 import OutlineView from './components/OutlineView';
+import ReportsView from './components/ReportsView';
 import { jumpToScene, SceneInfo } from './components/editor-v2/scenes';
 import type { BeatBoardData } from './components/beats';
 import { ProjectManager, ScreenplayProject, isLocalProject, saveLocalProject } from './components/ProjectManager';
@@ -12,7 +13,7 @@ import { apiFetch } from './api';
 import type { TitlePageData } from './components/editor-v2/TitleSheet';
 import './App.css';
 
-type ViewType = 'editor' | 'board' | 'outline';
+type ViewType = 'editor' | 'board' | 'outline' | 'reports';
 
 interface Tab {
   id: ViewType;
@@ -23,7 +24,8 @@ interface Tab {
 const tabs: Tab[] = [
   { id: 'editor', label: 'Script Editor', icon: '📝' },
   { id: 'board', label: 'Beat Board', icon: '📋' },
-  { id: 'outline', label: 'Outline', icon: '📑' }
+  { id: 'outline', label: 'Outline', icon: '📑' },
+  { id: 'reports', label: 'Reports', icon: '📊' }
 ];
 
 type SaveState =
@@ -297,6 +299,9 @@ export const App: React.FC = () => {
           {activeView === 'outline' && currentProject && editorState && (
             <OutlineView view={editorViewRef.current} state={editorState} onOpenScene={openScene} />
           )}
+        </div>
+        <div className={`view-container ${activeView === 'reports' ? 'active' : ''}`}>
+          {activeView === 'reports' && currentProject && editorState && <ReportsView state={editorState} onOpenScene={openScene} />}
         </div>
       </main>
 

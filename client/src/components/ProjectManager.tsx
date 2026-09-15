@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { apiFetch } from '../api';
 import { parseFDX } from '../utils/fdx';
-import { docToContent } from './editor-v2/docConverter';
+import { parseFountain } from '../utils/fountain';
+import { docToContent, textToDoc } from './editor-v2/docConverter';
 import './ProjectManager.css';
 
 export interface ScreenplayProject {
@@ -90,11 +91,17 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({ onProjectSelect 
     }
   };
 
-  const importFDX = async (file: File) => {
+  const importFile = async (file: File) => {
     try {
-      const xml = await file.text();
-      const imported = parseFDX(xml);
-      const fallbackTitle = file.name.replace(/\.(fdx|xml)$/i, '');
+      const text = await file.text();
+      const ext = (file.name.split('.').pop() || '').toLowerCase();
+      const imported =
+        ext === 'fdx' || ext === 'xml' || text.trimStart().startsWith('<')
+          ? parseFDX(text)
+          : ext === 'fountain' || ext === 'spmd'
+            ? parseFountain(text)
+            : { doc: textToDoc(text) };
+      const fallbackTitle = file.name.replace(/\.(fdx|xml|fountain|spmd|txt)$/i, '');
       const project = await createProject({
         title: imported.title || fallbackTitle,
         author: imported.author || '',
@@ -191,18 +198,18 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({ onProjectSelect 
           <span className="icon">+</span>
           New Screenplay
         </button>
-        <button className="btn-secondary" onClick={() => fileInput.current?.click()} title="Import a Final Draft .fdx file">
-          Import .fdx
+        <button className="btn-secondary" onClick={() => fileInput.current?.click()} title="Import a Final Draft (.fdx), Fountain (.fountain) or plain text (.txt) script">
+          Import script…
         </button>
         <input
           ref={fileInput}
           type="file"
-          accept=".fdx,.xml,application/xml,text/xml"
+          accept=".fdx,.xml,.fountain,.spmd,.txt,application/xml,text/xml,text/plain"
           style={{ display: 'none' }}
           onChange={e => {
             const file = e.target.files?.[0];
             e.target.value = '';
-            if (file) void importFDX(file);
+            if (file) void importFile(file);
           }}
         />
       </div>

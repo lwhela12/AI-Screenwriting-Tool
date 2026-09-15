@@ -1,6 +1,6 @@
 import React from 'react';
 import { ScreenplayProject } from './ProjectManager';
-import { exportToPDF, exportToFDX, exportToText } from '../utils/exporters';
+import { exportToPDF, exportToFDX, exportToText, exportToFountain } from '../utils/exporters';
 import './ExportDialog.css';
 
 interface ExportDialogProps {
@@ -9,13 +9,16 @@ interface ExportDialogProps {
 }
 
 export const ExportDialog: React.FC<ExportDialogProps> = ({ project, onClose }) => {
-  const handleExport = (format: 'pdf' | 'fdx' | 'txt') => {
+  const handleExport = (format: 'pdf' | 'fdx' | 'fountain' | 'txt') => {
     switch (format) {
       case 'pdf':
         exportToPDF(project);
         break;
       case 'fdx':
         exportToFDX(project);
+        break;
+      case 'fountain':
+        exportToFountain(project);
         break;
       case 'txt':
         exportToText(project);
@@ -53,6 +56,14 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({ project, onClose }) 
             </div>
           </button>
           
+          <button className="export-option" onClick={() => handleExport('fountain')}>
+            <div className="export-icon">⛲</div>
+            <div className="export-info">
+              <h3>Fountain (.fountain)</h3>
+              <p>Plain-text screenplay format read by Highland, Slugline, Beat and others</p>
+            </div>
+          </button>
+
           <button 
             className="export-option"
             onClick={() => handleExport('txt')}
