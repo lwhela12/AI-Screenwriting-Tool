@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { apiFetch } from '../api';
 import { parseFDX } from '../utils/fdx';
 import { parseFountain } from '../utils/fountain';
+import { importPdf } from '../utils/pdfImport';
 import { docToContent, textToDoc } from './editor-v2/docConverter';
 import './ProjectManager.css';
 
@@ -93,15 +94,20 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({ onProjectSelect 
 
   const importFile = async (file: File) => {
     try {
-      const text = await file.text();
       const ext = (file.name.split('.').pop() || '').toLowerCase();
-      const imported =
-        ext === 'fdx' || ext === 'xml' || text.trimStart().startsWith('<')
-          ? parseFDX(text)
-          : ext === 'fountain' || ext === 'spmd'
-            ? parseFountain(text)
-            : { doc: textToDoc(text) };
-      const fallbackTitle = file.name.replace(/\.(fdx|xml|fountain|spmd|txt)$/i, '');
+      let imported: { doc: any; title?: string; author?: string; contact?: string };
+      if (ext === 'pdf' || file.type === 'application/pdf') {
+        imported = await importPdf(await file.arrayBuffer());
+      } else {
+        const text = await file.text();
+        imported =
+          ext === 'fdx' || ext === 'xml' || text.trimStart().startsWith('<')
+            ? parseFDX(text)
+            : ext === 'fountain' || ext === 'spmd'
+              ? parseFountain(text)
+              : { doc: textToDoc(text) };
+      }
+      const fallbackTitle = file.name.replace(/\.(fdx|xml|fountain|spmd|txt|pdf)$/i, '');
       const project = await createProject({
         title: imported.title || fallbackTitle,
         author: imported.author || '',
@@ -198,13 +204,13 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({ onProjectSelect 
           <span className="icon">+</span>
           New Screenplay
         </button>
-        <button className="btn-secondary" onClick={() => fileInput.current?.click()} title="Import a Final Draft (.fdx), Fountain (.fountain) or plain text (.txt) script">
+        <button className="btn-secondary" onClick={() => fileInput.current?.click()} title="Import a Final Draft (.fdx), Fountain (.fountain), PDF or plain text (.txt) script">
           Import script…
         </button>
         <input
           ref={fileInput}
           type="file"
-          accept=".fdx,.xml,.fountain,.spmd,.txt,application/xml,text/xml,text/plain"
+          accept=".fdx,.xml,.fountain,.spmd,.txt,.pdf,application/xml,text/xml,text/plain,application/pdf"
           style={{ display: 'none' }}
           onChange={e => {
             const file = e.target.files?.[0];

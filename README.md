@@ -52,7 +52,7 @@ The title page is the first sheet above the script; click any field to edit it. 
 
 The **Reports** tab gives a character report (scenes, speeches, words, share of dialogue, first and last scene), a scene report (page, length, INT/EXT, time, cast), a who-is-in-which-scene matrix, and dialogue statistics, with CSV download.
 
-Scripts can be imported from the project screen (**Import script…**): Final Draft `.fdx`, Fountain `.fountain`, or plain text. Final Draft files Scene numbers, synopses, dual dialogue, centered text, page breaks, bold/italic/underline and the title page are preserved, and the FDX export writes them back. Fountain import understands sections (structure labels), synopses, scene numbers, forced elements, dual dialogue and emphasis, and Fountain export writes them all.
+Scripts can be imported from the project screen (**Import script…**): Final Draft `.fdx`, Fountain `.fountain`, PDF, or plain text. PDF import reads the text layer and recovers elements from their indents, rejoining speeches split across pages; check cues and headings after importing a PDF from an unusual template. Final Draft files Scene numbers, synopses, dual dialogue, centered text, page breaks, bold/italic/underline and the title page are preserved, and the FDX export writes them back. Fountain import understands sections (structure labels), synopses, scene numbers, forced elements, dual dialogue and emphasis, and Fountain export writes them all.
 
 Run the editor tests with `cd client && npm test`.
 
