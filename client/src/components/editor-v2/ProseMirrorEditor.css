@@ -59,14 +59,15 @@
 
 /*
  * Geometry is the pagination engine's: 12pt Courier at 10 characters per
- * inch, 1.5in left margin, 1in top margin, 55 lines of body. Element widths
- * are set in `ch` so the browser wraps on exactly the grid the engine uses.
+ * inch, 1.5in left margin, 1in top and bottom margins, 54 lines of body.
+ * Element widths are set in `ch` so the browser wraps on exactly the grid
+ * the engine uses; the columns are Final Draft's screenplay template.
  */
 .ProseMirror.screenplay {
   --line: 12pt;
   --left-margin: 1.5in;
   --top-margin: 1in;
-  --bottom-margin: 0.8333in;
+  --bottom-margin: 1in;
   --page-width: 8.5in;
   --page-gap: 0.4in;
   --gap-bleed: 60px; /* how far the gap extends past the sheet to hide its side shadow */
@@ -139,12 +140,12 @@
 
 .ProseMirror.screenplay .character {
   text-transform: uppercase;
-  margin-left: 22ch;
-  width: 38ch;
+  margin-left: 20ch;
+  width: 37ch;
 }
 
 .ProseMirror.screenplay .parenthetical {
-  margin-left: 16ch;
+  margin-left: 15ch;
   width: 25ch;
 }
 
@@ -156,7 +157,7 @@
 .ProseMirror.screenplay .transition {
   text-transform: uppercase;
   text-align: right;
-  margin-left: 40ch;
+  margin-left: 36ch;
   width: 20ch;
 }
 
@@ -212,11 +213,11 @@
 }
 
 .page-gap-more {
-  padding-left: calc(var(--left-margin) + 16ch);
+  padding-left: calc(var(--left-margin) + 15ch);
 }
 
 .page-gap-contd {
-  padding-left: calc(var(--left-margin) + 22ch);
+  padding-left: calc(var(--left-margin) + 20ch);
   text-transform: uppercase;
 }
 
@@ -261,6 +262,109 @@
   top: 0.5in;
   right: 1in;
   line-height: var(--line);
+}
+
+/* Dual dialogue: two 25-character columns. The right column is pulled up by
+   the page-view plugin (inline margin) to sit beside the left one. */
+.ProseMirror.screenplay .dual-left.character {
+  margin-left: 5ch;
+  width: 20ch;
+}
+.ProseMirror.screenplay .dual-left.parenthetical {
+  margin-left: 3ch;
+  width: 22ch;
+}
+.ProseMirror.screenplay .dual-left.dialogue {
+  margin-left: 0;
+  width: 25ch;
+}
+.ProseMirror.screenplay .dual-right.character {
+  margin-left: 35ch;
+  width: 20ch;
+}
+.ProseMirror.screenplay .dual-right.parenthetical {
+  margin-left: 33ch;
+  width: 22ch;
+}
+.ProseMirror.screenplay .dual-right.dialogue {
+  margin-left: 30ch;
+  width: 25ch;
+}
+
+/* Automatic (CONT'D), rendered as a decoration after the cue. */
+.ProseMirror.screenplay .auto-contd {
+  user-select: none;
+}
+
+/* Title page ------------------------------------------------------------- */
+
+.title-sheet {
+  position: relative;
+  width: 8.5in;
+  height: 11in;
+  margin: 0 auto 0.4in;
+  background: #fff;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  box-sizing: border-box;
+  font-family: 'Courier Prime', 'Courier New', Courier, monospace;
+  font-size: 12pt;
+  line-height: 12pt;
+  color: #000;
+}
+
+.title-sheet input,
+.title-sheet textarea {
+  display: block;
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  border: none;
+  border-radius: 2px;
+  background: transparent;
+  outline: none;
+  padding: 0;
+  margin: 0;
+  resize: none;
+}
+
+.title-sheet input:focus,
+.title-sheet textarea:focus,
+.title-sheet input:hover,
+.title-sheet textarea:hover {
+  background: #f3f4f6;
+}
+
+.title-sheet ::placeholder {
+  color: #b0b5bd;
+}
+
+.title-sheet-center {
+  position: absolute;
+  top: 3.5in;
+  left: 1.5in;
+  right: 1in;
+  text-align: center;
+}
+
+.title-sheet-center input {
+  text-align: center;
+}
+
+.title-sheet-title {
+  text-transform: uppercase;
+}
+
+.title-sheet-byline {
+  margin: 24pt 0 12pt;
+}
+
+.title-sheet-contact {
+  position: absolute;
+  bottom: 1in;
+  left: 1.5in;
+  width: 3.5in !important;
+  text-align: left;
+  white-space: pre;
 }
 
 /* Keep the empty elements clickable and the cursor visible. */

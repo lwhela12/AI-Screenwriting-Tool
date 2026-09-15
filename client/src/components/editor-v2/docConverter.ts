@@ -2,6 +2,7 @@ import { Node as PMNode } from 'prosemirror-model';
 import { screenplaySchema, emptyDoc, ElementType, isElementType, UPPERCASE_ELEMENTS } from './schema/screenplaySchema';
 import { ScreenplayParser } from '../../utils/screenplayParser';
 import type { ScreenplayElement } from '../../utils/screenplayPDF';
+import { continuedCues, cueDisplayText } from './continued';
 
 /**
  * Conversions between the three representations of a script:
@@ -100,10 +101,11 @@ export function docToContent(doc: PMNode): string {
 /** Convert an editor document to the flat element list used by exporters. */
 export function docToElements(doc: PMNode): ScreenplayElement[] {
   const elements: ScreenplayElement[] = [];
-  doc.forEach(node => {
+  const continued = continuedCues(doc);
+  doc.forEach((node, _offset, index) => {
     const name = node.type.name;
     if (!isElementType(name)) return; // page breaks and unknown nodes are skipped
-    const text = node.textContent;
+    const text = name === 'character' ? cueDisplayText(node.textContent, continued.has(index)) : node.textContent;
     if (!text.trim()) return;
     elements.push({ type: ELEMENT_TO_EXPORT[name], text });
   });

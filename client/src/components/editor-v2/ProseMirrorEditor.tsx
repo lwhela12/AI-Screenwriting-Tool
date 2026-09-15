@@ -14,6 +14,7 @@ import { elementMenuPlugin } from './plugins/elementMenu';
 import { clipboardPlugin } from './plugins/clipboard';
 import { contentToDoc, docToContent } from './docConverter';
 import { ELEMENT_LABELS, isElementType } from './schema/screenplaySchema';
+import { TitleSheet, TitlePageData } from './TitleSheet';
 import './ProseMirrorEditor.css';
 
 interface ProseMirrorEditorProps {
@@ -21,6 +22,9 @@ interface ProseMirrorEditorProps {
   initialContent?: string;
   /** Called with the serialized document after every change. */
   onContentChange?: (content: string) => void;
+  /** Title page fields; when given, the title page is shown above the script. */
+  titlePage?: TitlePageData;
+  onTitlePageChange?: (data: TitlePageData) => void;
 }
 
 interface Status {
@@ -40,7 +44,7 @@ function statusFor(state: EditorState): Status {
   };
 }
 
-export const ProseMirrorEditor: React.FC<ProseMirrorEditorProps> = ({ initialContent = '', onContentChange }) => {
+export const ProseMirrorEditor: React.FC<ProseMirrorEditorProps> = ({ initialContent = '', onContentChange, titlePage, onTitlePageChange }) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onContentChange);
@@ -105,6 +109,7 @@ export const ProseMirrorEditor: React.FC<ProseMirrorEditorProps> = ({ initialCon
         <span className="toolbar-hint">Enter on an empty line opens the element menu · ⌘1–⌘7 set element type</span>
       </div>
       <div className="editor-scroll-container">
+        {titlePage && onTitlePageChange && <TitleSheet data={titlePage} onChange={onTitlePageChange} />}
         <div ref={editorRef} className="prosemirror-editor" />
       </div>
     </div>

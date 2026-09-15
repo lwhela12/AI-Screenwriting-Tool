@@ -256,6 +256,58 @@ export const tabCommand: Command = (state, dispatch) => {
   return true;
 };
 
+/** Indices (and positions) of the speech containing document child `index`, or null. */
+function speechAround(doc: PMNode, index: number): { cue: number; end: number } | null {
+  let cue = index;
+  while (cue >= 0 && doc.child(cue).type.name !== 'character') {
+    const t = doc.child(cue).type.name;
+    if (t !== 'dialogue' && t !== 'parenthetical') return null;
+    cue--;
+  }
+  if (cue < 0) return null;
+  let end = cue + 1;
+  while (end < doc.childCount && (doc.child(end).type.name === 'dialogue' || doc.child(end).type.name === 'parenthetical')) end++;
+  return { cue, end };
+}
+
+/**
+ * Toggle dual dialogue for the speech under the cursor and the speech before
+ * it: they are printed side by side. Toggling again separates them.
+ */
+export const toggleDualDialogue: Command = (state, dispatch) => {
+  const { $from } = state.selection;
+  if ($from.depth < 1) return false;
+  const doc = state.doc;
+  const here = speechAround(doc, $from.index(0));
+  if (!here) return false;
+
+  const cueNode = doc.child(here.cue);
+  const tr = state.tr;
+  const setDual = (childIndex: number, value: string | null) => {
+    let pos = 0;
+    for (let i = 0; i < childIndex; i++) pos += doc.child(i).nodeSize;
+    tr.setNodeMarkup(pos, undefined, { ...doc.child(childIndex).attrs, dual: value });
+  };
+
+  if (cueNode.attrs.dual === 'right') {
+    // Split the pair: clear this cue and its left partner.
+    const partner = speechAround(doc, here.cue - 1);
+    setDual(here.cue, null);
+    if (partner && doc.child(partner.cue).attrs.dual === 'left') setDual(partner.cue, null);
+  } else if (cueNode.attrs.dual === 'left') {
+    setDual(here.cue, null);
+    if (here.end < doc.childCount && doc.child(here.end).type.name === 'character' && doc.child(here.end).attrs.dual === 'right') setDual(here.end, null);
+  } else {
+    const partner = speechAround(doc, here.cue - 1);
+    if (!partner) return false; // needs a speech immediately before this one
+    setDual(partner.cue, 'left');
+    setDual(here.cue, 'right');
+  }
+
+  if (dispatch) dispatch(tr.setMeta(autoFormatKey, 'converted'));
+  return true;
+};
+
 /** Shift-Tab: change the current element to the previous type in the element order. */
 export const shiftTabCommand: Command = (state, dispatch) => {
   const { $from } = state.selection;

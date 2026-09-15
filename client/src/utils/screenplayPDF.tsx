@@ -1,6 +1,6 @@
 import React from 'react';
 import { Document, Page, Text, View } from '@react-pdf/renderer';
-import { Layout, Row, COLUMNS, PAGE } from '../components/editor-v2/pagination/layout';
+import { Layout, Row, PAGE, columnFor } from '../components/editor-v2/pagination/layout';
 
 /**
  * PDF output. Every printed line comes from the pagination engine, already
@@ -35,7 +35,7 @@ const pageStyle = {
 } as const;
 
 function rowLeft(row: Row): number {
-  const col = COLUMNS[row.column];
+  const col = columnFor(row.column, row.dual);
   const widthPt = row.text.length * CHAR_PT;
   if (col.align === 'right') return RIGHT_EDGE - widthPt;
   if (col.align === 'center') return (LEFT + RIGHT_EDGE) / 2 - widthPt / 2;
@@ -43,6 +43,14 @@ function rowLeft(row: Row): number {
 }
 
 const PrintedRow: React.FC<{ row: Row; index: number }> = ({ row, index }) => {
+  if (row.kind === 'dual') {
+    return (
+      <>
+        {row.left ? <PrintedRow row={row.left} index={index} /> : null}
+        {row.right ? <PrintedRow row={row.right} index={index} /> : null}
+      </>
+    );
+  }
   if (row.kind === 'blank' || row.text === '') return null;
   return (
     <Text

@@ -1,8 +1,9 @@
 import { Plugin, PluginKey, EditorState } from 'prosemirror-state';
 import { Decoration, DecorationSet, EditorView } from 'prosemirror-view';
 import { Node as PMNode } from 'prosemirror-model';
-import { layoutElements, Layout, LayoutElementType, PAGE, COLUMNS, pageAt, wrapElement } from '../pagination/layout';
-import { WrappedLine } from '../pagination/wrap';
+import { Layout, PAGE, pageAt, columnFor } from '../pagination/layout';
+import { layoutFromDoc } from '../pagination/fromDoc';
+import { CONTD } from '../continued';
 
 /**
  * Renders the pagination engine's result inside the editor.
@@ -23,31 +24,8 @@ export interface PageViewState {
 
 export const pageViewKey = new PluginKey<PageViewState>('pageView');
 
-const wrapCache = new WeakMap<PMNode, WrappedLine[]>();
-
-export function layoutDoc(doc: PMNode): { layout: Layout; positions: number[] } {
-  const nodes: PMNode[] = [];
-  const positions: number[] = [];
-  doc.forEach((node, offset) => {
-    nodes.push(node);
-    positions.push(offset);
-  });
-  const layout = layoutElements(
-    nodes.map(node => ({ type: node.type.name as LayoutElementType, text: node.textContent })),
-    {
-      wrap: (el, index) => {
-        const node = nodes[index];
-        let lines = wrapCache.get(node);
-        if (!lines) {
-          lines = wrapElement(el);
-          wrapCache.set(node, lines);
-        }
-        return lines;
-      }
-    }
-  );
-  return { layout, positions };
-}
+/** Kept for callers that imported the layout helper from here. */
+export const layoutDoc = layoutFromDoc;
 
 function div(className: string, text?: string): HTMLElement {
   const el = document.createElement('div');
@@ -74,24 +52,59 @@ function pageGapElement(opts: { page: number; fillLines: number; more: boolean; 
   return gap;
 }
 
+function contdWidget(): HTMLElement {
+  const span = document.createElement('span');
+  span.className = 'auto-contd';
+  span.contentEditable = 'false';
+  span.textContent = ` ${CONTD}`;
+  return span;
+}
+
 function buildState(doc: PMNode): PageViewState {
-  const { layout, positions } = layoutDoc(doc);
+  const { layout, positions, continued } = layoutDoc(doc);
   const decorations: Decoration[] = [];
+
+  continued.forEach(index => {
+    const node = doc.child(index);
+    const end = positions[index] + 1 + node.content.size;
+    decorations.push(Decoration.widget(end, contdWidget, { side: 1, key: 'contd', ignoreSelection: true }));
+  });
 
   layout.elements.forEach((el, index) => {
     if (el.type === 'page_break') return;
+    const from = positions[index];
+    const to = from + doc.child(index).nodeSize;
     if (!el.spacerBefore) {
-      const from = positions[index];
-      decorations.push(Decoration.node(from, from + doc.child(index).nodeSize, { class: 'no-spacer' }));
+      decorations.push(Decoration.node(from, to, { class: 'no-spacer' }));
+    } else if (el.spacerRows > 1) {
+      decorations.push(Decoration.node(from, to, { style: `margin-top:${el.spacerRows * PAGE.linePt}pt` }));
     }
   });
+
+  // Dual dialogue: the right speech is pulled up beside the left one, and the
+  // block's last element pushes what follows below the taller column.
+  for (const block of layout.duals) {
+    const nodeDeco = (index: number, attrs: Record<string, string>) => {
+      const from = positions[index];
+      decorations.push(Decoration.node(from, from + doc.child(index).nodeSize, attrs));
+    };
+    block.left.forEach(i => nodeDeco(i, { class: 'dual dual-left' }));
+    block.right.forEach((i, k) => {
+      const attrs: Record<string, string> = { class: 'dual dual-right' };
+      if (k === 0) attrs.style = `margin-top:-${block.leftRows * PAGE.linePt}pt`;
+      if (k === block.right.length - 1 && block.leftRows > block.rightRows) {
+        attrs.style = (attrs.style ? attrs.style + ';' : '') + `margin-bottom:${(block.leftRows - block.rightRows) * PAGE.linePt}pt`;
+      }
+      nodeDeco(i, attrs);
+    });
+  }
 
   for (const brk of layout.breaks) {
     const el = layout.elements[brk.elementIndex];
     const inline = brk.lineIndex > 0;
     const pos = inline ? positions[brk.elementIndex] + 1 + el.lines[brk.lineIndex].start : positions[brk.elementIndex];
     const fillLines = Math.max(0, PAGE.linesPerPage - brk.rowsBefore);
-    const indentCh = inline ? COLUMNS[el.type].indent : 0;
+    const indentCh = inline ? columnFor(el.type, el.dualSide).indent : 0;
     const key = `gap-${brk.page}-${fillLines}-${brk.more ? 'm' : ''}-${brk.contdCue || ''}-${inline ? el.type : 'block'}`;
     decorations.push(
       Decoration.widget(pos, () => pageGapElement({ page: brk.page, fillLines, more: brk.more, contd: brk.contdCue, inline, indentCh }), {

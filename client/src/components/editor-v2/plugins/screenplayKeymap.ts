@@ -2,14 +2,14 @@ import { Command } from 'prosemirror-state';
 import { chainCommands } from 'prosemirror-commands';
 import { undo, redo } from 'prosemirror-history';
 import { ELEMENT_ORDER } from '../schema/screenplaySchema';
-import { enterCommand, tabCommand, shiftTabCommand, backspaceCommand, setElementTypeCommand } from './commands';
+import { enterCommand, tabCommand, shiftTabCommand, backspaceCommand, setElementTypeCommand, toggleDualDialogue } from './commands';
 
 /**
  * Keyboard bindings for the screenplay editor.
  *
- * Enter, Tab and Backspace follow Final Draft. Mod-1 through Mod-7 set the
+ * Enter, Tab and Backspace follow Final Draft. Mod-1 through Mod-8 set the
  * element type of the current element (Scene Heading, Action, Character,
- * Parenthetical, Dialogue, Transition, Centered), in the same order as the
+ * Parenthetical, Dialogue, Transition, Shot, Centered), in the same order as the
  * element menu. Save (Mod-S) is deliberately not bound here; the application
  * handles it at the window level so it works wherever focus is.
  */
@@ -21,6 +21,7 @@ export const screenplayKeymap: Record<string, Command> = {
   'Mod-z': undo,
   'Mod-y': redo,
   'Shift-Mod-z': redo,
+  'Shift-Mod-d': toggleDualDialogue,
   ...Object.fromEntries(ELEMENT_ORDER.map((type, index) => [`Mod-${index + 1}`, setElementTypeCommand(type)]))
 };
 

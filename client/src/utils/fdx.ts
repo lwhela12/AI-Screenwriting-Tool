@@ -1,5 +1,6 @@
 import { Node as PMNode, Mark } from 'prosemirror-model';
 import { screenplaySchema, ElementType, emptyDoc, isElementType, UPPERCASE_ELEMENTS } from '../components/editor-v2/schema/screenplaySchema';
+import { continuedCues, cueDisplayText, hasContd, stripContd } from '../components/editor-v2/continued';
 
 /**
  * Final Draft (.fdx) import and export.
@@ -82,8 +83,27 @@ function paragraphToNode(paragraph: Element, dual: 'left' | 'right' | null): PMN
   if (type === 'scene_heading') attrs.number = paragraph.getAttribute('Number') || null;
   if (type === 'character') attrs.dual = dual;
 
-  const content = inlineContent(paragraph, UPPERCASE_ELEMENTS.has(type));
+  let content = inlineContent(paragraph, UPPERCASE_ELEMENTS.has(type));
+  if (type === 'character') {
+    // Final Draft writes its automatic "(CONT'D)" into the text; we compute it instead.
+    const full = content.map(n => n.text || '').join('');
+    if (hasContd(full)) content = truncateRuns(content, stripContd(full).length);
+  }
   return screenplaySchema.nodes[type].create(attrs, content);
+}
+
+/** Keep only the first `length` characters of a run of text nodes, preserving marks. */
+function truncateRuns(runs: PMNode[], length: number): PMNode[] {
+  const out: PMNode[] = [];
+  let remaining = length;
+  for (const run of runs) {
+    if (remaining <= 0) break;
+    const text = run.text || '';
+    const keep = text.slice(0, remaining);
+    if (keep) out.push(screenplaySchema.text(keep, run.marks));
+    remaining -= text.length;
+  }
+  return out;
 }
 
 function paragraphsOf(content: Element): PMNode[] {
@@ -174,30 +194,36 @@ function styleFor(marks: readonly Mark[]): string | null {
   return parts.length ? parts.join('+') : null;
 }
 
-function textRuns(node: PMNode, indent: string): string {
+function textRuns(node: PMNode, indent: string, suffix = ''): string {
   const runs: string[] = [];
+  const texts: PMNode[] = [];
   node.forEach(child => {
-    if (!child.isText) return;
-    const style = styleFor(child.marks);
-    runs.push(`${indent}<Text${style ? ` Style="${style}"` : ''}>${escapeXML(child.text || '')}</Text>`);
+    if (child.isText) texts.push(child);
   });
-  if (runs.length === 0) runs.push(`${indent}<Text></Text>`);
+  texts.forEach((child, i) => {
+    const style = styleFor(child.marks);
+    const text = (child.text || '') + (i === texts.length - 1 ? suffix : '');
+    runs.push(`${indent}<Text${style ? ` Style="${style}"` : ''}>${escapeXML(text)}</Text>`);
+  });
+  if (runs.length === 0) runs.push(`${indent}<Text>${escapeXML(suffix)}</Text>`);
   return runs.join('\n');
 }
 
-function paragraphXML(node: PMNode, startsNewPage: boolean, indent: string): string {
+function paragraphXML(node: PMNode, startsNewPage: boolean, indent: string, continued = false): string {
   const type = node.type.name as ElementType;
   const attrs: string[] = [`Type="${ELEMENT_TO_FDX[type]}"`];
   if (type === 'centered') attrs.push('Alignment="Center"');
   if (type === 'scene_heading' && node.attrs.number) attrs.push(`Number="${escapeXML(String(node.attrs.number))}"`);
   if (startsNewPage) attrs.push('StartsNewPage="Yes"');
-  return `${indent}<Paragraph ${attrs.join(' ')}>\n${textRuns(node, indent + '  ')}\n${indent}</Paragraph>`;
+  const suffix = continued ? cueDisplayText(node.textContent, true).slice(node.textContent.length) : '';
+  return `${indent}<Paragraph ${attrs.join(' ')}>\n${textRuns(node, indent + '  ', suffix)}\n${indent}</Paragraph>`;
 }
 
 /** Serialize a document as Final Draft XML. */
 export function docToFDX(doc: PMNode, meta: { title: string; author?: string; contact?: string }): string {
   const nodes: PMNode[] = [];
   doc.forEach(n => nodes.push(n));
+  const continued = continuedCues(doc);
 
   const out: string[] = [];
   let pendingBreak = false;
@@ -233,7 +259,7 @@ export function docToFDX(doc: PMNode, meta: { title: string; author?: string; co
       }
       if (cues === 2) {
         out.push('    <DualDialogue>');
-        group.forEach((n, k) => out.push(paragraphXML(n, k === 0 && pendingBreak, '      ')));
+        group.forEach((n, k) => out.push(paragraphXML(n, k === 0 && pendingBreak, '      ', continued.has(i + k))));
         out.push('    </DualDialogue>');
         pendingBreak = false;
         i = j;
@@ -241,7 +267,7 @@ export function docToFDX(doc: PMNode, meta: { title: string; author?: string; co
       }
     }
 
-    out.push(paragraphXML(node, pendingBreak, '    '));
+    out.push(paragraphXML(node, pendingBreak, '    ', continued.has(i)));
     pendingBreak = false;
     i++;
   }

@@ -20,7 +20,7 @@ afterEach(() => {
 
 describe('page view decorations', () => {
   it('renders a block page gap before an element that starts a new page', () => {
-    const view = open(b.doc(b.a(actionOf(30)), b.a(actionOf(24)), b.a('tail')));
+    const view = open(b.doc(b.a(actionOf(30)), b.a(actionOf(23)), b.a('tail')));
     const gaps = view.dom.querySelectorAll('.page-gap');
     expect(gaps.length).toBe(1);
     const gap = gaps[0] as HTMLElement;
@@ -36,9 +36,9 @@ describe('page view decorations', () => {
     const gap = view.dom.querySelector('.page-gap') as HTMLElement;
     expect(gap.tagName).toBe('SPAN');
     expect(gap.closest('p.action')).not.toBeNull();
-    // The text right after the gap is line 5 of the second action.
+    // 50 + blank = 51 rows; 3 remain, so line 4 is the first carried line.
     const after = gap.nextSibling?.textContent || '';
-    expect(after.startsWith('line 05')).toBe(true);
+    expect(after.startsWith('line 04')).toBe(true);
   });
 
   it('prints (MORE) and the CONT\'D cue when a speech is split', () => {
@@ -72,7 +72,7 @@ describe('page view decorations', () => {
 
   it('pads the last page out to a full sheet', () => {
     const view = open(b.doc(b.a('Short.')));
-    // 0.8333in bottom margin + (55 - 1) lines * 12pt = 80px + 864px in jsdom's normalised form.
-    expect(view.dom.style.paddingBottom).toMatch(/944px|648pt/);
+    // 1in bottom margin + (54 - 1) lines * 12pt = 96px + 848px in jsdom's normalised form.
+    expect(view.dom.style.paddingBottom).toMatch(/944px|636pt/);
   });
 });

@@ -16,6 +16,15 @@ const d = (text: string): LayoutElement => ({ type: 'dialogue', text });
 const t = (text = 'CUT TO:'): LayoutElement => ({ type: 'transition', text });
 const pb = (): LayoutElement => ({ type: 'page_break', text: '' });
 
+/**
+ * The rule tests below use a plain 55-line page with one blank line before
+ * every element and line-boundary splits, so their arithmetic is easy to
+ * follow. The Final Draft defaults (54 lines, two blanks before headings,
+ * sentence breaks) are tested separately at the end.
+ */
+const CLASSIC = { linesPerPage: 55, spaceBefore: {}, breakAtSentences: false };
+const lay = (els: LayoutElement[], extra: Partial<typeof CLASSIC> = {}) => layoutElements(els, { ...CLASSIC, ...extra });
+
 function pageText(rows: Row[]): string[] {
   return rows.map(r => (r.kind === 'blank' ? '' : `${r.column}: ${r.text}`));
 }
@@ -48,7 +57,7 @@ describe('wrapText', () => {
 
 describe('layout basics', () => {
   it('separates elements with a blank row except inside a dialogue block', () => {
-    const { pages } = layoutElements([sh(), a('Bob enters.'), ch(), p(), d('Hi.'), a('He leaves.')]);
+    const { pages } = lay([sh(), a('Bob enters.'), ch(), p(), d('Hi.'), a('He leaves.')]);
     expect(pageText(pages[0].rows)).toEqual([
       'scene_heading: INT. ROOM - DAY',
       '',
@@ -62,15 +71,30 @@ describe('layout basics', () => {
     ]);
   });
 
+  it('puts a blank row before every character cue, including between speeches', () => {
+    const { pages } = lay([ch('A'), d('One.'), ch('B'), d('Two.'), ch('A'), p('(beat)'), d('Three.')]);
+    expect(pageText(pages[0].rows)).toEqual([
+      'character: A',
+      'dialogue: One.',
+      '',
+      'character: B',
+      'dialogue: Two.',
+      '',
+      'character: A',
+      'parenthetical: (beat)',
+      'dialogue: Three.'
+    ]);
+  });
+
   it('fills a page to 55 rows and starts the next without a leading blank', () => {
-    const { pages, breaks } = layoutElements([a(actionOf(30)), a(actionOf(24)), a('tail')]);
+    const { pages, breaks } = lay([a(actionOf(30)), a(actionOf(24)), a('tail')]);
     expect(pages[0].rows.length).toBe(55);
     expect(breaks).toEqual([{ page: 2, elementIndex: 2, lineIndex: 0, rowsBefore: 55, more: false, contdCue: null }]);
     expect(pages[1].rows[0]).toMatchObject({ kind: 'text', text: 'tail' });
   });
 
   it('honours manual page breaks', () => {
-    const { pages, breaks } = layoutElements([a('one'), pb(), a('two')]);
+    const { pages, breaks } = lay([a('one'), pb(), a('two')]);
     expect(pages.length).toBe(2);
     expect(breaks[0]).toMatchObject({ elementIndex: 1, lineIndex: 0 });
     expect(pageText(pages[1].rows)).toEqual(['action: two']);
@@ -79,7 +103,7 @@ describe('layout basics', () => {
 
 describe('action splitting', () => {
   it('splits a long action across pages at a line boundary', () => {
-    const { pages, breaks } = layoutElements([a(actionOf(50)), a(actionOf(10))]);
+    const { pages, breaks } = lay([a(actionOf(50)), a(actionOf(10))]);
     // 50 + blank = 51 rows; 4 remain, so 4 lines of the second action go on page 1.
     expect(pages[0].rows.length).toBe(55);
     expect(breaks[0]).toMatchObject({ elementIndex: 1, lineIndex: 4, more: false });
@@ -87,26 +111,26 @@ describe('action splitting', () => {
   });
 
   it('never leaves a single line of action at the bottom or top of a page', () => {
-    const bottom = layoutElements([a(actionOf(52)), a(actionOf(10))]);
+    const bottom = lay([a(actionOf(52)), a(actionOf(10))]);
     // 52 + blank = 53; only 2 remain -> 2 lines allowed. With 53 + blank = 54, 1 remains -> move whole.
     expect(bottom.breaks[0]).toMatchObject({ elementIndex: 1, lineIndex: 2 });
-    const single = layoutElements([a(actionOf(53)), a(actionOf(10))]);
+    const single = lay([a(actionOf(53)), a(actionOf(10))]);
     expect(single.breaks[0]).toMatchObject({ elementIndex: 1, lineIndex: 0 });
-    const top = layoutElements([a(actionOf(50)), a(actionOf(5))]);
-    // 4 available; 5 - 4 = 1 would be carried over -> move whole element.
-    expect(top.breaks[0]).toMatchObject({ elementIndex: 1, lineIndex: 0 });
+    const top = lay([a(actionOf(50)), a(actionOf(5))]);
+    // 4 available; taking 4 would carry a single line, so take 3 and carry 2.
+    expect(top.breaks[0]).toMatchObject({ elementIndex: 1, lineIndex: 3 });
   });
 });
 
 describe('scene headings', () => {
   it('moves a heading to the next page when fewer than two lines of its scene would follow', () => {
-    const { breaks, elements } = layoutElements([a(actionOf(52)), sh(), a(actionOf(5))]);
+    const { breaks, elements } = lay([a(actionOf(52)), sh(), a(actionOf(5))]);
     expect(breaks[0]).toMatchObject({ elementIndex: 1, lineIndex: 0 });
     expect(elements[1].page).toBe(2);
   });
 
   it('keeps a heading when two lines of the following action fit', () => {
-    const { breaks } = layoutElements([a(actionOf(49)), sh(), a(actionOf(5))]);
+    const { breaks } = lay([a(actionOf(49)), sh(), a(actionOf(5))]);
     // 49 + blank + heading = 51; blank + 3 lines of action fill the page, 2 carry over.
     expect(breaks[0]).toMatchObject({ elementIndex: 2, lineIndex: 3 });
   });
@@ -114,7 +138,7 @@ describe('scene headings', () => {
 
 describe('dialogue', () => {
   it('splits long dialogue with (MORE) and a (CONT\'D) cue', () => {
-    const { pages, breaks } = layoutElements([a(actionOf(45)), ch('ALICE'), d(dialogueOf(12))]);
+    const { pages, breaks } = lay([a(actionOf(45)), ch('ALICE'), d(dialogueOf(12))]);
     // 45 + blank + cue = 47 rows; 8 remain, reserve 1 for MORE -> 7 lines, MORE.
     expect(pages[0].rows.length).toBe(55);
     expect(pages[0].rows[54]).toMatchObject({ kind: 'more', text: '(MORE)' });
@@ -124,12 +148,12 @@ describe('dialogue', () => {
   });
 
   it('does not double up an existing (CONT\'D) and keeps extensions', () => {
-    const { breaks } = layoutElements([a(actionOf(45)), ch("ALICE (V.O.) (CONT'D)"), d(dialogueOf(12))]);
+    const { breaks } = lay([a(actionOf(45)), ch("ALICE (V.O.) (CONT'D)"), d(dialogueOf(12))]);
     expect(breaks[0].contdCue).toBe("ALICE (V.O.) (CONT'D)");
   });
 
   it('never strands a character cue at the bottom of a page', () => {
-    const { breaks, pages } = layoutElements([a(actionOf(52)), ch(), d(dialogueOf(4))]);
+    const { breaks, pages } = lay([a(actionOf(52)), ch(), d(dialogueOf(4))]);
     // 52 + blank + cue + 2 lines = 56 > 55 -> whole speech moves.
     expect(breaks[0]).toMatchObject({ elementIndex: 1, lineIndex: 0, more: false, contdCue: null });
     expect(pages[0].rows.length).toBe(52);
@@ -137,20 +161,20 @@ describe('dialogue', () => {
   });
 
   it('dialogue that exactly fills the page is not split', () => {
-    const { breaks, pages } = layoutElements([a(actionOf(45)), ch(), d(dialogueOf(8))]);
+    const { breaks, pages } = lay([a(actionOf(45)), ch(), d(dialogueOf(8))]);
     expect(breaks.length).toBe(0);
     expect(pages[0].rows.length).toBe(55);
     expect(pages[0].rows.some(r => r.kind === 'more')).toBe(false);
   });
 
   it('carries at least two lines when it does split', () => {
-    const { breaks } = layoutElements([a(actionOf(45)), ch(), d(dialogueOf(9))]);
+    const { breaks } = lay([a(actionOf(45)), ch(), d(dialogueOf(9))]);
     // 47 rows used, 8 remain, 7 usable -> 7 on this page, 2 carried.
     expect(breaks[0]).toMatchObject({ elementIndex: 2, lineIndex: 7, more: true });
   });
 
   it('breaks before a parenthetical rather than splitting it', () => {
-    const { breaks, pages } = layoutElements([a(actionOf(45)), ch(), d(dialogueOf(7)), p('(a long parenthetical here)'), d(dialogueOf(3))]);
+    const { breaks, pages } = lay([a(actionOf(45)), ch(), d(dialogueOf(7)), p('(a long parenthetical here)'), d(dialogueOf(3))]);
     // 47 used; 8 remain, 7 usable -> dialogue (7) fits exactly, parenthetical needs 2 -> MORE, break before it.
     expect(breaks[0]).toMatchObject({ elementIndex: 3, lineIndex: 0, more: true, contdCue: "BOB (CONT'D)" });
     expect(pages[0].rows[54]).toMatchObject({ kind: 'more' });
@@ -158,15 +182,15 @@ describe('dialogue', () => {
   });
 
   it('keeps a cue with its parenthetical and two lines of dialogue', () => {
-    const { breaks } = layoutElements([a(actionOf(50)), ch(), p(), d(dialogueOf(4))]);
+    const { breaks } = lay([a(actionOf(50)), ch(), p(), d(dialogueOf(4))]);
     // 50 + blank + cue + paren + 2 lines = 55 leaves no row for (MORE) -> the whole speech moves.
     expect(breaks[0]).toMatchObject({ elementIndex: 1, lineIndex: 0, more: false });
-    const { pages } = layoutElements([a(actionOf(50)), ch(), p(), d(dialogueOf(4))]);
+    const { pages } = lay([a(actionOf(50)), ch(), p(), d(dialogueOf(4))]);
     expect(pages[0].rows.length).toBe(50);
   });
 
   it('splits dialogue longer than a page repeatedly with CONT\'D each time', () => {
-    const { pages, breaks } = layoutElements([ch('LONG'), d(dialogueOf(120))]);
+    const { pages, breaks } = lay([ch('LONG'), d(dialogueOf(120))]);
     expect(pages.length).toBe(3);
     expect(breaks.every(b => b.more && b.contdCue === "LONG (CONT'D)")).toBe(true);
     expect(pages[0].rows.length).toBe(55);
@@ -178,9 +202,9 @@ describe('dialogue', () => {
 
 describe('transitions', () => {
   it('pulls a short preceding element down so a transition never opens a page', () => {
-    const { pages, breaks } = layoutElements([a(actionOf(51)), a('Short.'), t()]);
+    const { pages, breaks } = lay([a(actionOf(51)), a('Short.'), t()]);
     // 51 + blank + Short. = 53; transition needs blank + 1 = 55 -> fits. Use 52 instead:
-    const tight = layoutElements([a(actionOf(52)), a('Short.'), t()]);
+    const tight = lay([a(actionOf(52)), a('Short.'), t()]);
     expect(tight.breaks[0]).toMatchObject({ elementIndex: 1, lineIndex: 0 });
     expect(pageText(tight.pages[1].rows)).toEqual(['action: Short.', '', 'transition: CUT TO:']);
     expect(pages.length).toBe(1);
@@ -190,11 +214,33 @@ describe('transitions', () => {
 
 describe('pageAt', () => {
   it('maps an element offset to its page, including inside a split element', () => {
-    const layout = layoutElements([a(actionOf(50)), a(actionOf(10))]);
+    const layout = lay([a(actionOf(50)), a(actionOf(10))]);
     expect(pageAt(layout, 0, 0)).toBe(1);
     expect(pageAt(layout, 1, 0)).toBe(1);
     const line4 = layout.elements[1].lines[4].start;
     expect(pageAt(layout, 1, line4 - 1)).toBe(1);
     expect(pageAt(layout, 1, line4)).toBe(2);
+  });
+});
+
+describe('Final Draft defaults', () => {
+  it('uses 54 lines per page and two blank lines before scene headings', () => {
+    const { pages, elements } = layoutElements([a('Open.'), sh(), a('Text.')]);
+    expect(pageText(pages[0].rows)).toEqual(['action: Open.', '', '', 'scene_heading: INT. ROOM - DAY', '', 'action: Text.']);
+    expect(elements[1].spacerRows).toBe(2);
+    const { pages: full } = layoutElements([a(actionOf(30)), a(actionOf(23)), a('tail')]);
+    expect(full[0].rows.length).toBe(54);
+    expect(full.length).toBe(2);
+  });
+
+  it('splits dialogue after the last complete sentence that fits', () => {
+    // 45 action + blank + cue = 47 of 54 rows; 7 remain, 6 usable once (MORE) is reserved.
+    // Sentence ends fall on lines 1, 3 and 8, so the split moves back from line 6 to line 3.
+    const speech = ['Alpha.', 'beta', 'gamma.', 'delta', 'epsilon', 'zeta', 'eta', 'theta.'].join('\n');
+    const opts = { linesPerPage: 54, spaceBefore: {} };
+    const sentence = layoutElements([a(actionOf(45)), ch(), d(speech)], { ...opts, breakAtSentences: true });
+    expect(sentence.breaks[0]).toMatchObject({ elementIndex: 2, lineIndex: 3, more: true });
+    const boundary = layoutElements([a(actionOf(45)), ch(), d(speech)], { ...opts, breakAtSentences: false });
+    expect(boundary.breaks[0]).toMatchObject({ elementIndex: 2, lineIndex: 6, more: true });
   });
 });

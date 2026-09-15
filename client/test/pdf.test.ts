@@ -3,7 +3,8 @@ import { describe, it, expect } from 'vitest';
 import React from 'react';
 import { pdf } from '@react-pdf/renderer';
 import { ScreenplayDocument } from '../src/utils/screenplayPDF';
-import { layoutForExport } from '../src/utils/exporters';
+import { layoutFromDoc } from '../src/components/editor-v2/pagination/fromDoc';
+import { elementsToDoc } from '../src/components/editor-v2/docConverter';
 import type { ScreenplayElement } from '../src/utils/screenplayPDF';
 
 const dialogueOf = (lines: number) => Array.from({ length: lines }, (_, i) => `dialogue line ${String(i + 1).padStart(2, '0')}`).join('\n');
@@ -17,7 +18,7 @@ describe('PDF export', () => {
       { type: 'dialogue', text: dialogueOf(70) },
       { type: 'transition', text: 'CUT TO:' }
     ];
-    const layout = layoutForExport(elements);
+    const layout = layoutFromDoc(elementsToDoc(elements)).layout;
     expect(layout.pages.length).toBe(2);
 
     const doc = React.createElement(ScreenplayDocument, { data: { title: 'Test', author: 'A. Writer', layout } });

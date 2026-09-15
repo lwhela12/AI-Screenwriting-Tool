@@ -37,11 +37,14 @@ The script editor follows Final Draft's typing model. The document is a flat lis
 | **Shift-Tab** | Cycles the current element to the previous type |
 | **Backspace** at start of element | Removes an empty element, or joins the text onto the previous element |
 | **⌘1 – ⌘8** (Ctrl on Windows) | Scene Heading, Action, Character, Parenthetical, Dialogue, Transition, Shot, Centered |
+| **⌘⇧D** | Dual dialogue: prints the speech under the cursor beside the one before it (press again to separate) |
 | **⌘S** | Save (autosave also runs three seconds after you stop typing) |
 
 Auto-formatting only touches what you just typed: scene headings, character names and transitions are upper-cased as you type; `int.`/`ext.` at the start of an action line becomes a scene heading; a line ending in `TO:` becomes a transition; `> text <` becomes centered text; `(` in an empty dialogue element starts a parenthetical. SmartType suggests known characters, locations, times and transitions (Tab or Enter accepts, Escape dismisses).
 
-Pagination follows the industry rules: 55 lines of 12pt Courier per page, dialogue that crosses a page gets `(MORE)` and a `NAME (CONT'D)` cue, scene headings and character cues are never stranded at the bottom of a page, action never leaves a single line behind, and transitions stay with what precedes them. The same engine drives the on-screen page gaps, the page counter, and the PDF export, so they always agree.
+Pagination follows Final Draft's screenplay template: 54 lines of 12pt Courier per page inside 1 inch margins, two blank lines before scene headings, splits after the last complete sentence that fits, dialogue that crosses a page gets `(MORE)` and a `NAME (CONT'D)` cue, scene headings and character cues are never stranded at the bottom of a page, action never leaves a single line behind, and transitions stay with what precedes them. The same engine drives the on-screen page gaps, the page counter, and the PDF export, so they always agree.
+
+The title page is the first sheet above the script; click any field to edit it. When a character speaks again after only action, the cue gets an automatic `(CONT'D)`, computed from the script so it stays right as you edit. Typing `(` in a character cue offers the standard extensions (V.O., O.S., …).
 
 Final Draft files can be imported from the project screen (**Import .fdx**). Scene numbers, dual dialogue, centered text, page breaks, bold/italic/underline and the title page are preserved, and the FDX export writes them back.
 

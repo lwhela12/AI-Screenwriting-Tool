@@ -33,6 +33,7 @@ export const completionKey = new PluginKey<CompletionState>('completion');
 const DEFAULT_TIMES = ['DAY', 'NIGHT', 'MORNING', 'AFTERNOON', 'EVENING', 'DAWN', 'DUSK', 'CONTINUOUS', 'LATER', 'MOMENTS LATER', 'SAME'];
 const DEFAULT_TRANSITIONS = ['CUT TO:', 'DISSOLVE TO:', 'SMASH CUT TO:', 'MATCH CUT TO:', 'FADE OUT.', 'FADE TO BLACK.', 'TIME CUT TO:', 'FADE IN:'];
 const SCENE_PREFIXES = ['INT.', 'EXT.', 'I/E.', 'EST.'];
+const EXTENSIONS = ['V.O.', 'O.S.', 'O.C.', "CONT'D", 'PRE-LAP', 'FILTERED', 'ON PHONE', 'INTO PHONE', 'SUBTITLED'];
 
 const SCENE_HEADING_RE = /^(INT\.|EXT\.|I\/E\.|E\/I\.|EST\.)\s*(.*)$/i;
 
@@ -167,7 +168,14 @@ function completionsAt(state: EditorState): CompletionState | null {
   if (typeName === 'character') {
     const text = parent.textContent;
     if (!text.trim() || $from.parentOffset !== text.length) return null;
-    if (/\(/.test(text)) return null; // typing an extension such as (V.O.)
+    const open = text.lastIndexOf('(');
+    if (open >= 0) {
+      // Typing an extension such as (V.O.): offer the standard list until it is closed.
+      if (text.indexOf(')', open) >= 0) return null;
+      const partial = text.slice(open + 1).toUpperCase();
+      const options = EXTENSIONS.filter(e => e.startsWith(partial) && e !== partial).map(label => ({ label, suffix: ')' }));
+      return options.length ? { active: true, from: nodeStart + open + 1, to: nodeStart + text.length, options, selected: 0 } : null;
+    }
     const options = matches(data.characters, text);
     return options.length ? { active: true, from: nodeStart, to: nodeStart + text.length, options, selected: 0 } : null;
   }

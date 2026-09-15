@@ -24,43 +24,89 @@ export type LayoutElementType =
   | 'centered'
   | 'page_break';
 
+export type DualSide = 'left' | 'right';
+
 export interface LayoutElement {
   type: LayoutElementType;
   text: string;
+  /** On character cues: which column of a dual-dialogue pair this speech occupies. */
+  dual?: DualSide | null;
 }
 
 export const PAGE = {
-  linesPerPage: 55,
+  /** 1in top and bottom margins leave 9in of body: 54 lines at 6 per inch. */
+  linesPerPage: 54,
   linePt: 12,
   widthIn: 8.5,
   heightIn: 11,
   leftMarginIn: 1.5,
   rightMarginIn: 1.0,
   topMarginIn: 1.0,
-  /** 11in - 1in top - 55 lines at 6 per inch. */
-  bottomMarginIn: 11 - 1 - 55 / 6,
+  bottomMarginIn: 1.0,
   /** Page numbers sit inside the top margin. */
   pageNumberTopIn: 0.5
 };
 
-/** Indent from the left margin and column width, in characters, per element. */
-export const COLUMNS: Record<LayoutElementType | 'more' | 'contd', { indent: number; width: number; align?: 'right' | 'center' }> = {
+/**
+ * Blank lines before each element type (Final Draft's "Space Before"); one
+ * line unless listed here. Never applied inside a speech or at a page top.
+ */
+export const SPACE_BEFORE: Partial<Record<LayoutElementType, number>> = {
+  scene_heading: 2,
+  shot: 2
+};
+
+export interface Column {
+  indent: number;
+  width: number;
+  align?: 'right' | 'center';
+}
+
+/**
+ * Indent from the left margin and column width, in characters, per element.
+ * These are Final Draft's screenplay template settings: action 1.5-7.5in,
+ * character 3.5-7.25in, parenthetical 3.0-5.5in, dialogue 2.5-6.0in,
+ * transition right-aligned at 7.1in.
+ */
+export const COLUMNS: Record<LayoutElementType | 'more' | 'contd', Column> = {
   scene_heading: { indent: 0, width: 60 },
   action: { indent: 0, width: 60 },
-  character: { indent: 22, width: 38 },
-  parenthetical: { indent: 16, width: 25 },
+  character: { indent: 20, width: 37 },
+  parenthetical: { indent: 15, width: 25 },
   dialogue: { indent: 10, width: 35 },
-  transition: { indent: 40, width: 20, align: 'right' },
+  transition: { indent: 36, width: 20, align: 'right' },
   shot: { indent: 0, width: 60 },
   centered: { indent: 0, width: 60, align: 'center' },
   page_break: { indent: 0, width: 60 },
-  more: { indent: 16, width: 25 },
-  contd: { indent: 22, width: 38 }
+  more: { indent: 15, width: 25 },
+  contd: { indent: 20, width: 37 }
 };
+
+/** Columns for the two halves of dual dialogue: each half is 25 characters wide. */
+export const DUAL_COLUMNS: Record<DualSide, Partial<Record<LayoutElementType, Column>>> = {
+  left: {
+    character: { indent: 5, width: 20 },
+    parenthetical: { indent: 3, width: 22 },
+    dialogue: { indent: 0, width: 25 }
+  },
+  right: {
+    character: { indent: 35, width: 20 },
+    parenthetical: { indent: 33, width: 22 },
+    dialogue: { indent: 30, width: 25 }
+  }
+};
+
+export function columnFor(type: LayoutElementType | 'more' | 'contd', side?: DualSide | null): Column {
+  if (side) {
+    const dual = (DUAL_COLUMNS[side] as Partial<Record<string, Column>>)[type];
+    if (dual) return dual;
+  }
+  return COLUMNS[type];
+}
 
 const DIALOGUE_GROUP = new Set<LayoutElementType>(['character', 'parenthetical', 'dialogue']);
 
-export type RowKind = 'text' | 'blank' | 'more' | 'contd';
+export type RowKind = 'text' | 'blank' | 'more' | 'contd' | 'dual';
 
 export interface Row {
   kind: RowKind;
@@ -71,6 +117,11 @@ export interface Row {
   elementIndex: number;
   /** For text rows: index of the wrapped line within the element. */
   lineIndex: number;
+  /** For rows inside a dual-dialogue block. */
+  dual?: DualSide;
+  /** For `dual` rows: the printed line on each side (either may be missing). */
+  left?: Row;
+  right?: Row;
 }
 
 export interface Page {
@@ -95,21 +146,36 @@ export interface PageBreak {
 
 export interface LaidOutElement extends LayoutElement {
   lines: WrappedLine[];
-  /** True when a blank row separates this element from the previous one on the same page. */
+  /** True when blank rows separate this element from the previous one on the same page. */
   spacerBefore: boolean;
+  /** How many blank rows precede it (0 when spacerBefore is false). */
+  spacerRows: number;
   /** Page on which the element starts. */
   page: number;
+  /** Set on every element of a dual-dialogue block. */
+  dualSide?: DualSide;
+}
+
+export interface DualBlock {
+  /** Element indices of the left and right speeches. */
+  left: number[];
+  right: number[];
+  /** Printed lines in each column. */
+  leftRows: number;
+  rightRows: number;
 }
 
 export interface Layout {
   elements: LaidOutElement[];
   pages: Page[];
   breaks: PageBreak[];
+  /** Dual-dialogue blocks, in document order. */
+  duals: DualBlock[];
 }
 
-export function wrapElement(el: LayoutElement): WrappedLine[] {
+export function wrapElement(el: LayoutElement, side?: DualSide | null): WrappedLine[] {
   if (el.type === 'page_break') return [];
-  return wrapText(el.text, COLUMNS[el.type].width);
+  return wrapText(el.text, columnFor(el.type, side).width);
 }
 
 export function contdCueFor(cue: string): string {
@@ -119,9 +185,21 @@ export function contdCueFor(cue: string): string {
 }
 
 interface Unit {
-  kind: 'single' | 'speech';
+  kind: 'single' | 'speech' | 'dual';
   /** Element indices in document order. */
   members: number[];
+  /** For dual units: where the right speech starts within `members`. */
+  split?: number;
+}
+
+function speechAt(elements: LaidOutElement[], i: number): number[] {
+  const members = [i];
+  let j = i + 1;
+  while (j < elements.length && (elements[j].type === 'dialogue' || elements[j].type === 'parenthetical')) {
+    members.push(j);
+    j++;
+  }
+  return members;
 }
 
 function groupUnits(elements: LaidOutElement[]): Unit[] {
@@ -130,14 +208,16 @@ function groupUnits(elements: LaidOutElement[]): Unit[] {
   while (i < elements.length) {
     const el = elements[i];
     if (el.type === 'character') {
-      const members = [i];
-      let j = i + 1;
-      while (j < elements.length && (elements[j].type === 'dialogue' || elements[j].type === 'parenthetical')) {
-        members.push(j);
-        j++;
+      const left = speechAt(elements, i);
+      const next = i + left.length;
+      if (el.dual === 'left' && elements[next] && elements[next].type === 'character' && elements[next].dual === 'right') {
+        const right = speechAt(elements, next);
+        units.push({ kind: 'dual', members: [...left, ...right], split: left.length });
+        i = next + right.length;
+      } else {
+        units.push({ kind: 'speech', members: left });
+        i = next;
       }
-      units.push({ kind: 'speech', members });
-      i = j;
     } else {
       units.push({ kind: 'single', members: [i] });
       i++;
@@ -146,14 +226,42 @@ function groupUnits(elements: LaidOutElement[]): Unit[] {
   return units;
 }
 
+interface PaginatorOptions {
+  linesPerPage: number;
+  spaceBefore: Partial<Record<LayoutElementType, number>>;
+  breakAtSentences: boolean;
+}
+
+/** Ends with a sentence: ., !, ? possibly followed by closing quotes or parentheses. */
+const SENTENCE_END = /[.!?…]["'”’)\]]*$/;
+
 class Paginator {
   pages: Page[] = [];
   breaks: PageBreak[] = [];
   rows: Row[] = [];
+  duals: DualBlock[] = [];
   readonly limit: number;
 
-  constructor(private elements: LaidOutElement[], linesPerPage: number) {
-    this.limit = linesPerPage;
+  constructor(private elements: LaidOutElement[], private options: PaginatorOptions) {
+    this.limit = options.linesPerPage;
+  }
+
+  /**
+   * Where to split an element that has `lines` lines left and room for `take`.
+   * With sentence breaking on, prefer the last line (at or after `min`) that
+   * ends a sentence; otherwise the line boundary. Never leaves fewer than
+   * `min` lines on either side; returns 0 when no acceptable split exists.
+   */
+  splitPoint(index: number, from: number, lines: number, take: number, min: number): number {
+    if (lines - take < min) take = lines - min;
+    if (take < min) return 0;
+    if (this.options.breakAtSentences) {
+      const el = this.elements[index];
+      for (let k = take; k >= min; k--) {
+        if (SENTENCE_END.test(el.lines[from + k - 1].text)) return k;
+      }
+    }
+    return take;
   }
 
   get remaining(): number {
@@ -164,32 +272,38 @@ class Paginator {
     return this.pages.length + 1;
   }
 
+  /** Blank rows before an element: none at the top of a page or inside a speech. */
   spacerFor(index: number): number {
     if (this.rows.length === 0) return 0;
     const el = this.elements[index];
     const prev = this.previousElementIndex();
     if (prev === null) return 0;
-    if (DIALOGUE_GROUP.has(el.type) && DIALOGUE_GROUP.has(this.elements[prev].type)) return 0;
-    return 1;
+    const insideSpeech = (el.type === 'dialogue' || el.type === 'parenthetical') && DIALOGUE_GROUP.has(this.elements[prev].type);
+    if (insideSpeech) return 0;
+    return this.options.spaceBefore[el.type] ?? 1;
   }
 
   previousElementIndex(): number | null {
     for (let i = this.rows.length - 1; i >= 0; i--) {
       const row = this.rows[i];
-      if (row.kind === 'text' || row.kind === 'contd') return row.elementIndex;
+      if (row.kind === 'text' || row.kind === 'contd' || row.kind === 'dual') return row.elementIndex;
     }
     return null;
   }
 
-  pushBlank(index: number) {
-    this.rows.push({ kind: 'blank', column: 'action', text: '', elementIndex: index, lineIndex: -1 });
+  pushBlank(index: number, count = 1) {
+    for (let i = 0; i < count; i++) this.rows.push({ kind: 'blank', column: 'action', text: '', elementIndex: index, lineIndex: -1 });
+  }
+
+  textRow(index: number, k: number, side?: DualSide): Row {
+    const el = this.elements[index];
+    const row: Row = { kind: 'text', column: el.type, text: el.lines[k].text, elementIndex: index, lineIndex: k };
+    if (side) row.dual = side;
+    return row;
   }
 
   pushLines(index: number, from: number, to: number) {
-    const el = this.elements[index];
-    for (let k = from; k < to; k++) {
-      this.rows.push({ kind: 'text', column: el.type, text: el.lines[k].text, elementIndex: index, lineIndex: k });
-    }
+    for (let k = from; k < to; k++) this.rows.push(this.textRow(index, k));
   }
 
   newPage(elementIndex: number, lineIndex: number, more: boolean, contdCue: string | null) {
@@ -202,11 +316,14 @@ class Paginator {
   /** Place a whole element (assumes it fits). */
   placeWhole(index: number, withSpacer = true) {
     const el = this.elements[index];
-    if (withSpacer && this.spacerFor(index)) {
-      this.pushBlank(index);
+    const spacer = withSpacer ? this.spacerFor(index) : 0;
+    if (spacer) {
+      this.pushBlank(index, spacer);
       el.spacerBefore = true;
+      el.spacerRows = spacer;
     } else {
       el.spacerBefore = false;
+      el.spacerRows = 0;
     }
     el.page = this.pageNumber;
     this.pushLines(index, 0, el.lines.length);
@@ -242,13 +359,15 @@ class Paginator {
 
     const splittable = el.type === 'action' || el.type === 'centered';
     const avail = this.remaining - spacer;
-    if (splittable && avail >= 2 && lines - avail >= 2) {
-      if (spacer) this.pushBlank(index);
+    const take = splittable && avail >= 2 ? this.splitPoint(index, 0, lines, avail, 2) : 0;
+    if (take > 0) {
+      if (spacer) this.pushBlank(index, spacer);
       el.spacerBefore = spacer > 0;
+      el.spacerRows = spacer;
       el.page = this.pageNumber;
-      this.pushLines(index, 0, avail);
-      this.newPage(index, avail, false, null);
-      this.placeRest(index, avail);
+      this.pushLines(index, 0, take);
+      this.newPage(index, take, false, null);
+      this.placeRest(index, take);
       return;
     }
 
@@ -354,8 +473,7 @@ class Paginator {
           continue;
         }
         if (el.type === 'dialogue' && limit >= 2) {
-          let take = limit;
-          if (lines - take < 2) take = lines - 2; // never carry a single line over
+          const take = this.splitPoint(index, from, lines, limit, 2);
           if (take >= 2) {
             this.pushLines(index, from, from + take);
             brokeAt = { index, line: from + take };
@@ -415,6 +533,73 @@ class Paginator {
     }
   }
 
+  /**
+   * Dual dialogue: two speeches printed side by side. The block is never
+   * split across pages; a block taller than a page falls back to two
+   * ordinary speeches.
+   */
+  placeDual(members: number[], split: number) {
+    const left = members.slice(0, split);
+    const right = members.slice(split);
+    const rowsOf = (indices: number[]) => indices.reduce((sum, i) => sum + this.elements[i].lines.length, 0);
+    const leftRows = rowsOf(left);
+    const rightRows = rowsOf(right);
+    const height = Math.max(leftRows, rightRows);
+
+    if (height > this.limit) {
+      for (const i of members) {
+        this.elements[i].dualSide = undefined;
+        this.elements[i].lines = wrapElement(this.elements[i]);
+      }
+      this.placeSpeech(left);
+      this.placeSpeech(right);
+      return;
+    }
+
+    const cueIndex = left[0];
+    if (this.spacerFor(cueIndex) + height > this.remaining && this.rows.length > 0) {
+      this.newPage(cueIndex, 0, false, null);
+    }
+
+    const el0 = this.elements[cueIndex];
+    const spacer0 = this.spacerFor(cueIndex);
+    if (spacer0) {
+      this.pushBlank(cueIndex, spacer0);
+      el0.spacerBefore = true;
+      el0.spacerRows = spacer0;
+    } else {
+      el0.spacerBefore = false;
+      el0.spacerRows = 0;
+    }
+    for (const i of members) {
+      const el = this.elements[i];
+      el.page = this.pageNumber;
+      if (i !== cueIndex) el.spacerBefore = false;
+    }
+
+    const column = (indices: number[], side: DualSide): Row[] => {
+      const rows: Row[] = [];
+      for (const i of indices) {
+        for (let k = 0; k < this.elements[i].lines.length; k++) rows.push(this.textRow(i, k, side));
+      }
+      return rows;
+    };
+    const leftCol = column(left, 'left');
+    const rightCol = column(right, 'right');
+    for (let k = 0; k < height; k++) {
+      this.rows.push({
+        kind: 'dual',
+        column: 'dialogue',
+        text: '',
+        elementIndex: cueIndex,
+        lineIndex: k,
+        left: leftCol[k],
+        right: rightCol[k]
+      });
+    }
+    this.duals.push({ left, right, leftRows, rightRows });
+  }
+
   /** Remove every row belonging to elements from `index` onward from the current page. */
   rollbackTo(index: number) {
     let cut = this.rows.length;
@@ -433,30 +618,50 @@ class Paginator {
     return Math.min(2, first.lines.length);
   }
 
-  finish(): { pages: Page[]; breaks: PageBreak[] } {
+  finish(): { pages: Page[]; breaks: PageBreak[]; duals: DualBlock[] } {
     this.pages.push({ number: this.pageNumber, rows: this.rows });
-    return { pages: this.pages, breaks: this.breaks };
+    return { pages: this.pages, breaks: this.breaks, duals: this.duals };
   }
 }
 
 export interface LayoutOptions {
   linesPerPage?: number;
-  /** Custom wrapper, e.g. one that caches by document node. */
+  /** Blank lines before each element type; defaults to SPACE_BEFORE (1 where unlisted). */
+  spaceBefore?: Partial<Record<LayoutElementType, number>>;
+  /** Split action and dialogue after the last complete sentence that fits (Final Draft's default). */
+  breakAtSentences?: boolean;
+  /** Custom wrapper, e.g. one that caches by document node. Not used for dual-dialogue members. */
   wrap?: (el: LayoutElement, index: number) => WrappedLine[];
 }
 
 export function layoutElements(input: LayoutElement[], options: LayoutOptions = {}): Layout {
-  const wrap = options.wrap || wrapElement;
-  const elements: LaidOutElement[] = input.map((el, i) => ({ ...el, lines: wrap(el, i), spacerBefore: false, page: 1 }));
-  const paginator = new Paginator(elements, options.linesPerPage ?? PAGE.linesPerPage);
+  const wrap = options.wrap || ((el: LayoutElement) => wrapElement(el));
+  const elements: LaidOutElement[] = input.map((el, i) => ({ ...el, lines: wrap(el, i), spacerBefore: false, spacerRows: 0, page: 1 }));
 
-  for (const unit of groupUnits(elements)) {
-    if (unit.kind === 'speech') paginator.placeSpeech(unit.members);
+  const units = groupUnits(elements);
+  // Members of a dual block wrap to the narrower dual columns.
+  for (const unit of units) {
+    if (unit.kind !== 'dual') continue;
+    unit.members.forEach((index, k) => {
+      const side: DualSide = k < (unit.split || 0) ? 'left' : 'right';
+      elements[index].dualSide = side;
+      elements[index].lines = wrapElement(elements[index], side);
+    });
+  }
+
+  const paginator = new Paginator(elements, {
+    linesPerPage: options.linesPerPage ?? PAGE.linesPerPage,
+    spaceBefore: options.spaceBefore ?? SPACE_BEFORE,
+    breakAtSentences: options.breakAtSentences ?? true
+  });
+  for (const unit of units) {
+    if (unit.kind === 'dual') paginator.placeDual(unit.members, unit.split || 0);
+    else if (unit.kind === 'speech') paginator.placeSpeech(unit.members);
     else paginator.placeSingle(unit.members[0]);
   }
 
-  const { pages, breaks } = paginator.finish();
-  return { elements, pages, breaks };
+  const { pages, breaks, duals } = paginator.finish();
+  return { elements, pages, breaks, duals };
 }
 
 /** Page containing character offset `offset` of element `elementIndex`. */

@@ -5,6 +5,7 @@ import OutlineEditor from './components/OutlineEditor';
 import { ProjectManager, ScreenplayProject, isLocalProject, saveLocalProject } from './components/ProjectManager';
 import { ExportDialog } from './components/ExportDialog';
 import { apiFetch } from './api';
+import type { TitlePageData } from './components/editor-v2/TitleSheet';
 import './App.css';
 
 type ViewType = 'editor' | 'board' | 'outline';
@@ -153,6 +154,12 @@ export const App: React.FC = () => {
     markDirty();
   };
 
+  const handleTitlePageChange = (data: TitlePageData) => {
+    setCurrentProject(prev => (prev ? { ...prev, ...data } : prev));
+    if (currentProjectRef.current) currentProjectRef.current = { ...currentProjectRef.current, ...data };
+    markDirty();
+  };
+
   const handleBeatsChange = (data: any) => {
     if (JSON.stringify(data) === JSON.stringify(beatsRef.current)) return;
     beatsRef.current = data;
@@ -254,7 +261,13 @@ export const App: React.FC = () => {
       <main className="app-main">
         <div className={`view-container ${activeView === 'editor' ? 'active' : ''}`}>
           {activeView === 'editor' && currentProject && (
-            <ProseMirrorEditor key={currentProject.id} initialContent={contentRef.current} onContentChange={handleContentChange} />
+            <ProseMirrorEditor
+              key={currentProject.id}
+              initialContent={contentRef.current}
+              onContentChange={handleContentChange}
+              titlePage={{ title: currentProject.title, author: currentProject.author || '', contact: currentProject.contact || '' }}
+              onTitlePageChange={handleTitlePageChange}
+            />
           )}
         </div>
         <div className={`view-container ${activeView === 'board' ? 'active' : ''}`}>
