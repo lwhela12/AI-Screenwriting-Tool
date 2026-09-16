@@ -38,7 +38,10 @@ public enum OnDeviceModel {
     public static func respond(instructions: String, prompt: String) async throws -> String {
         #if canImport(FoundationModels)
         if #available(macOS 26.0, *) {
-            let session = LanguageModelSession(instructions: instructions)
+            // Summarising the writer's own scenes is a content transformation, so
+            // the model may read passages the default guardrails would refuse.
+            let model = SystemLanguageModel(guardrails: .permissiveContentTransformations)
+            let session = LanguageModelSession(model: model, instructions: instructions)
             do {
                 let response = try await session.respond(to: prompt)
                 return response.content
