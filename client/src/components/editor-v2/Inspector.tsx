@@ -1,10 +1,12 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { EditorState } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import { pageViewKey } from './plugins/pageView';
 import { scenesOf, sceneAt, setSceneAttrs } from './scenes';
 import { countWords } from './reports';
 import { BEAT_COLORS } from '../beats';
+import { useAIAvailability, draftSynopsis } from '../../ai';
+import { SparkleIcon } from '../../icons';
 
 interface InspectorProps {
   view: EditorView | null;
@@ -29,6 +31,23 @@ export const Inspector: React.FC<InspectorProps> = ({ view, state, sessionStartW
   const scene = sceneAt(scenes, state.selection.from);
   const words = useMemo(() => countWords(state.doc.textContent), [state.doc]);
   const numbered = scenes.filter(s => !s.opening);
+  const ai = useAIAvailability();
+  const [drafting, setDrafting] = useState(false);
+  const [draftError, setDraftError] = useState<string | null>(null);
+
+  const draft = async () => {
+    if (!view || !scene || drafting) return;
+    setDrafting(true);
+    setDraftError(null);
+    try {
+      const synopsis = await draftSynopsis(view.state.doc, scene);
+      setSceneAttrs(view, scene.index, { synopsis });
+    } catch (err) {
+      setDraftError((err as Error).message);
+    } finally {
+      setDrafting(false);
+    }
+  };
   const sceneNumber = scene && !scene.opening ? scene.number || String(numbered.findIndex(s => s.ordinal === scene.ordinal) + 1) : '';
 
   return (
@@ -43,7 +62,15 @@ export const Inspector: React.FC<InspectorProps> = ({ view, state, sessionStartW
             <div className="inspector-heading">{scene.heading || '(untitled scene)'}</div>
           </div>
           <div>
-            <div className="ui-label">Synopsis</div>
+            <div className="ui-label-row">
+              <div className="ui-label">Synopsis</div>
+              {ai.available && (
+                <button className="ui-button mini" onClick={draft} disabled={drafting} title="Draft a synopsis from the scene's text, on this Mac">
+                  <SparkleIcon />
+                  <span>{drafting ? 'Drafting…' : 'Draft'}</span>
+                </button>
+              )}
+            </div>
             <textarea
               className="ui-textarea"
               rows={4}
@@ -51,6 +78,7 @@ export const Inspector: React.FC<InspectorProps> = ({ view, state, sessionStartW
               value={scene.synopsis}
               onChange={e => view && setSceneAttrs(view, scene.index, { synopsis: e.target.value || null })}
             />
+            {draftError && <div className="inspector-error">{draftError}</div>}
           </div>
           {scene.characters.length > 0 && (
             <div>

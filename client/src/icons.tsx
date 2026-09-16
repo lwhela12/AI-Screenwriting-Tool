@@ -22,5 +22,6 @@ export const ChevronDownIcon = () => <Icon size={12} stroke={1.8} d={<polyline p
 export const CloseIcon = () => <Icon size={14} stroke={1.8} d={<><line x1="6" y1="6" x2="18" y2="18" /><line x1="18" y1="6" x2="6" y2="18" /></>} />;
 export const ExportIcon = () => <Icon d={<><path d="M12 3v12" /><polyline points="7 8 12 3 17 8" /><path d="M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" /></>} />;
 export const FolderIcon = () => <Icon d={<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />} />;
+export const SparkleIcon = () => <Icon size={14} stroke={1.6} d={<><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" /><path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z" /></>} />;
 export const ArrowUpIcon = () => <Icon size={14} stroke={1.8} d={<><line x1="12" y1="19" x2="12" y2="5" /><polyline points="5 12 12 5 19 12" /></>} />;
 export const ArrowDownIcon = () => <Icon size={14} stroke={1.8} d={<><line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" /></>} />;

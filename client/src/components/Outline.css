@@ -170,6 +170,7 @@
 
 .outline-card-synopsis {
   flex: 1;
+  min-height: 54px;
   font-size: 13px;
   line-height: 18px;
 }

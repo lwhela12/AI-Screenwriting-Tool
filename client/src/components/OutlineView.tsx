@@ -4,7 +4,8 @@ import { EditorView } from 'prosemirror-view';
 import { pageViewKey } from './editor-v2/plugins/pageView';
 import { scenesOf, sceneAt, moveScene, setSceneAttrs, setSceneHeading, insertScene, deleteScene, SceneInfo } from './editor-v2/scenes';
 import { BEAT_COLORS } from './beats';
-import { PlusIcon } from '../icons';
+import { PlusIcon, SparkleIcon } from '../icons';
+import { useAIAvailability, draftSynopsis } from '../ai';
 import './Outline.css';
 
 interface OutlineViewProps {
@@ -30,7 +31,7 @@ function lengthLabel(eighths: number): string {
 }
 
 /** A one-line-or-more textarea that grows with its text; Enter commits instead of adding a line. */
-const GrowingTextarea: React.FC<React.TextareaHTMLAttributes<HTMLTextAreaElement>> = props => {
+const GrowingTextarea: React.FC<React.TextareaHTMLAttributes<HTMLTextAreaElement> & { commitOnEnter?: boolean }> = ({ commitOnEnter = true, ...props }) => {
   const ref = useRef<HTMLTextAreaElement>(null);
   useLayoutEffect(() => {
     const el = ref.current;
@@ -44,7 +45,7 @@ const GrowingTextarea: React.FC<React.TextareaHTMLAttributes<HTMLTextAreaElement
       ref={ref}
       rows={1}
       onKeyDown={e => {
-        if (e.key === 'Enter') {
+        if (commitOnEnter && e.key === 'Enter') {
           e.preventDefault();
           (e.target as HTMLTextAreaElement).blur();
         }
@@ -78,6 +79,41 @@ export const OutlineView: React.FC<OutlineViewProps> = ({ view, state, onOpenSce
   const [dropTarget, setDropTarget] = useState<{ ordinal: number; after: boolean } | null>(null);
   const [labelEditing, setLabelEditing] = useState<number | null>(null);
   const numberOffset = scenes[0] && scenes[0].ordinal === 0 ? 1 : 0;
+  const ai = useAIAvailability();
+  const missing = scenes.filter(s => !s.synopsis.trim()).length;
+  const [drafting, setDrafting] = useState<{ done: number; total: number } | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const stopRef = useRef(false);
+
+  /** Draft a synopsis for every scene that has none, one at a time so the writer can stop. */
+  const draftMissing = async () => {
+    if (!view || drafting) return;
+    const targets = scenesOf(view.state.doc).filter(s => !s.opening && !s.synopsis.trim());
+    stopRef.current = false;
+    setDrafting({ done: 0, total: targets.length });
+    setNote(null);
+    const failures: string[] = [];
+    let i = 0;
+    for (; i < targets.length && !stopRef.current; i++) {
+      const target = targets[i];
+      try {
+        const synopsis = await draftSynopsis(view.state.doc, target);
+        // Re-find the scene: the writer may have edited while we waited.
+        const now = scenesOf(view.state.doc).find(s => s.index === target.index && s.heading === target.heading);
+        if (now && !now.synopsis.trim()) setSceneAttrs(view, now.index, { synopsis });
+      } catch (err) {
+        failures.push(`${target.number || target.ordinal + numberOffset}: ${(err as Error).message}`);
+      }
+      setDrafting({ done: i + 1, total: targets.length });
+    }
+    setDrafting(null);
+    if (failures.length) {
+      const reasons = Array.from(new Set(failures.map(f => f.slice(f.indexOf(':') + 2))));
+      setNote(`${failures.length === 1 ? 'Scene' : 'Scenes'} ${failures.map(f => f.slice(0, f.indexOf(':'))).join(', ')} left blank. ${reasons.join(' ')}`);
+    } else if (i > 0 && !stopRef.current) {
+      setNote(`Drafted ${i} ${i === 1 ? 'synopsis' : 'synopses'} on this Mac. Read them as a starting point.`);
+    }
+  };
 
   const onDrop = (target: number, after: boolean) => {
     if (view === null || dragging === null) return;
@@ -174,11 +210,11 @@ export const OutlineView: React.FC<OutlineViewProps> = ({ view, state, onOpenSce
                       onChange={e => view && setSceneHeading(view, scene.index, e.target.value.replace(/\n/g, ' '))}
                       onMouseDown={e => e.stopPropagation()}
                     />
-                    <textarea
+                    <GrowingTextarea
                       className="outline-card-synopsis"
                       placeholder="What happens in this scene…"
                       value={scene.synopsis}
-                      rows={4}
+                      commitOnEnter={false}
                       onChange={e => view && setSceneAttrs(view, scene.index, { synopsis: e.target.value || null })}
                       onMouseDown={e => e.stopPropagation()}
                     />
@@ -230,11 +266,19 @@ export const OutlineView: React.FC<OutlineViewProps> = ({ view, state, onOpenSce
         ))}
         {scenes.length === 0 && <div className="outline-empty">No scenes yet. Add one, or write a scene heading in the script.</div>}
       </div>
-      <div className="view-hint">Drag cards to reorder the script · label a card to start an act</div>
-      <button className="view-fab" onClick={() => view && insertScene(view, scenes.length ? scenes[scenes.length - 1].ordinal : null)}>
-        <PlusIcon />
-        <span>Scene</span>
-      </button>
+      <div className={`view-hint${note ? ' note' : ''}`}>{note || 'Drag cards to reorder the script · label a card to start an act'}</div>
+      <div className="view-fabs">
+        {ai.available && (missing > 0 || drafting) && (
+          <button className="view-fab" onClick={drafting ? () => (stopRef.current = true) : draftMissing} title="Draft a synopsis for every scene without one, on this Mac">
+            <SparkleIcon />
+            <span>{drafting ? `Drafting ${drafting.done} of ${drafting.total} · stop` : `Draft ${missing} ${missing === 1 ? 'synopsis' : 'synopses'}`}</span>
+          </button>
+        )}
+        <button className="view-fab" onClick={() => view && insertScene(view, scenes.length ? scenes[scenes.length - 1].ordinal : null)}>
+          <PlusIcon />
+          <span>Scene</span>
+        </button>
+      </div>
     </div>
   );
 };

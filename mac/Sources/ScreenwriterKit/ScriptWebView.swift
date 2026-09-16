@@ -8,7 +8,8 @@ import WebKit
 /// `WKWebView`. Messages from the page arrive on the `host` handler:
 /// `ready` (the bridge is installed), `changed` (the serialized document to
 /// write to disk), `save` (the page asked to save), `log`, and `wrapCheck`
-/// (a line-wrapping comparison result). The app drives the page through
+/// (a line-wrapping comparison result), `ai` (a request for the on-device
+/// model, answered through `aiResult`). The app drives the page through
 /// `window.__screenplay`: `load(text, format, meta)`, `document()`,
 /// `wrapCheck()`, `setTheme(name)`, `setView(name)`, `exportAs(format)`.
 ///
@@ -150,9 +151,35 @@ public final class ScriptBridge: NSObject, WKScriptMessageHandler, WKNavigationD
             if let filename = body["filename"] as? String, let base64 = body["base64"] as? String, let data = Data(base64Encoded: base64) {
                 onEvent?(.export(filename: filename, mime: body["mime"] as? String ?? "application/octet-stream", data: data))
             }
+        case "ai":
+            if let id = body["id"] as? String {
+                answerAI(id: id, instructions: body["instructions"] as? String ?? "", prompt: body["prompt"] as? String ?? "")
+            }
         default:
             break
         }
+    }
+
+    /// Run one model request and hand the answer back to the page.
+    private func answerAI(id: String, instructions: String, prompt: String) {
+        Task { @MainActor [weak self] in
+            let result: [String: Any]
+            do {
+                let text = try await OnDeviceModel.respond(instructions: instructions, prompt: prompt)
+                result = ["ok": true, "text": text]
+            } catch {
+                result = ["ok": false, "error": error.localizedDescription]
+            }
+            self?.call("window.__screenplay && window.__screenplay.aiResult(\(self?.json(id) ?? "null"), \(self?.json(result) ?? "null"))")
+        }
+    }
+
+    /// Tell the page what this host can do.
+    public func sendCapabilities() {
+        let ai = OnDeviceModel.availability()
+        var caps: [String: Any] = ["available": ai.available]
+        if let reason = ai.reason { caps["reason"] = reason }
+        call("window.__screenplay && window.__screenplay.setCapabilities(\(json(["ai": caps])))")
     }
 
     // MARK: Calls into the page
@@ -275,6 +302,7 @@ public struct ScriptWebView: NSViewRepresentable {
             switch event {
             case .ready:
                 bridge.setTheme(theme)
+                bridge.sendCapabilities()
                 if let pendingLoad {
                     loadedGeneration = pendingLoad
                     bridge.load(pendingLoad)

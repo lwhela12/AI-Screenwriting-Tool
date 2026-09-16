@@ -198,6 +198,29 @@ body {
   margin-bottom: 6px;
 }
 
+.ui-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.ui-label-row .ui-label {
+  margin-bottom: 0;
+}
+
+.ui-button.mini {
+  height: 22px;
+  padding: 0 7px;
+  font-size: 11.5px;
+  color: var(--accent);
+}
+
+.ui-button.mini:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 .ui-chip {
   display: inline-block;
   font-size: 11.5px;
@@ -269,6 +292,18 @@ body {
 }
 
 /* Floating controls shared by the outline and the beat board. */
+.view-fabs {
+  position: absolute;
+  right: 24px;
+  bottom: 20px;
+  display: flex;
+  gap: 8px;
+}
+
+.view-fabs .view-fab {
+  position: static;
+}
+
 .view-fab {
   position: absolute;
   right: 24px;
@@ -290,6 +325,12 @@ body {
 
 .view-fab:hover {
   background: var(--panel);
+}
+
+.view-hint.note {
+  color: var(--ink);
+  border-color: var(--accent);
+  max-width: 60%;
 }
 
 .view-hint {

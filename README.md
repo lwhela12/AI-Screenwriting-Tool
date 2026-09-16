@@ -11,15 +11,13 @@ There is no server: the app owns files, and the browser build keeps scripts in t
 
 ## Features
 
-- **Automatic screenplay formatting** – Scene headings, character names and dialogue are recognized and formatted automatically, using an intuitive plain‑text syntax.
-- **Beat Board & Outline Editor** – A visual canvas for organizing beats and a hierarchical outline with customizable lanes.  Supports drag‑and‑drop, color‑coded structure lines and flow lines.
-- **ScriptNotes and Revision Mode** – Add notes anywhere in your script or beat board, track changes and mark revisions with colors.
-- **Real‑Time Collaboration** – Multiple writers can work on the same project simultaneously.  User presence and chat are included.
-- **Writing Metrics** – Set goals, run sprint timers and view statistics about scene length, character dialogue and more.
-- **Import/Export** – Open and save files in Fountain, Final Draft (FDX) and PDF formats.  Tag props and locations for production reports.
-- **AI Assistance** – An optional AI service provides context‑aware suggestions, dialogue auto‑completion and story analysis.
-
-For a full description of the planned architecture and feature roadmap, see **design_document.md**.
+- **The page is the page** – Real Courier on a US Letter sheet with Final Draft's margins; page breaks, (MORE) and (CONT'D) come from a pagination engine that matches Final Draft line for line.
+- **Final Draft keystrokes** – Enter, Tab and ⌘1–8 move between elements the way Final Draft does; SmartType completes names, locations and times.
+- **Scenes, outline and beat board** – A scene sidebar and inspector (synopsis, cast, structure label, colour), index cards in act lanes, and a freeform beat board whose cards can become scenes.
+- **Reports** – Character, scene and dialogue statistics, and a who-is-in-which-scene matrix, all live, with CSV export.
+- **Import and export** – Opens Final Draft `.fdx`, Fountain, PDF and plain text; exports PDF, `.fdx`, Fountain and text.
+- **Find and replace, focus mode, three themes** – Paper, Sepia and Midnight (dark page under the dark theme).
+- **On this Mac, drafting help** – With Apple Intelligence on, the app drafts scene synopses on the Mac's own model, one scene at a time or for every scene that has none. Nothing leaves the machine, and Apple's model can decline some passages; those scenes are left blank for you.
 
 ## Editor Keystrokes
 
@@ -64,6 +62,8 @@ cd mac
 ./build-app.sh --install    # also copies it to /Applications
 ./build-app.sh --check path/to/script.fdx   # verifies WebKit wraps every line exactly as the pagination engine does
 ```
+
+Views switch from the View menu or with ⌥⌘1–4. The on-device drafting features need macOS 26 with Apple Intelligence turned on; the app runs on macOS 15 and later without them. For development, `SCREENWRITER_DEBUG_JS='…'` in the environment runs a script in the page once the document has loaded.
 
 ## Quick Start
 

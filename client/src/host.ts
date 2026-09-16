@@ -31,7 +31,21 @@ type HostMessage =
   | { type: 'log'; message: string }
   | { type: 'wrapCheck'; result: WrapCheckResult }
   /** A file the page produced (export): the host shows a save panel and writes it. */
-  | { type: 'export'; filename: string; mime: string; base64: string };
+  | { type: 'export'; filename: string; mime: string; base64: string }
+  /** Ask the host's on-device language model for a completion; the answer comes back through `aiResult`. */
+  | { type: 'ai'; id: string; instructions: string; prompt: string };
+
+export interface AIAvailability {
+  available: boolean;
+  /** Why the model cannot be used, in the writer's terms (shown in the UI). */
+  reason?: string;
+}
+
+export type AIResult = { ok: true; text: string } | { ok: false; error: string };
+
+export interface HostCapabilities {
+  ai?: AIAvailability;
+}
 
 export interface WrapCheckResult {
   elements: number;
@@ -69,6 +83,10 @@ export interface ScreenplayHostApi {
   setTheme: (name: string) => void;
   /** Switch the main view: 'editor' | 'outline' | 'board' | 'reports'. */
   setView: (name: string) => void;
+  /** What the host can do beyond files (on-device AI, for now). */
+  setCapabilities: (caps: HostCapabilities) => void;
+  /** Deliver the answer to an `ai` request. */
+  aiResult: (id: string, result: AIResult) => void;
 }
 
 interface HostBindings {
@@ -180,6 +198,57 @@ export function wrapCheck(view: EditorView): WrapCheckResult {
   return result;
 }
 
+// ---- On-device AI -----------------------------------------------------------
+//
+// The page never talks to a model directly. It sends an `ai` message with the
+// instructions and prompt, and the host answers through `aiResult`. Prompts
+// are composed in `ai.ts`; here is only the plumbing.
+
+let capabilities: HostCapabilities = {};
+const capabilityListeners = new Set<() => void>();
+const pendingAI = new Map<string, { resolve: (text: string) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }>();
+let aiCounter = 0;
+
+export const AI_TIMEOUT_MS = 120_000;
+
+export function aiAvailability(): AIAvailability {
+  if (!isHosted()) return { available: false, reason: 'Available in the Mac app.' };
+  return capabilities.ai ?? { available: false, reason: 'Checking Apple Intelligence…' };
+}
+
+export function subscribeCapabilities(listener: () => void): () => void {
+  capabilityListeners.add(listener);
+  return () => capabilityListeners.delete(listener);
+}
+
+export function setCapabilities(caps: HostCapabilities): void {
+  capabilities = caps;
+  capabilityListeners.forEach(l => l());
+}
+
+/** Ask the host's model for a completion. Rejects when there is no host or the host reports an error. */
+export function requestAI(instructions: string, prompt: string): Promise<string> {
+  if (!isHosted()) return Promise.reject(new Error('Available in the Mac app.'));
+  const id = `ai-${++aiCounter}`;
+  return new Promise<string>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      pendingAI.delete(id);
+      reject(new Error('The model did not answer in time.'));
+    }, AI_TIMEOUT_MS);
+    pendingAI.set(id, { resolve, reject, timer });
+    postToHost({ type: 'ai', id, instructions, prompt });
+  });
+}
+
+export function resolveAI(id: string, result: AIResult): void {
+  const pending = pendingAI.get(id);
+  if (!pending) return;
+  pendingAI.delete(id);
+  clearTimeout(pending.timer);
+  if (result.ok) pending.resolve(result.text);
+  else pending.reject(new Error(result.error || 'The model could not answer.'));
+}
+
 /** Install `window.__screenplay` and tell the host we are ready. */
 export function installHostApi(bindings: HostBindings): void {
   const api: ScreenplayHostApi = {
@@ -203,7 +272,9 @@ export function installHostApi(bindings: HostBindings): void {
       return result;
     },
     setTheme: name => bindings.setTheme(name),
-    setView: name => bindings.setView(name)
+    setView: name => bindings.setView(name),
+    setCapabilities: caps => setCapabilities(caps || {}),
+    aiResult: (id, result) => resolveAI(id, result)
   };
   window.__screenplay = api;
   postToHost({ type: 'ready' });
