@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Themes shared with the web editor; one palette drives both sides.
 enum AppTheme: String, CaseIterable, Identifiable {
-    case paper, sepia, midnight
+    case paper, sepia, midnight, aurora, nord, rosePine = "rose-pine", dracula, catppuccin, solarized, gruvbox
 
     var id: String { rawValue }
 
@@ -11,6 +11,13 @@ enum AppTheme: String, CaseIterable, Identifiable {
         case .paper: "Paper"
         case .sepia: "Sepia"
         case .midnight: "Midnight"
+        case .aurora: "Aurora"
+        case .nord: "Nord"
+        case .rosePine: "Rose Pine"
+        case .dracula: "Dracula"
+        case .catppuccin: "Catppuccin"
+        case .solarized: "Solarized"
+        case .gruvbox: "Gruvbox"
         }
     }
 }
@@ -39,6 +46,13 @@ struct ScreenwriterApp: App {
         }
         .defaultSize(width: 1440, height: 900)
         .commands {
+            // The web view would otherwise answer ⌘Z with WebKit's own undo, not the script's.
+            CommandGroup(replacing: .undoRedo) {
+                Button("Undo") { focusedBridge?.bridge?.undo() }
+                    .keyboardShortcut("z", modifiers: .command)
+                Button("Redo") { focusedBridge?.bridge?.redo() }
+                    .keyboardShortcut("z", modifiers: [.command, .shift])
+            }
             CommandGroup(after: .saveItem) {
                 Menu("Export") {
                     Button("PDF…") { focusedBridge?.bridge?.exportAs("pdf") }

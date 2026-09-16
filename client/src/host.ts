@@ -87,6 +87,9 @@ export interface ScreenplayHostApi {
   setCapabilities: (caps: HostCapabilities) => void;
   /** Deliver the answer to an `ai` request. */
   aiResult: (id: string, result: AIResult) => void;
+  /** Edit menu undo/redo, routed to the script's history. */
+  undo: () => void;
+  redo: () => void;
 }
 
 interface HostBindings {
@@ -96,6 +99,8 @@ interface HostBindings {
   setTheme: (name: string) => void;
   setView: (name: string) => void;
   exportAs: (format: 'pdf' | 'fdx' | 'fountain' | 'txt') => void;
+  undo: () => void;
+  redo: () => void;
 }
 
 function base64ToBytes(base64: string): Uint8Array {
@@ -274,7 +279,9 @@ export function installHostApi(bindings: HostBindings): void {
     setTheme: name => bindings.setTheme(name),
     setView: name => bindings.setView(name),
     setCapabilities: caps => setCapabilities(caps || {}),
-    aiResult: (id, result) => resolveAI(id, result)
+    aiResult: (id, result) => resolveAI(id, result),
+    undo: () => bindings.undo(),
+    redo: () => bindings.redo()
   };
   window.__screenplay = api;
   postToHost({ type: 'ready' });

@@ -198,6 +198,14 @@ public final class ScriptBridge: NSObject, WKScriptMessageHandler, WKNavigationD
         call("window.__screenplay && window.__screenplay.setView(\(json(name)))")
     }
 
+    public func undo() {
+        call("window.__screenplay && window.__screenplay.undo()")
+    }
+
+    public func redo() {
+        call("window.__screenplay && window.__screenplay.redo()")
+    }
+
     /// Evaluate arbitrary script in the page (debugging and tooling only).
     public func evaluate(_ script: String) {
         call(script)

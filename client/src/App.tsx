@@ -14,6 +14,7 @@ import type { TitlePageData } from './components/editor-v2/TitleSheet';
 import type { BeatBoardData } from './components/beats';
 import { isHosted, installHostApi, postToHost, serializeDocument, HostDocument } from './host';
 import { openSearch } from './components/editor-v2/plugins/search';
+import { undo, redo } from 'prosemirror-history';
 import { SidebarIcon, InspectorIcon, SearchIcon, FocusIcon, DocIcon, GridIcon, BoardIcon, ReportIcon, ExportIcon, FolderIcon, PaletteIcon } from './icons';
 import './theme.css';
 import './App.css';
@@ -33,7 +34,14 @@ const VIEW_KEYS: ViewType[] = tabs.map(t => t.id);
 const THEMES = [
   { id: 'paper', label: 'Paper' },
   { id: 'sepia', label: 'Sepia' },
-  { id: 'midnight', label: 'Midnight' }
+  { id: 'midnight', label: 'Midnight' },
+  { id: 'aurora', label: 'Aurora' },
+  { id: 'nord', label: 'Nord' },
+  { id: 'rose-pine', label: 'Rose Pine' },
+  { id: 'dracula', label: 'Dracula' },
+  { id: 'catppuccin', label: 'Catppuccin' },
+  { id: 'solarized', label: 'Solarized' },
+  { id: 'gruvbox', label: 'Gruvbox' }
 ];
 
 type SaveState = { kind: 'clean'; at?: Date } | { kind: 'dirty' } | { kind: 'saving' } | { kind: 'local'; at: Date } | { kind: 'error'; message: string };
@@ -195,6 +203,8 @@ export const App: React.FC = () => {
       setView: name => {
         if ((VIEW_KEYS as string[]).includes(name)) setActiveView(name as ViewType);
       },
+      undo: () => historyCommand('undo'),
+      redo: () => historyCommand('redo'),
       getDocument: hostDocument,
       loadDocument: (doc: HostDocument) => {
         const now = new Date().toISOString();
@@ -287,6 +297,23 @@ export const App: React.FC = () => {
     if (!view) return;
     setActiveView('editor');
     openSearch(view.state, view.dispatch);
+  };
+
+  /**
+   * Undo/redo from the native Edit menu. The script's own history when the
+   * page is the target; the browser's when a plain field (synopsis, search)
+   * has focus.
+   */
+  const historyCommand = (which: 'undo' | 'redo') => {
+    const active = document.activeElement as HTMLElement | null;
+    const view = editorViewRef.current;
+    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
+      document.execCommand(which);
+      return;
+    }
+    if (!view) return;
+    (which === 'undo' ? undo : redo)(view.state, view.dispatch);
+    view.focus();
   };
 
   // Global keys: save, focus mode.

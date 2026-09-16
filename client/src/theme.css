@@ -345,3 +345,176 @@ body {
   border-radius: 999px;
   pointer-events: none;
 }
+
+/* ---- The remaining Markdown Renderer themes -------------------------------- */
+
+:root[data-theme='aurora'] {
+  --desk: #070b14;
+  --chrome: #0c1224;
+  --chrome-border: #1b2540;
+  --panel: #0a0f1e;
+  --ink: #e8edf5;
+  --muted: #8a95b0;
+  --faint: #5b6580;
+  --line: #1b2540;
+  --accent: #34d399;
+  --accent-ink: #04241a;
+  --accent-soft: #0f2e2a;
+  --current: #10342c;
+  --page: #10162a;
+  --page-ink: #e4e9f2;
+  --page-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px rgba(0, 0, 0, 0.5);
+  --page-edge-shadow: rgba(0, 0, 0, 0.55);
+  --highlight: #3d3d1a;
+  --highlight-current: #b45309;
+  --danger: #f87171;
+  color-scheme: dark;
+}
+
+:root[data-theme='nord'] {
+  --desk: #2e3440;
+  --chrome: #353c4a;
+  --chrome-border: #434c5e;
+  --panel: #323947;
+  --ink: #eceff4;
+  --muted: #a0aec0;
+  --faint: #7b88a1;
+  --line: #434c5e;
+  --accent: #88c0d0;
+  --accent-ink: #1a2430;
+  --accent-soft: #2f4552;
+  --current: #334a58;
+  --page: #3b4252;
+  --page-ink: #eceff4;
+  --page-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 16px 40px rgba(0, 0, 0, 0.35);
+  --page-edge-shadow: rgba(0, 0, 0, 0.4);
+  --highlight: #5a5230;
+  --highlight-current: #d08770;
+  --danger: #bf616a;
+  color-scheme: dark;
+}
+
+:root[data-theme='rose-pine'] {
+  --desk: #191724;
+  --chrome: #1f1d2e;
+  --chrome-border: #2a273f;
+  --panel: #1c1a2a;
+  --ink: #e0def4;
+  --muted: #908caa;
+  --faint: #6e6a86;
+  --line: #2a273f;
+  --accent: #c4a7e7;
+  --accent-ink: #1f1330;
+  --accent-soft: #2f2740;
+  --current: #33294a;
+  --page: #232136;
+  --page-ink: #e0def4;
+  --page-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px rgba(0, 0, 0, 0.45);
+  --page-edge-shadow: rgba(0, 0, 0, 0.5);
+  --highlight: #4a3f22;
+  --highlight-current: #f6c177;
+  --danger: #eb6f92;
+  color-scheme: dark;
+}
+
+:root[data-theme='dracula'] {
+  --desk: #21222c;
+  --chrome: #282a36;
+  --chrome-border: #3a3d4d;
+  --panel: #262834;
+  --ink: #f8f8f2;
+  --muted: #a0a8c8;
+  --faint: #6272a4;
+  --line: #363948;
+  --accent: #bd93f9;
+  --accent-ink: #1e1230;
+  --accent-soft: #352d4d;
+  --current: #3a3255;
+  --page: #2c2e3b;
+  --page-ink: #f8f8f2;
+  --page-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px rgba(0, 0, 0, 0.45);
+  --page-edge-shadow: rgba(0, 0, 0, 0.5);
+  --highlight: #4d4a1e;
+  --highlight-current: #ffb86c;
+  --danger: #ff5555;
+  color-scheme: dark;
+}
+
+:root[data-theme='catppuccin'] {
+  --desk: #181825;
+  --chrome: #1e1e2e;
+  --chrome-border: #313244;
+  --panel: #1b1b2a;
+  --ink: #cdd6f4;
+  --muted: #a6adc8;
+  --faint: #6c7086;
+  --line: #313244;
+  --accent: #cba6f7;
+  --accent-ink: #1e1230;
+  --accent-soft: #302c48;
+  --current: #363152;
+  --page: #24243a;
+  --page-ink: #cdd6f4;
+  --page-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px rgba(0, 0, 0, 0.45);
+  --page-edge-shadow: rgba(0, 0, 0, 0.5);
+  --highlight: #45401f;
+  --highlight-current: #fab387;
+  --danger: #f38ba8;
+  color-scheme: dark;
+}
+
+:root[data-theme='solarized'] {
+  --desk: #002b36;
+  --chrome: #073642;
+  --chrome-border: #0e4a5a;
+  --panel: #04323f;
+  --ink: #a7b3b3;
+  --muted: #839496;
+  --faint: #586e75;
+  --line: #0e4a5a;
+  --accent: #268bd2;
+  --accent-ink: #ffffff;
+  --accent-soft: #0b3f55;
+  --current: #0d4560;
+  --page: #0a3a47;
+  --page-ink: #b8c4c4;
+  --page-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 16px 40px rgba(0, 0, 0, 0.4);
+  --page-edge-shadow: rgba(0, 0, 0, 0.45);
+  --highlight: #4a4a15;
+  --highlight-current: #b58900;
+  --danger: #dc322f;
+  color-scheme: dark;
+}
+
+:root[data-theme='gruvbox'] {
+  --desk: #1d2021;
+  --chrome: #282828;
+  --chrome-border: #3c3836;
+  --panel: #232526;
+  --ink: #ebdbb2;
+  --muted: #a89984;
+  --faint: #928374;
+  --line: #3c3836;
+  --accent: #fabd2f;
+  --accent-ink: #282828;
+  --accent-soft: #3f3a22;
+  --current: #46401f;
+  --page: #32302f;
+  --page-ink: #ebdbb2;
+  --page-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px rgba(0, 0, 0, 0.45);
+  --page-edge-shadow: rgba(0, 0, 0, 0.5);
+  --highlight: #4a4520;
+  --highlight-current: #fe8019;
+  --danger: #fb4934;
+  color-scheme: dark;
+}
+
+:root[data-theme='aurora'] .ui-overlay,
+:root[data-theme='nord'] .ui-overlay,
+:root[data-theme='rose-pine'] .ui-overlay,
+:root[data-theme='dracula'] .ui-overlay,
+:root[data-theme='catppuccin'] .ui-overlay,
+:root[data-theme='solarized'] .ui-overlay,
+:root[data-theme='gruvbox'] .ui-overlay {
+  background: rgba(0, 0, 0, 0.55);
+}
