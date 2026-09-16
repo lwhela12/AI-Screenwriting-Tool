@@ -18,6 +18,7 @@ There is no server: the app owns files, and the browser build keeps scripts in t
 - **Import and export** – Opens Final Draft `.fdx`, Fountain, PDF and plain text; exports PDF, `.fdx`, Fountain and text.
 - **Find and replace, focus mode, three themes** – Paper, Sepia and Midnight (dark page under the dark theme).
 - **On this Mac, drafting help** – With Apple Intelligence on, the app drafts scene synopses on the Mac's own model, one scene at a time or for every scene that has none. Nothing leaves the machine.
+- **Writers' Room** – Break the story with a model that has read the script, the outline and the beat board. It talks in your terms and proposes beats (or scenes, when asked) as cards; keep the ones you want, send them to the beat board or straight into the outline as scene headings with synopses, and write the scenes yourself. It never writes a line of the script. Modes: break the story, ask me questions, alternatives, pressure test. The conversation is saved in the script file.
 - **Continuity report** – Reports > Continuity has a cloud model (Google Gemini, bring your own key) read the whole script and list what it establishes about each character and where the script contradicts itself, with the lines in question linked to their scenes. The key lives in the macOS Keychain; a script is sent only when you ask and only after you confirm, once per script.
 
 ## Editor Keystrokes
@@ -64,7 +65,7 @@ cd mac
 ./build-app.sh --check path/to/script.fdx   # verifies WebKit wraps every line exactly as the pagination engine does
 ```
 
-Settings (⌘,) holds the Gemini key and model: paste a key from Google AI Studio, click Check connection, and the newest Flash model is chosen. Views switch from the View menu or with ⌥⌘1–4. The on-device drafting features need macOS 26 with Apple Intelligence turned on; the app runs on macOS 15 and later without them. For development, `SCREENWRITER_DEBUG_JS='…'` in the environment runs a script in the page once the document has loaded.
+Settings (⌘,) holds the Gemini key and model: paste a key from Google AI Studio, click Check connection, and the newest Flash model is chosen. Views switch from the View menu or with ⌥⌘1–5. The on-device drafting features need macOS 26 with Apple Intelligence turned on; the app runs on macOS 15 and later without them. For development, `SCREENWRITER_DEBUG_JS='…'` in the environment runs a script in the page once the document has loaded.
 
 ## Quick Start
 

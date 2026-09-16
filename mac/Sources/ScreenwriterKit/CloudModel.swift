@@ -47,8 +47,9 @@ public enum CloudModel {
         return Availability(available: true, provider: provider, model: model, reason: nil)
     }
 
-    /// One answer from the configured cloud model.
-    public static func respond(instructions: String, prompt: String, json: Bool) async throws -> String {
+    /// One answer from the configured cloud model. `turns` carries a conversation
+    /// (the last turn is the writer's); `onChunk` receives text as it streams.
+    public static func respond(instructions: String, turns: [ChatTurn], json: Bool, onChunk: (@Sendable (String) -> Void)? = nil) async throws -> String {
         guard let model else { throw CloudError(message: "Choose a model in Settings.") }
         // The Keychain read stays off the main thread: it can prompt, and must never freeze the window.
         let key = await Task.detached { Keychain.load(GeminiClient.keychainAccount) }.value
@@ -57,7 +58,11 @@ public enum CloudModel {
             NotificationCenter.default.post(name: settingsChanged, object: nil)
             throw CloudError(message: "Add a Gemini API key in Settings.")
         }
-        return try await GeminiClient(apiKey: key).generate(model: model, instructions: instructions, prompt: prompt, json: json)
+        let client = GeminiClient(apiKey: key)
+        if let onChunk {
+            return try await client.stream(model: model, instructions: instructions, turns: turns, onChunk: onChunk)
+        }
+        return try await client.generate(model: model, instructions: instructions, turns: turns, json: json)
     }
 
     /// Store or clear the key; an empty string removes it.
@@ -135,6 +140,17 @@ public enum Keychain {
     }
 }
 
+/// One turn of a conversation: `user` (the writer) or `model`.
+public struct ChatTurn: Sendable {
+    public let role: String
+    public let text: String
+
+    public init(role: String, text: String) {
+        self.role = role
+        self.text = text
+    }
+}
+
 /// Google's Gemini API (generativelanguage.googleapis.com, v1beta).
 public struct GeminiClient {
     public static let keychainAccount = "gemini-api-key"
@@ -194,13 +210,58 @@ public struct GeminiClient {
     }
 
     /// One completion. `json` asks for a JSON object as the whole answer.
-    public func generate(model: String, instructions: String, prompt: String, json: Bool) async throws -> String {
-        var request = URLRequest(url: GeminiClient.base.appendingPathComponent("models/\(model):generateContent"))
+    public func generate(model: String, instructions: String, turns: [ChatTurn], json: Bool) async throws -> String {
+        let request = try makeRequest(model: model, instructions: instructions, turns: turns, json: json, stream: false)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try GeminiClient.check(response, data)
+        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw CloudModel.CloudError(message: "Unexpected answer from Google.")
+        }
+        try GeminiClient.checkBlocked(root)
+        let text = GeminiClient.text(in: root)
+        if text.isEmpty {
+            let reason = ((root["candidates"] as? [[String: Any]])?.first?["finishReason"] as? String) ?? "no text"
+            throw CloudModel.CloudError(message: "Google returned no text (\(reason)).")
+        }
+        return text
+    }
+
+    /// The same, streamed: `onChunk` gets each piece of text as it arrives; the whole answer is returned.
+    public func stream(model: String, instructions: String, turns: [ChatTurn], onChunk: @escaping @Sendable (String) -> Void) async throws -> String {
+        let request = try makeRequest(model: model, instructions: instructions, turns: turns, json: false, stream: true)
+        let (bytes, response) = try await URLSession.shared.bytes(for: request)
+        if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+            var data = Data()
+            for try await byte in bytes { data.append(byte) }
+            try GeminiClient.check(response, data)
+        }
+        var full = ""
+        for try await line in bytes.lines {
+            guard line.hasPrefix("data:") else { continue }
+            let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
+            guard let data = payload.data(using: .utf8), let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
+            try GeminiClient.checkBlocked(root)
+            let text = GeminiClient.text(in: root)
+            if !text.isEmpty {
+                full += text
+                onChunk(text)
+            }
+        }
+        if full.isEmpty { throw CloudModel.CloudError(message: "Google returned no text.") }
+        return full
+    }
+
+    private func makeRequest(model: String, instructions: String, turns: [ChatTurn], json: Bool, stream: Bool) throws -> URLRequest {
+        let method = stream ? "streamGenerateContent?alt=sse" : "generateContent"
+        guard let url = URL(string: GeminiClient.base.absoluteString + "models/\(model):\(method)") else {
+            throw CloudModel.CloudError(message: "Bad model name.")
+        }
+        var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.timeoutInterval = 180
+        request.timeoutInterval = 300
         request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        var generation: [String: Any] = ["temperature": 0.3]
+        var generation: [String: Any] = ["temperature": json ? 0.3 : 0.8]
         if json { generation["responseMimeType"] = "application/json" }
         // Scripts contain fights, threats and worse; let the model read them.
         let safety = ["HARM_CATEGORY_HARASSMENT", "HARM_CATEGORY_HATE_SPEECH", "HARM_CATEGORY_SEXUALLY_EXPLICIT", "HARM_CATEGORY_DANGEROUS_CONTENT"].map {
@@ -208,32 +269,28 @@ public struct GeminiClient {
         }
         let body: [String: Any] = [
             "system_instruction": ["parts": [["text": instructions]]],
-            "contents": [["role": "user", "parts": [["text": prompt]]]],
+            "contents": turns.map { ["role": $0.role, "parts": [["text": $0.text]]] },
             "generationConfig": generation,
             "safetySettings": safety
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        let (data, response) = try await URLSession.shared.data(for: request)
-        try GeminiClient.check(response, data)
-        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw CloudModel.CloudError(message: "Unexpected answer from Google.")
-        }
+        return request
+    }
+
+    static func checkBlocked(_ root: [String: Any]) throws {
         if let feedback = root["promptFeedback"] as? [String: Any], let reason = feedback["blockReason"] as? String {
             throw CloudModel.CloudError(message: "Google declined to read this script (\(reason)).")
         }
-        guard let candidates = root["candidates"] as? [[String: Any]], let first = candidates.first else {
-            throw CloudModel.CloudError(message: "Google returned no answer.")
-        }
+    }
+
+    /// The visible text of a response (thoughts left out).
+    static func text(in root: [String: Any]) -> String {
+        guard let candidates = root["candidates"] as? [[String: Any]], let first = candidates.first else { return "" }
         let parts = ((first["content"] as? [String: Any])?["parts"] as? [[String: Any]]) ?? []
-        let text = parts.compactMap { part -> String? in
+        return parts.compactMap { part -> String? in
             if part["thought"] as? Bool == true { return nil }
             return part["text"] as? String
         }.joined()
-        if text.isEmpty {
-            let reason = first["finishReason"] as? String ?? "no text"
-            throw CloudModel.CloudError(message: "Google returned no text (\(reason)).")
-        }
-        return text
     }
 
     static func check(_ response: URLResponse, _ data: Data) throws {

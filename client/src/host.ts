@@ -22,6 +22,8 @@ export interface HostDocument {
   /** Editor document JSON (see docConverter). */
   content: string;
   beats: unknown;
+  /** The Writers' Room conversation and proposals. */
+  room?: unknown;
 }
 
 type HostMessage =
@@ -33,12 +35,18 @@ type HostMessage =
   /** A file the page produced (export): the host shows a save panel and writes it. */
   | { type: 'export'; filename: string; mime: string; base64: string }
   /** Ask a language model for a completion; the answer comes back through `aiResult`. */
-  | { type: 'ai'; id: string; tier: AITier; json: boolean; instructions: string; prompt: string }
+  | { type: 'ai'; id: string; tier: AITier; json: boolean; stream: boolean; instructions: string; prompt: string; messages?: ChatTurn[] }
   /** Open the app's Settings window (to add a cloud key). */
   | { type: 'openSettings' };
 
 /** `device` runs on the Mac (Apple Intelligence); `cloud` sends the text to the configured provider. */
 export type AITier = 'device' | 'cloud';
+
+/** One turn of a conversation with a model. */
+export interface ChatTurn {
+  role: 'user' | 'model';
+  text: string;
+}
 
 export interface AIAvailability {
   available: boolean;
@@ -98,6 +106,8 @@ export interface ScreenplayHostApi {
   setCapabilities: (caps: HostCapabilities) => void;
   /** Deliver the answer to an `ai` request. */
   aiResult: (id: string, result: AIResult) => void;
+  /** A piece of a streamed answer, in order. */
+  aiChunk: (id: string, text: string) => void;
   /** Edit menu undo/redo, routed to the script's history. */
   undo: () => void;
   redo: () => void;
@@ -142,7 +152,8 @@ export function documentFromText(text: string, format: 'screenplay' | 'fdx' | 'f
         author: parsed.author || '',
         contact: parsed.contact || '',
         content: typeof parsed.content === 'string' ? parsed.content : JSON.stringify(parsed.content || ''),
-        beats: parsed.beats ?? null
+        beats: parsed.beats ?? null,
+        room: parsed.room ?? null
       };
     } catch {
       doc = textToDoc(text);
@@ -169,7 +180,7 @@ export function documentFromText(text: string, format: 'screenplay' | 'fdx' | 'f
 
 /** Serialize a host document to the app's own file format. */
 export function serializeDocument(doc: HostDocument): string {
-  return JSON.stringify({ format: 'screenplay', version: 1, title: doc.title, author: doc.author, contact: doc.contact, content: JSON.parse(doc.content), beats: doc.beats ?? null }, null, 2);
+  return JSON.stringify({ format: 'screenplay', version: 1, title: doc.title, author: doc.author, contact: doc.contact, content: JSON.parse(doc.content), beats: doc.beats ?? null, room: doc.room ?? null }, null, 2);
 }
 
 /**
@@ -222,7 +233,7 @@ export function wrapCheck(view: EditorView): WrapCheckResult {
 
 let capabilities: HostCapabilities = {};
 const capabilityListeners = new Set<() => void>();
-const pendingAI = new Map<string, { resolve: (text: string) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }>();
+const pendingAI = new Map<string, { resolve: (text: string) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout>; onChunk?: (delta: string, full: string) => void; full: string }>();
 let aiCounter = 0;
 
 export const AI_TIMEOUT_MS = 120_000;
@@ -232,6 +243,10 @@ export interface AIRequestOptions {
   tier?: AITier;
   /** Ask for a JSON object as the whole answer. */
   json?: boolean;
+  /** A conversation instead of a single prompt; the last turn is the writer's. */
+  messages?: ChatTurn[];
+  /** Receive the answer as it streams (cloud only). */
+  onChunk?: (delta: string, full: string) => void;
 }
 
 export function aiAvailability(): AIAvailability {
@@ -268,9 +283,16 @@ export function requestAI(instructions: string, prompt: string, options: AIReque
       pendingAI.delete(id);
       reject(new Error('The model did not answer in time.'));
     }, tier === 'cloud' ? CLOUD_TIMEOUT_MS : AI_TIMEOUT_MS);
-    pendingAI.set(id, { resolve, reject, timer });
-    postToHost({ type: 'ai', id, tier, json: !!options.json, instructions, prompt });
+    pendingAI.set(id, { resolve, reject, timer, onChunk: options.onChunk, full: '' });
+    postToHost({ type: 'ai', id, tier, json: !!options.json, stream: !!options.onChunk, instructions, prompt, messages: options.messages });
   });
+}
+
+export function chunkAI(id: string, text: string): void {
+  const pending = pendingAI.get(id);
+  if (!pending || !pending.onChunk) return;
+  pending.full += text;
+  pending.onChunk(text, pending.full);
 }
 
 export function resolveAI(id: string, result: AIResult): void {
@@ -308,6 +330,7 @@ export function installHostApi(bindings: HostBindings): void {
     setView: name => bindings.setView(name),
     setCapabilities: caps => setCapabilities(caps || {}),
     aiResult: (id, result) => resolveAI(id, result),
+    aiChunk: (id, text) => chunkAI(id, text),
     undo: () => bindings.undo(),
     redo: () => bindings.redo()
   };

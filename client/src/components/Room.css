@@ -1,0 +1,257 @@
+.room {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  background: var(--desk);
+  color: var(--ink);
+  font-family: var(--ui-font);
+}
+
+.room-conversation {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.room-modes {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 24px;
+}
+
+.room-modes .ui-button.active {
+  background: var(--chrome);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.room-modes-spacer {
+  flex: 1;
+}
+
+.room-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 24px 16px;
+}
+
+.room-setup,
+.room-empty {
+  max-width: 560px;
+  margin: 48px auto 0;
+  color: var(--muted);
+  line-height: 1.5;
+  font-size: 13.5px;
+}
+
+.room-setup-reason {
+  color: var(--ink);
+}
+
+.room-starters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.room-starter {
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.room-starter:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.room-message {
+  display: flex;
+  margin: 0 auto 12px;
+  max-width: 720px;
+}
+
+.room-message.writer {
+  justify-content: flex-end;
+}
+
+.room-bubble {
+  max-width: 85%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.room-message.writer .room-bubble {
+  background: var(--accent-soft);
+  color: var(--ink);
+  border-bottom-right-radius: 4px;
+}
+
+.room-message.room .room-bubble {
+  background: var(--chrome);
+  border: 1px solid var(--line);
+  border-bottom-left-radius: 4px;
+}
+
+.room-bubble p {
+  margin: 0 0 8px;
+}
+
+.room-bubble p:last-child {
+  margin-bottom: 0;
+}
+
+.room-thinking {
+  color: var(--faint);
+}
+
+.room-proposed {
+  margin-top: 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.room-error {
+  max-width: 720px;
+  margin: 0 auto;
+  color: var(--danger);
+  font-size: 12.5px;
+}
+
+.room-composer {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  max-width: 720px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 8px 24px 16px;
+}
+
+.room-composer .ui-textarea {
+  flex: 1;
+  resize: none;
+}
+
+.room-composer .ui-button {
+  height: 36px;
+}
+
+/* Proposals -------------------------------------------------------------- */
+
+.room-proposals {
+  flex: 0 0 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  background: var(--panel);
+  border-left: 1px solid var(--chrome-border);
+  overflow: auto;
+}
+
+.room-proposals-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.room-proposals-head .ui-label {
+  margin: 0;
+}
+
+.room-proposals-empty {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--faint);
+}
+
+.proposal {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--page);
+  color: var(--page-ink);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--accent);
+}
+
+.proposal.scene {
+  border-top-color: var(--highlight-current);
+}
+
+.proposal.kept {
+  border-top-color: var(--line);
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+}
+
+.proposal-kind {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.proposal-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.proposal.kept .proposal-title {
+  font-weight: 500;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proposal-heading {
+  font: 700 11.5px/16px var(--mono-font);
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.proposal-text {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.proposal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.proposal-actions .ui-button.mini.dismiss {
+  color: var(--faint);
+  margin-left: auto;
+}
+
+.proposal-note {
+  font-size: 11.5px;
+  color: var(--faint);
+  white-space: nowrap;
+}
+
+.room-kept-label {
+  margin: 6px 0 0;
+}

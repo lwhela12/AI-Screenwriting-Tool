@@ -172,7 +172,16 @@ public final class ScriptBridge: NSObject, WKScriptMessageHandler, WKNavigationD
             }
         case "ai":
             if let id = body["id"] as? String {
-                answerAI(id: id, tier: body["tier"] as? String ?? "device", json: body["json"] as? Bool ?? false, instructions: body["instructions"] as? String ?? "", prompt: body["prompt"] as? String ?? "")
+                // Delegate callbacks arrive on the main thread.
+                let turns: [ChatTurn]
+                if let messages = body["messages"] as? [[String: Any]], !messages.isEmpty {
+                    turns = messages.map { ChatTurn(role: $0["role"] as? String == "model" ? "model" : "user", text: $0["text"] as? String ?? "") }
+                } else {
+                    turns = [ChatTurn(role: "user", text: body["prompt"] as? String ?? "")]
+                }
+                MainActor.assumeIsolated {
+                    answerAI(id: id, tier: body["tier"] as? String ?? "device", json: body["json"] as? Bool ?? false, stream: body["stream"] as? Bool ?? false, instructions: body["instructions"] as? String ?? "", turns: turns)
+                }
             }
         case "openSettings":
             onEvent?(.openSettings)
@@ -182,26 +191,47 @@ public final class ScriptBridge: NSObject, WKScriptMessageHandler, WKNavigationD
     }
 
     /// Run one model request and hand the answer back to the page.
-    private func answerAI(id: String, tier: String, json wantsJSON: Bool, instructions: String, prompt: String) {
-        Task { @MainActor [weak self] in
+    @MainActor
+    private func answerAI(id: String, tier: String, json wantsJSON: Bool, stream: Bool, instructions: String, turns: [ChatTurn]) {
+        Task { [weak self] in
             guard let self else { return }
-            let result: [String: Any]
-            do {
-                let text: String
-                if tier == "cloud" {
-                    guard CloudModel.confirmSending(documentKey: documentKey, title: documentTitle) else {
-                        throw CloudModel.CloudError(message: "Cancelled.")
-                    }
-                    text = try await CloudModel.respond(instructions: instructions, prompt: prompt, json: wantsJSON)
-                } else {
-                    text = try await OnDeviceModel.respond(instructions: instructions, prompt: prompt)
-                }
-                result = ["ok": true, "text": text]
-            } catch {
-                result = ["ok": false, "error": error.localizedDescription]
-            }
+            let result = await self.runAI(id: id, tier: tier, json: wantsJSON, stream: stream, instructions: instructions, turns: turns)
             self.call("window.__screenplay && window.__screenplay.aiResult(\(self.json(id)), \(self.json(result)))")
         }
+    }
+
+    @MainActor
+    private func runAI(id: String, tier: String, json wantsJSON: Bool, stream: Bool, instructions: String, turns: [ChatTurn]) async -> [String: Any] {
+        do {
+            let text: String
+            if tier == "cloud" {
+                guard CloudModel.confirmSending(documentKey: documentKey, title: documentTitle) else {
+                    throw CloudModel.CloudError(message: "Cancelled.")
+                }
+                var chunk: (@Sendable (String) -> Void)? = nil
+                if stream {
+                    chunk = { [weak self] piece in
+                        DispatchQueue.main.async { self?.sendChunk(id: id, piece: piece) }
+                    }
+                }
+                text = try await CloudModel.respond(instructions: instructions, turns: turns, json: wantsJSON, onChunk: chunk)
+            } else {
+                // The on-device model takes one prompt: fold a conversation into it.
+                text = try await OnDeviceModel.respond(instructions: instructions, prompt: Self.flatten(turns))
+            }
+            return ["ok": true, "text": text]
+        } catch {
+            return ["ok": false, "error": error.localizedDescription]
+        }
+    }
+
+    private static func flatten(_ turns: [ChatTurn]) -> String {
+        if turns.count == 1 { return turns[0].text }
+        return turns.map { ($0.role == "model" ? "You said: " : "Writer: ") + $0.text }.joined(separator: "\n\n")
+    }
+
+    private func sendChunk(id: String, piece: String) {
+        call("window.__screenplay && window.__screenplay.aiChunk(\(json(id)), \(json(piece)))")
     }
 
     /// Tell the page what this host can do.

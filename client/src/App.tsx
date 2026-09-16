@@ -12,19 +12,22 @@ import { apiFetch } from './api';
 import { exportToPDF, exportToFDX, exportToFountain, exportToText } from './utils/exporters';
 import type { TitlePageData } from './components/editor-v2/TitleSheet';
 import type { BeatBoardData } from './components/beats';
+import { RoomView } from './components/RoomView';
+import type { RoomData } from './components/room';
 import { isHosted, installHostApi, postToHost, serializeDocument, HostDocument } from './host';
 import { openSearch } from './components/editor-v2/plugins/search';
 import { undo, redo } from 'prosemirror-history';
-import { SidebarIcon, InspectorIcon, SearchIcon, FocusIcon, DocIcon, GridIcon, BoardIcon, ReportIcon, ExportIcon, FolderIcon, PaletteIcon } from './icons';
+import { SidebarIcon, InspectorIcon, SearchIcon, FocusIcon, DocIcon, GridIcon, BoardIcon, ReportIcon, ExportIcon, FolderIcon, PaletteIcon, RoomIcon } from './icons';
 import './theme.css';
 import './App.css';
 
-type ViewType = 'editor' | 'board' | 'outline' | 'reports';
+type ViewType = 'editor' | 'board' | 'outline' | 'room' | 'reports';
 
 const tabs: { id: ViewType; label: string; icon: React.ReactNode }[] = [
   { id: 'editor', label: 'Script', icon: <DocIcon /> },
   { id: 'outline', label: 'Outline', icon: <GridIcon /> },
   { id: 'board', label: 'Beats', icon: <BoardIcon /> },
+  { id: 'room', label: 'Room', icon: <RoomIcon /> },
   { id: 'reports', label: 'Reports', icon: <ReportIcon /> }
 ];
 
@@ -91,6 +94,8 @@ export const App: React.FC = () => {
   const [saveState, setSaveState] = useState<SaveState>({ kind: 'clean' });
   const [editorState, setEditorState] = useState<EditorState | null>(null);
   const [beats, setBeats] = useState<BeatBoardData | null>(null);
+  const [room, setRoom] = useState<unknown>(null);
+  const roomRef = useRef<unknown>(null);
   const [showScenes, setShowScenes] = useState(() => readPref('ui.scenes', true));
   const [showInspector, setShowInspector] = useState(() => readPref('ui.inspector', true));
   const [focusMode, setFocusMode] = useState(false);
@@ -135,7 +140,7 @@ export const App: React.FC = () => {
   const hostDocument = (): HostDocument | null => {
     const project = currentProjectRef.current;
     if (!project) return null;
-    return { title: project.title, author: project.author || '', contact: project.contact || '', content: contentRef.current || project.content, beats: beatsRef.current ?? null };
+    return { title: project.title, author: project.author || '', contact: project.contact || '', content: contentRef.current || project.content, beats: beatsRef.current ?? null, room: roomRef.current ?? null };
   };
 
   const save = useCallback(async (): Promise<boolean> => {
@@ -159,6 +164,7 @@ export const App: React.FC = () => {
       ...project,
       content: contentRef.current || project.content,
       beats: beatsRef.current ?? project.beats,
+      room: roomRef.current ?? project.room,
       outline: outlineRef.current ?? project.outline,
       updatedAt: new Date().toISOString()
     };
@@ -208,12 +214,14 @@ export const App: React.FC = () => {
       getDocument: hostDocument,
       loadDocument: (doc: HostDocument) => {
         const now = new Date().toISOString();
-        const project: ScreenplayProject = { id: `host-${Date.now()}`, title: doc.title || 'Untitled', author: doc.author, contact: doc.contact, content: doc.content, beats: doc.beats, createdAt: now, updatedAt: now };
+        const project: ScreenplayProject = { id: `host-${Date.now()}`, title: doc.title || 'Untitled', author: doc.author, contact: doc.contact, content: doc.content, beats: doc.beats, room: doc.room ?? null, createdAt: now, updatedAt: now };
         currentProjectRef.current = project;
         setCurrentProject(project);
         contentRef.current = project.content;
         beatsRef.current = project.beats ?? null;
         setBeats(project.beats ?? null);
+        roomRef.current = project.room ?? null;
+        setRoom(project.room ?? null);
         dirtyRef.current = false;
         setSaveState({ kind: 'clean' });
         setEditorState(null);
@@ -245,6 +253,8 @@ export const App: React.FC = () => {
     contentRef.current = project.content;
     beatsRef.current = project.beats ?? null;
     setBeats(project.beats ?? null);
+    roomRef.current = project.room ?? null;
+    setRoom(project.room ?? null);
     outlineRef.current = project.outline ?? null;
     setEditorState(null);
     editorViewRef.current = null;
@@ -269,6 +279,12 @@ export const App: React.FC = () => {
     if (JSON.stringify(data) === JSON.stringify(beatsRef.current)) return;
     beatsRef.current = data;
     setBeats(data);
+    markDirty();
+  };
+
+  const handleRoomChange = (data: RoomData) => {
+    roomRef.current = data;
+    setRoom(data);
     markDirty();
   };
 
@@ -447,6 +463,20 @@ export const App: React.FC = () => {
         </div>
         <div className={`view${activeView === 'outline' ? ' active' : ''}`}>
           {activeView === 'outline' && currentProject && editorState && <OutlineView view={editorViewRef.current} state={editorState} onOpenScene={openScene} />}
+        </div>
+        <div className={`view${activeView === 'room' ? ' active' : ''}`}>
+          {activeView === 'room' && currentProject && editorState && (
+            <RoomView
+              view={editorViewRef.current}
+              state={editorState}
+              title={currentProject.title}
+              data={room}
+              onChange={handleRoomChange}
+              beats={beats}
+              onBeatsChange={handleBeatsChange}
+              onOpenScene={openScene}
+            />
+          )}
         </div>
         <div className={`view${activeView === 'reports' ? ' active' : ''}`}>
           {activeView === 'reports' && currentProject && editorState && <ReportsView state={editorState} onOpenScene={openScene} />}

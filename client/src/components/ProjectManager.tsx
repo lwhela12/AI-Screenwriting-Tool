@@ -17,6 +17,7 @@ export interface ScreenplayProject {
   format?: string;
   beats?: any;
   outline?: any;
+  room?: any;
 }
 
 const LOCAL_KEY = 'screenplayProjects';

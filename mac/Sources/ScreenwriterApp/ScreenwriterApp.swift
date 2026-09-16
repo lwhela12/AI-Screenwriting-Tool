@@ -69,8 +69,10 @@ struct ScreenwriterApp: App {
                     .keyboardShortcut("2", modifiers: [.command, .option])
                 Button("Beat Board") { focusedBridge?.bridge?.setView("board") }
                     .keyboardShortcut("3", modifiers: [.command, .option])
-                Button("Reports") { focusedBridge?.bridge?.setView("reports") }
+                Button("Writers' Room") { focusedBridge?.bridge?.setView("room") }
                     .keyboardShortcut("4", modifiers: [.command, .option])
+                Button("Reports") { focusedBridge?.bridge?.setView("reports") }
+                    .keyboardShortcut("5", modifiers: [.command, .option])
                 Divider()
                 Picker("Theme", selection: $theme) {
                     ForEach(AppTheme.allCases) { t in
