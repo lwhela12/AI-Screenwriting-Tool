@@ -32,8 +32,13 @@ type HostMessage =
   | { type: 'wrapCheck'; result: WrapCheckResult }
   /** A file the page produced (export): the host shows a save panel and writes it. */
   | { type: 'export'; filename: string; mime: string; base64: string }
-  /** Ask the host's on-device language model for a completion; the answer comes back through `aiResult`. */
-  | { type: 'ai'; id: string; instructions: string; prompt: string };
+  /** Ask a language model for a completion; the answer comes back through `aiResult`. */
+  | { type: 'ai'; id: string; tier: AITier; json: boolean; instructions: string; prompt: string }
+  /** Open the app's Settings window (to add a cloud key). */
+  | { type: 'openSettings' };
+
+/** `device` runs on the Mac (Apple Intelligence); `cloud` sends the text to the configured provider. */
+export type AITier = 'device' | 'cloud';
 
 export interface AIAvailability {
   available: boolean;
@@ -41,10 +46,16 @@ export interface AIAvailability {
   reason?: string;
 }
 
+export interface CloudAvailability extends AIAvailability {
+  provider?: string;
+  model?: string;
+}
+
 export type AIResult = { ok: true; text: string } | { ok: false; error: string };
 
 export interface HostCapabilities {
   ai?: AIAvailability;
+  cloud?: CloudAvailability;
 }
 
 export interface WrapCheckResult {
@@ -215,10 +226,26 @@ const pendingAI = new Map<string, { resolve: (text: string) => void; reject: (er
 let aiCounter = 0;
 
 export const AI_TIMEOUT_MS = 120_000;
+export const CLOUD_TIMEOUT_MS = 300_000;
+
+export interface AIRequestOptions {
+  tier?: AITier;
+  /** Ask for a JSON object as the whole answer. */
+  json?: boolean;
+}
 
 export function aiAvailability(): AIAvailability {
   if (!isHosted()) return { available: false, reason: 'Available in the Mac app.' };
   return capabilities.ai ?? { available: false, reason: 'Checking Apple Intelligence…' };
+}
+
+export function cloudAvailability(): CloudAvailability {
+  if (!isHosted()) return { available: false, reason: 'Available in the Mac app.' };
+  return capabilities.cloud ?? { available: false, reason: 'Add a Gemini API key in Settings.' };
+}
+
+export function openHostSettings(): void {
+  postToHost({ type: 'openSettings' });
 }
 
 export function subscribeCapabilities(listener: () => void): () => void {
@@ -232,16 +259,17 @@ export function setCapabilities(caps: HostCapabilities): void {
 }
 
 /** Ask the host's model for a completion. Rejects when there is no host or the host reports an error. */
-export function requestAI(instructions: string, prompt: string): Promise<string> {
+export function requestAI(instructions: string, prompt: string, options: AIRequestOptions = {}): Promise<string> {
   if (!isHosted()) return Promise.reject(new Error('Available in the Mac app.'));
+  const tier = options.tier ?? 'device';
   const id = `ai-${++aiCounter}`;
   return new Promise<string>((resolve, reject) => {
     const timer = setTimeout(() => {
       pendingAI.delete(id);
       reject(new Error('The model did not answer in time.'));
-    }, AI_TIMEOUT_MS);
+    }, tier === 'cloud' ? CLOUD_TIMEOUT_MS : AI_TIMEOUT_MS);
     pendingAI.set(id, { resolve, reject, timer });
-    postToHost({ type: 'ai', id, instructions, prompt });
+    postToHost({ type: 'ai', id, tier, json: !!options.json, instructions, prompt });
   });
 }
 

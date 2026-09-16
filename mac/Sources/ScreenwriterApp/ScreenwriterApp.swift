@@ -79,6 +79,9 @@ struct ScreenwriterApp: App {
                 }
             }
         }
+        Settings {
+            AISettingsView()
+        }
     }
 }
 
@@ -88,6 +91,7 @@ private struct ScriptWindow: View {
     let fileURL: URL?
     let theme: String
     @StateObject private var bridgeBox = ScriptBridgeBox()
+    @Environment(\.openSettings) private var openSettings
 
     private var title: String {
         fileURL?.deletingPathExtension().lastPathComponent ?? "Untitled"
@@ -97,6 +101,7 @@ private struct ScriptWindow: View {
         ScriptWebView(
             load: ScriptLoad(document: document, title: title),
             theme: theme,
+            documentKey: fileURL?.path,
             bridgeBox: bridgeBox,
             onChanged: { text in
                 // The page hands back the whole serialized document on every change.
@@ -105,6 +110,10 @@ private struct ScriptWindow: View {
             },
             onSave: {
                 NSApp.sendAction(#selector(NSDocument.save(_:)), to: nil, from: nil)
+            },
+            onOpenSettings: {
+                NSApp.activate(ignoringOtherApps: true)
+                openSettings()
             }
         )
         .ignoresSafeArea()

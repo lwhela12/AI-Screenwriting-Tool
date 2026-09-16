@@ -45,6 +45,8 @@ public enum HostEvent {
     case wrapCheck([String: Any])
     /// The page produced a file to save (an export).
     case export(filename: String, mime: String, data: Data)
+    /// The page asked for the Settings window (to add a cloud key).
+    case openSettings
 }
 
 /// Serves the bundled editor over `screenwriter://web/...`. A real origin
@@ -93,7 +95,24 @@ public final class ScriptBridge: NSObject, WKScriptMessageHandler, WKNavigationD
     public var onEvent: ((HostEvent) -> Void)?
     public private(set) weak var webView: WKWebView?
     public private(set) var isReady = false
+    /// Identifies the document for the cloud consent memory (the file path).
+    public var documentKey: String?
+    /// Shown in the consent dialog.
+    public var documentTitle = "this script"
     private var schemeHandler: WebBundleSchemeHandler?
+    private var settingsObserver: NSObjectProtocol?
+
+    public override init() {
+        super.init()
+        settingsObserver = NotificationCenter.default.addObserver(forName: CloudModel.settingsChanged, object: nil, queue: .main) { [weak self] _ in
+            guard let self, self.isReady else { return }
+            self.sendCapabilities()
+        }
+    }
+
+    deinit {
+        if let settingsObserver { NotificationCenter.default.removeObserver(settingsObserver) }
+    }
 
     public static func makeWebView(bridge: ScriptBridge, directory: URL) -> WKWebView {
         let configuration = WKWebViewConfiguration()
@@ -153,33 +172,48 @@ public final class ScriptBridge: NSObject, WKScriptMessageHandler, WKNavigationD
             }
         case "ai":
             if let id = body["id"] as? String {
-                answerAI(id: id, instructions: body["instructions"] as? String ?? "", prompt: body["prompt"] as? String ?? "")
+                answerAI(id: id, tier: body["tier"] as? String ?? "device", json: body["json"] as? Bool ?? false, instructions: body["instructions"] as? String ?? "", prompt: body["prompt"] as? String ?? "")
             }
+        case "openSettings":
+            onEvent?(.openSettings)
         default:
             break
         }
     }
 
     /// Run one model request and hand the answer back to the page.
-    private func answerAI(id: String, instructions: String, prompt: String) {
+    private func answerAI(id: String, tier: String, json wantsJSON: Bool, instructions: String, prompt: String) {
         Task { @MainActor [weak self] in
+            guard let self else { return }
             let result: [String: Any]
             do {
-                let text = try await OnDeviceModel.respond(instructions: instructions, prompt: prompt)
+                let text: String
+                if tier == "cloud" {
+                    guard CloudModel.confirmSending(documentKey: documentKey, title: documentTitle) else {
+                        throw CloudModel.CloudError(message: "Cancelled.")
+                    }
+                    text = try await CloudModel.respond(instructions: instructions, prompt: prompt, json: wantsJSON)
+                } else {
+                    text = try await OnDeviceModel.respond(instructions: instructions, prompt: prompt)
+                }
                 result = ["ok": true, "text": text]
             } catch {
                 result = ["ok": false, "error": error.localizedDescription]
             }
-            self?.call("window.__screenplay && window.__screenplay.aiResult(\(self?.json(id) ?? "null"), \(self?.json(result) ?? "null"))")
+            self.call("window.__screenplay && window.__screenplay.aiResult(\(self.json(id)), \(self.json(result)))")
         }
     }
 
     /// Tell the page what this host can do.
     public func sendCapabilities() {
         let ai = OnDeviceModel.availability()
-        var caps: [String: Any] = ["available": ai.available]
-        if let reason = ai.reason { caps["reason"] = reason }
-        call("window.__screenplay && window.__screenplay.setCapabilities(\(json(["ai": caps])))")
+        var device: [String: Any] = ["available": ai.available]
+        if let reason = ai.reason { device["reason"] = reason }
+        let cloudInfo = CloudModel.availability()
+        var cloud: [String: Any] = ["available": cloudInfo.available, "provider": cloudInfo.provider]
+        if let model = cloudInfo.model { cloud["model"] = model }
+        if let reason = cloudInfo.reason { cloud["reason"] = reason }
+        call("window.__screenplay && window.__screenplay.setCapabilities(\(json(["ai": device, "cloud": cloud])))")
     }
 
     // MARK: Calls into the page
@@ -246,16 +280,20 @@ public final class ScriptBridgeBox: ObservableObject {
 public struct ScriptWebView: NSViewRepresentable {
     public var load: ScriptLoad
     public var theme: String
+    public var documentKey: String?
     public var bridgeBox: ScriptBridgeBox?
     public var onChanged: (String) -> Void
     public var onSave: () -> Void
+    public var onOpenSettings: () -> Void
 
-    public init(load: ScriptLoad, theme: String, bridgeBox: ScriptBridgeBox? = nil, onChanged: @escaping (String) -> Void, onSave: @escaping () -> Void) {
+    public init(load: ScriptLoad, theme: String, documentKey: String? = nil, bridgeBox: ScriptBridgeBox? = nil, onChanged: @escaping (String) -> Void, onSave: @escaping () -> Void, onOpenSettings: @escaping () -> Void = {}) {
         self.load = load
         self.theme = theme
+        self.documentKey = documentKey
         self.bridgeBox = bridgeBox
         self.onChanged = onChanged
         self.onSave = onSave
+        self.onOpenSettings = onOpenSettings
     }
 
     public func makeCoordinator() -> Coordinator { Coordinator() }
@@ -268,10 +306,13 @@ public struct ScriptWebView: NSViewRepresentable {
         }
         let view = ScriptBridge.makeWebView(bridge: coordinator.bridge, directory: directory)
         bridgeBox?.bridge = coordinator.bridge
+        coordinator.bridge.documentKey = documentKey
+        coordinator.bridge.documentTitle = load.title
         coordinator.pendingLoad = load
         coordinator.theme = theme
         coordinator.onChanged = onChanged
         coordinator.onSave = onSave
+        coordinator.onOpenSettings = onOpenSettings
         coordinator.bridge.onEvent = { [weak coordinator] event in
             coordinator?.handle(event)
         }
@@ -283,6 +324,9 @@ public struct ScriptWebView: NSViewRepresentable {
         let coordinator = context.coordinator
         coordinator.onChanged = onChanged
         coordinator.onSave = onSave
+        coordinator.onOpenSettings = onOpenSettings
+        coordinator.bridge.documentKey = documentKey
+        coordinator.bridge.documentTitle = load.title
         if coordinator.theme != theme {
             coordinator.theme = theme
             coordinator.bridge.setTheme(theme)
@@ -303,6 +347,7 @@ public struct ScriptWebView: NSViewRepresentable {
         var theme = "paper"
         var onChanged: ((String) -> Void)?
         var onSave: (() -> Void)?
+        var onOpenSettings: (() -> Void)?
         /// Set while a change we just received is flowing back through the document binding.
         var suppressReload = false
 
@@ -334,6 +379,8 @@ public struct ScriptWebView: NSViewRepresentable {
                 break
             case .export(let filename, _, let data):
                 Self.saveExport(filename: filename, data: data)
+            case .openSettings:
+                onOpenSettings?()
             }
         }
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { b } from './helpers';
 import { scenesOf } from '../src/components/editor-v2/scenes';
-import { sceneText, cleanSynopsis, capSentences, draftSynopsis, SCENE_TEXT_LIMIT } from '../src/ai';
+import { sceneText, cleanSynopsis, capSentences, draftSynopsis, scriptText, parseContinuity, continuityReport, SCENE_TEXT_LIMIT } from '../src/ai';
 import { requestAI, resolveAI, setCapabilities, aiAvailability } from '../src/host';
 
 describe('scene text for prompts', () => {
@@ -69,6 +69,35 @@ describe('AI bridge', () => {
     expect(posted[0].prompt).toContain('Mae pours coffee.');
     resolveAI(posted[0].id, { ok: true, text: ' "Mae pours coffee alone." ' });
     await expect(draft).resolves.toBe('Mae pours coffee alone.');
+  });
+
+  it('sends whole-script requests to the cloud tier as JSON', async () => {
+    setCapabilities({ cloud: { available: true, provider: 'gemini', model: 'gemini-test' } });
+    const doc = b.doc(b.sh('INT. A - DAY'), b.a('Mae leaves.'), b.sh('INT. B - DAY'), b.ch('MAE'), b.d('I never left.'));
+    const report = continuityReport(doc);
+    expect(posted[0]).toMatchObject({ type: 'ai', tier: 'cloud', json: true });
+    expect(posted[0].prompt).toBe('SCENE 1 — INT. A - DAY\nMae leaves.\n\nSCENE 2 — INT. B - DAY\nMAE: I never left.');
+    resolveAI(posted[0].id, {
+      ok: true,
+      text: '```json\n{"characters":[{"name":"Mae","facts":[{"fact":"leaves","scenes":[1]}]}],"findings":[{"title":"Mae\'s exit","characters":["MAE"],"detail":"She leaves, then says she never left.","scenes":[{"scene":1,"quote":"Mae leaves."},{"scene":"2","quote":"I never left."}],"confidence":"high"}]}\n```'
+    });
+    const result = await report;
+    expect(result.model).toBe('gemini-test');
+    expect(result.findings[0].scenes).toEqual([{ scene: 1, quote: 'Mae leaves.' }, { scene: 2, quote: 'I never left.' }]);
+    expect(result.characters[0].name).toBe('MAE');
+    // The same script is not sent twice.
+    await continuityReport(doc);
+    expect(posted.length).toBe(1);
+  });
+
+  it('numbers scenes after any opening material', () => {
+    const doc = b.doc(b.a('FADE IN:'), b.sh('INT. A - DAY'), b.a('Rain.'));
+    expect(scriptText(doc)).toBe('OPENING\nFADE IN:\n\nSCENE 1 — INT. A - DAY\nRain.');
+  });
+
+  it('rejects an answer with no report in it', () => {
+    expect(() => parseContinuity('Sorry, I cannot.', 'm')).toThrow('did not return');
+    expect(parseContinuity('{"findings":[{"detail":"x","scenes":[]}]}', 'm').findings[0].confidence).toBe('medium');
   });
 
   it('refuses outside the app', async () => {

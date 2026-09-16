@@ -216,3 +216,106 @@
   color: var(--muted);
   font-size: 12px;
 }
+
+/* Continuity ------------------------------------------------------------- */
+
+.continuity-setup p,
+.continuity-intro,
+.continuity-error,
+.continuity-footer {
+  max-width: 640px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.continuity-reason {
+  color: var(--ink);
+}
+
+.continuity-error {
+  color: var(--danger);
+}
+
+.continuity-footer {
+  margin-top: 20px;
+  font-size: 12px;
+  color: var(--faint);
+}
+
+.finding {
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.finding.medium {
+  border-left-color: var(--highlight-current);
+}
+
+.finding.low {
+  border-left-color: var(--faint);
+}
+
+.finding-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+}
+
+.finding-title {
+  font-weight: 600;
+}
+
+.finding-meta {
+  font-size: 11.5px;
+  color: var(--faint);
+  white-space: nowrap;
+}
+
+.finding-detail {
+  margin: 6px 0 8px;
+  line-height: 1.45;
+}
+
+.finding-scenes,
+.facts {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.finding-scenes li {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+
+.finding-scenes .link {
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.finding-quote {
+  font-family: var(--mono-font);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.facts li {
+  margin-bottom: 3px;
+}
+
+.fact-scenes .link {
+  margin-left: 4px;
+  color: var(--faint);
+}
+
+.report-table .link.heading,
+.reports .ui-button.outlined svg {
+  vertical-align: middle;
+}

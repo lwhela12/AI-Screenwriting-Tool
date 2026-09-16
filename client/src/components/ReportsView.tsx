@@ -3,6 +3,9 @@ import { EditorState } from 'prosemirror-state';
 import { pageViewKey } from './editor-v2/plugins/pageView';
 import { buildReport, charactersCSV, scenesCSV, ScriptReport } from './editor-v2/reports';
 import { SceneInfo } from './editor-v2/scenes';
+import { openHostSettings } from '../host';
+import { useCloudAvailability, continuityReport, cachedContinuity, ContinuityReport } from '../ai';
+import { SparkleIcon } from '../icons';
 import './Reports.css';
 
 interface ReportsViewProps {
@@ -10,7 +13,7 @@ interface ReportsViewProps {
   onOpenScene: (scene: SceneInfo) => void;
 }
 
-type Section = 'characters' | 'scenes' | 'matrix' | 'dialogue';
+type Section = 'characters' | 'scenes' | 'matrix' | 'dialogue' | 'continuity';
 
 function download(name: string, text: string) {
   const blob = new Blob([text], { type: 'text/csv' });
@@ -37,6 +40,37 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ state, onOpenScene }) 
   const report: ScriptReport = useMemo(() => buildReport(state.doc, pageViewKey.getState(state)?.layout), [state]);
   const [section, setSection] = useState<Section>('characters');
   const sceneNumber = (scene: SceneInfo) => scene.number || String(report.scenes.filter(s => !s.scene.opening).findIndex(s => s.scene.ordinal === scene.ordinal) + 1);
+  const numbered = useMemo(() => report.scenes.filter(s => !s.scene.opening).map(s => s.scene), [report]);
+  const cloud = useCloudAvailability();
+  const [continuity, setContinuity] = useState<ContinuityReport | null>(() => cachedContinuity(state.doc));
+  const [reading, setReading] = useState(false);
+  const [readError, setReadError] = useState<string | null>(null);
+
+  const readScript = async () => {
+    if (reading) return;
+    setReading(true);
+    setReadError(null);
+    try {
+      setContinuity(await continuityReport(state.doc));
+    } catch (err) {
+      const message = (err as Error).message;
+      if (message !== 'Cancelled.') setReadError(message);
+    } finally {
+      setReading(false);
+    }
+  };
+
+  /** A scene number from the report → link into the script. */
+  const sceneLink = (n: number, label?: string) => {
+    const scene = numbered[n - 1];
+    return scene ? (
+      <button key={n} className="link" onClick={() => onOpenScene(scene)} title={scene.heading}>
+        {label ?? `Scene ${n}`}
+      </button>
+    ) : (
+      <span key={n}>{label ?? `Scene ${n}`}</span>
+    );
+  };
 
   return (
     <div className="reports">
@@ -48,7 +82,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ state, onOpenScene }) 
               ['characters', 'Characters'],
               ['scenes', 'Scenes'],
               ['matrix', 'Who is in which scene'],
-              ['dialogue', 'Dialogue']
+              ['dialogue', 'Dialogue'],
+              ['continuity', 'Continuity']
             ] as [Section, string][]
           ).map(([id, label]) => (
             <button key={id} className={`ui-button${section === id ? ' active' : ''}`} onClick={() => setSection(id)}>
@@ -205,6 +240,90 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ state, onOpenScene }) 
                 </tbody>
               </table>
             </div>
+          </section>
+        )}
+
+        {section === 'continuity' && (
+          <section>
+            <div className="reports-section-head">
+              <h2>Continuity</h2>
+              {cloud.available && (
+                <button className="ui-button outlined" onClick={readScript} disabled={reading}>
+                  <SparkleIcon />
+                  <span>{reading ? 'Reading the script…' : continuity ? 'Read again' : 'Read the script'}</span>
+                </button>
+              )}
+            </div>
+            {!cloud.available && (
+              <div className="continuity-setup">
+                <p>
+                  A model reads the whole script and lists what it establishes about each character and where the script contradicts itself. This needs a cloud model;
+                  the script is sent only when you ask, and only after you confirm.
+                </p>
+                <p className="continuity-reason">{cloud.reason}</p>
+                <button className="ui-button outlined" onClick={openHostSettings}>
+                  Open Settings
+                </button>
+              </div>
+            )}
+            {cloud.available && !continuity && !reading && !readError && (
+              <p className="continuity-intro">
+                Reads all {report.pages} pages with {cloud.model} and lists contradictions with the lines in question, plus what the script establishes about each character. The
+                script is sent to {cloud.provider === 'gemini' ? 'Google' : cloud.provider} after you confirm.
+              </p>
+            )}
+            {reading && <p className="continuity-intro">Reading {report.pages} pages… this usually takes under a minute.</p>}
+            {readError && <p className="continuity-error">{readError}</p>}
+            {continuity && (
+              <>
+                <h3>Findings</h3>
+                {continuity.findings.length === 0 && <p className="continuity-intro">No contradictions found.</p>}
+                {continuity.findings.map((f, i) => (
+                  <div key={i} className={`finding ${f.confidence}`}>
+                    <div className="finding-head">
+                      <span className="finding-title">{f.title}</span>
+                      <span className="finding-meta">
+                        {f.characters.join(', ')}
+                        {f.characters.length ? ' · ' : ''}
+                        {f.confidence} confidence
+                      </span>
+                    </div>
+                    {f.detail && <p className="finding-detail">{f.detail}</p>}
+                    <ul className="finding-scenes">
+                      {f.scenes.map((s, j) => (
+                        <li key={j}>
+                          {sceneLink(s.scene)}
+                          {s.quote && <span className="finding-quote">“{s.quote}”</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+                <h3>What the script establishes</h3>
+                <table className="report-table">
+                  <tbody>
+                    {continuity.characters.map(c => (
+                      <tr key={c.name}>
+                        <td className="name">{c.name}</td>
+                        <td>
+                          <ul className="facts">
+                            {c.facts.map((f, i) => (
+                              <li key={i}>
+                                {f.fact}
+                                {f.scenes.length > 0 && <span className="fact-scenes"> {f.scenes.map(n => sceneLink(n, String(n)))}</span>}
+                              </li>
+                            ))}
+                          </ul>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="continuity-footer">
+                  Read by {continuity.model} at {continuity.at.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}. A model's reading, not a verdict: check each finding against the page.
+                </p>
+              </>
+            )}
           </section>
         )}
 

@@ -17,7 +17,8 @@ There is no server: the app owns files, and the browser build keeps scripts in t
 - **Reports** – Character, scene and dialogue statistics, and a who-is-in-which-scene matrix, all live, with CSV export.
 - **Import and export** – Opens Final Draft `.fdx`, Fountain, PDF and plain text; exports PDF, `.fdx`, Fountain and text.
 - **Find and replace, focus mode, three themes** – Paper, Sepia and Midnight (dark page under the dark theme).
-- **On this Mac, drafting help** – With Apple Intelligence on, the app drafts scene synopses on the Mac's own model, one scene at a time or for every scene that has none. Nothing leaves the machine, and Apple's model can decline some passages; those scenes are left blank for you.
+- **On this Mac, drafting help** – With Apple Intelligence on, the app drafts scene synopses on the Mac's own model, one scene at a time or for every scene that has none. Nothing leaves the machine.
+- **Continuity report** – Reports > Continuity has a cloud model (Google Gemini, bring your own key) read the whole script and list what it establishes about each character and where the script contradicts itself, with the lines in question linked to their scenes. The key lives in the macOS Keychain; a script is sent only when you ask and only after you confirm, once per script.
 
 ## Editor Keystrokes
 
@@ -63,7 +64,7 @@ cd mac
 ./build-app.sh --check path/to/script.fdx   # verifies WebKit wraps every line exactly as the pagination engine does
 ```
 
-Views switch from the View menu or with ⌥⌘1–4. The on-device drafting features need macOS 26 with Apple Intelligence turned on; the app runs on macOS 15 and later without them. For development, `SCREENWRITER_DEBUG_JS='…'` in the environment runs a script in the page once the document has loaded.
+Settings (⌘,) holds the Gemini key and model: paste a key from Google AI Studio, click Check connection, and the newest Flash model is chosen. Views switch from the View menu or with ⌥⌘1–4. The on-device drafting features need macOS 26 with Apple Intelligence turned on; the app runs on macOS 15 and later without them. For development, `SCREENWRITER_DEBUG_JS='…'` in the environment runs a script in the page once the document has loaded.
 
 ## Quick Start
 
