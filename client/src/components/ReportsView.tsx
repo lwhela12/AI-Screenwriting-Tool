@@ -40,9 +40,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ state, onOpenScene }) 
 
   return (
     <div className="reports">
-      <div className="reports-toolbar">
-        <span className="reports-title">Reports</span>
-        <nav className="reports-nav">
+      <div className="reports-scroll">
+        <div className="reports-head">
+        <nav className="reports-nav" aria-label="Report">
           {(
             [
               ['characters', 'Characters'],
@@ -51,7 +51,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ state, onOpenScene }) 
               ['dialogue', 'Dialogue']
             ] as [Section, string][]
           ).map(([id, label]) => (
-            <button key={id} className={section === id ? 'active' : ''} onClick={() => setSection(id)}>
+            <button key={id} className={`ui-button${section === id ? ' active' : ''}`} onClick={() => setSection(id)}>
               {label}
             </button>
           ))}
@@ -59,14 +59,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ state, onOpenScene }) 
         <span className="reports-summary">
           {report.pages} pages · {report.sceneCount} scenes · {report.characters.length} speaking parts · {report.words.toLocaleString()} words
         </span>
-      </div>
+        </div>
 
-      <div className="reports-scroll">
         {section === 'characters' && (
           <section>
             <div className="reports-section-head">
               <h2>Characters</h2>
-              <button onClick={() => download('characters.csv', charactersCSV(report))}>Download CSV</button>
+              <button className="ui-button outlined" onClick={() => download('characters.csv', charactersCSV(report))}>Download CSV</button>
             </div>
             <table className="report-table">
               <thead>
@@ -128,7 +127,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ state, onOpenScene }) 
           <section>
             <div className="reports-section-head">
               <h2>Scenes</h2>
-              <button onClick={() => download('scenes.csv', scenesCSV(report))}>Download CSV</button>
+              <button className="ui-button outlined" onClick={() => download('scenes.csv', scenesCSV(report))}>Download CSV</button>
             </div>
             <table className="report-table">
               <thead>

@@ -49,6 +49,15 @@ struct ScreenwriterApp: App {
                 .disabled(focusedBridge?.bridge == nil)
             }
             CommandMenu("View") {
+                Button("Script") { focusedBridge?.bridge?.setView("editor") }
+                    .keyboardShortcut("1", modifiers: [.command, .option])
+                Button("Outline") { focusedBridge?.bridge?.setView("outline") }
+                    .keyboardShortcut("2", modifiers: [.command, .option])
+                Button("Beat Board") { focusedBridge?.bridge?.setView("board") }
+                    .keyboardShortcut("3", modifiers: [.command, .option])
+                Button("Reports") { focusedBridge?.bridge?.setView("reports") }
+                    .keyboardShortcut("4", modifiers: [.command, .option])
+                Divider()
                 Picker("Theme", selection: $theme) {
                     ForEach(AppTheme.allCases) { t in
                         Text(t.displayName).tag(t.rawValue)

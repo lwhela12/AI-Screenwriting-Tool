@@ -10,7 +10,10 @@ import WebKit
 /// write to disk), `save` (the page asked to save), `log`, and `wrapCheck`
 /// (a line-wrapping comparison result). The app drives the page through
 /// `window.__screenplay`: `load(text, format, meta)`, `document()`,
-/// `wrapCheck()`, `setTheme(name)`.
+/// `wrapCheck()`, `setTheme(name)`, `setView(name)`, `exportAs(format)`.
+///
+/// Setting `SCREENWRITER_DEBUG_JS` in the environment evaluates that script in
+/// the page once the document has loaded (used by screenshots and checks).
 public enum WebBundle {
     /// The `web/` folder inside the app bundle, or an explicit directory for tools.
     public static func directory(explicit: String? = nil) -> URL? {
@@ -163,6 +166,16 @@ public final class ScriptBridge: NSObject, WKScriptMessageHandler, WKNavigationD
         call("window.__screenplay && window.__screenplay.setTheme(\(json(name)))")
     }
 
+    /// Switch the main view: `editor`, `outline`, `board` or `reports`.
+    public func setView(_ name: String) {
+        call("window.__screenplay && window.__screenplay.setView(\(json(name)))")
+    }
+
+    /// Evaluate arbitrary script in the page (debugging and tooling only).
+    public func evaluate(_ script: String) {
+        call(script)
+    }
+
     public func requestWrapCheck() {
         call("window.__screenplay && window.__screenplay.wrapCheck()")
     }
@@ -266,6 +279,11 @@ public struct ScriptWebView: NSViewRepresentable {
                     loadedGeneration = pendingLoad
                     bridge.load(pendingLoad)
                     self.pendingLoad = nil
+                }
+                if let script = ProcessInfo.processInfo.environment["SCREENWRITER_DEBUG_JS"], !script.isEmpty {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                        self?.bridge.evaluate(script)
+                    }
                 }
             case .changed(let text):
                 suppressReload = true

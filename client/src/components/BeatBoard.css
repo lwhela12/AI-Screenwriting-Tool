@@ -1,4 +1,5 @@
 .beat-board {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -6,46 +7,6 @@
   background: var(--desk);
   font-family: var(--ui-font);
   color: var(--ink);
-}
-
-.beat-board-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 8px 16px;
-  background: var(--chrome);
-  border-bottom: 1px solid var(--chrome-border);
-  font-size: 13px;
-}
-
-.beat-board-title {
-  font-weight: 600;
-}
-
-.beat-board-hint {
-  flex: 1;
-  color: var(--faint);
-  font-size: 12px;
-}
-
-.beat-board-add,
-.beat-card-actions button {
-  font: inherit;
-  font-size: 12px;
-  padding: 4px 10px;
-  border: 1px solid var(--chrome-border);
-  border-radius: 6px;
-  background: var(--chrome);
-  cursor: pointer;
-}
-
-.beat-board-add:hover,
-.beat-card-actions button:hover {
-  background: var(--panel);
-}
-
-.beat-card-actions button.danger {
-  color: var(--danger);
 }
 
 .beat-board-scroll {
@@ -58,7 +19,7 @@
   position: relative;
   width: 100%;
   height: 100%;
-  background-image: radial-gradient(var(--chrome-border) 1px, transparent 1px);
+  background-image: radial-gradient(var(--line) 1px, transparent 1px);
   background-size: 24px 24px;
 }
 
@@ -72,13 +33,16 @@
   pointer-events: none;
 }
 
+/* Cards are pastel in every theme, so they always carry dark ink. */
 .beat-card {
   position: absolute;
-  box-sizing: border-box;
-  padding: 10px 12px;
-  border-radius: 8px;
-  color: #1e1c19; /* cards are pastel in every theme */
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  color: #1e1c19;
+  box-shadow: 0 2px 6px rgba(20, 18, 14, 0.14);
   cursor: grab;
   user-select: none;
   touch-action: none;
@@ -86,12 +50,12 @@
 
 .beat-card.dragging {
   cursor: grabbing;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 8px 20px rgba(20, 18, 14, 0.22);
   z-index: 2;
 }
 
 .beat-card.editing {
-  box-shadow: 0 0 0 2px var(--accent), 0 8px 20px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 0 0 2px var(--accent), 0 8px 20px rgba(20, 18, 14, 0.18);
   z-index: 3;
 }
 
@@ -99,7 +63,6 @@
 .beat-card textarea {
   display: block;
   width: 100%;
-  box-sizing: border-box;
   font: inherit;
   color: inherit;
   background: transparent;
@@ -111,33 +74,40 @@
   user-select: text;
 }
 
+.beat-card input::placeholder,
+.beat-card textarea::placeholder {
+  color: rgba(30, 28, 25, 0.45);
+}
+
 .beat-card-title {
-  font-weight: 600;
-  font-size: 14px;
-  margin-bottom: 4px;
+  font-size: 13.5px;
+  font-weight: 650;
+  line-height: 18px;
 }
 
 .beat-card-text {
-  font-size: 13px;
-  line-height: 1.35;
+  font-size: 12.5px;
+  line-height: 17px;
   color: #3b3834;
 }
 
 .beat-card-tools {
-  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 2px;
   padding-top: 8px;
-  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .beat-card-colors {
   display: flex;
-  gap: 4px;
-  margin-bottom: 8px;
+  gap: 5px;
 }
 
 .beat-color {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   border: 1px solid rgba(0, 0, 0, 0.15);
   cursor: pointer;
@@ -145,11 +115,31 @@
 }
 
 .beat-color.selected {
-  box-shadow: 0 0 0 2px var(--accent);
+  box-shadow: 0 0 0 2px #1e1c19;
 }
 
 .beat-card-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
+}
+
+.beat-card-actions button {
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #1e1c19;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 6px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+.beat-card-actions button:hover {
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.beat-card-actions button.danger {
+  color: #9f2a1a;
 }

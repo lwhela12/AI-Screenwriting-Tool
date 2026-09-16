@@ -27,6 +27,9 @@ const tabs: { id: ViewType; label: string; icon: React.ReactNode }[] = [
   { id: 'reports', label: 'Reports', icon: <ReportIcon /> }
 ];
 
+/** ⌥⌘1–4 switch views, in tab order. */
+const VIEW_KEYS: ViewType[] = tabs.map(t => t.id);
+
 const THEMES = [
   { id: 'paper', label: 'Paper' },
   { id: 'sepia', label: 'Sepia' },
@@ -189,6 +192,9 @@ export const App: React.FC = () => {
     if (!HOSTED) return;
     installHostApi({
       getView: () => editorViewRef.current,
+      setView: name => {
+        if ((VIEW_KEYS as string[]).includes(name)) setActiveView(name as ViewType);
+      },
       getDocument: hostDocument,
       loadDocument: (doc: HostDocument) => {
         const now = new Date().toISOString();
@@ -297,6 +303,12 @@ export const App: React.FC = () => {
       } else if (mod && event.shiftKey && event.key.toLowerCase() === 'f') {
         event.preventDefault();
         setFocusMode(f => !f);
+      } else if (mod && event.altKey && !event.shiftKey && event.code.startsWith('Digit')) {
+        const index = Number(event.code.slice(5)) - 1;
+        if (VIEW_KEYS[index]) {
+          event.preventDefault();
+          setActiveView(VIEW_KEYS[index]);
+        }
       } else if (event.key === 'Escape' && focusMode) {
         setFocusMode(false);
       }
@@ -338,7 +350,7 @@ export const App: React.FC = () => {
         </div>
         <nav className="toolbar-group tabs" aria-label="Views">
           {tabs.map(tab => (
-            <button key={tab.id} className={`ui-button${activeView === tab.id ? ' active' : ''}`} onClick={() => setActiveView(tab.id)}>
+            <button key={tab.id} className={`ui-button${activeView === tab.id ? ' active' : ''}`} onClick={() => setActiveView(tab.id)} title={`${tab.label}  ⌥⌘${VIEW_KEYS.indexOf(tab.id) + 1}`}>
               {tab.icon}
               <span>{tab.label}</span>
             </button>

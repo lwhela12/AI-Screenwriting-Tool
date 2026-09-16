@@ -67,6 +67,8 @@ export interface ScreenplayHostApi {
   /** Compare the browser's line wrapping with the pagination engine's, element by element. */
   wrapCheck: () => WrapCheckResult | null;
   setTheme: (name: string) => void;
+  /** Switch the main view: 'editor' | 'outline' | 'board' | 'reports'. */
+  setView: (name: string) => void;
 }
 
 interface HostBindings {
@@ -74,6 +76,7 @@ interface HostBindings {
   loadDocument: (doc: HostDocument) => void;
   getDocument: () => HostDocument | null;
   setTheme: (name: string) => void;
+  setView: (name: string) => void;
   exportAs: (format: 'pdf' | 'fdx' | 'fountain' | 'txt') => void;
 }
 
@@ -199,7 +202,8 @@ export function installHostApi(bindings: HostBindings): void {
       postToHost({ type: 'wrapCheck', result });
       return result;
     },
-    setTheme: name => bindings.setTheme(name)
+    setTheme: name => bindings.setTheme(name),
+    setView: name => bindings.setView(name)
   };
   window.__screenplay = api;
   postToHost({ type: 'ready' });

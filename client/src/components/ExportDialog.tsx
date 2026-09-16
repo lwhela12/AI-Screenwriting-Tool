@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ScreenplayProject } from './ProjectManager';
 import { exportToPDF, exportToFDX, exportToText, exportToFountain } from '../utils/exporters';
 import './ExportDialog.css';
@@ -8,76 +8,52 @@ interface ExportDialogProps {
   onClose: () => void;
 }
 
+type Format = 'pdf' | 'fdx' | 'fountain' | 'txt';
+
+const FORMATS: { id: Format; badge: string; name: string; note: string }[] = [
+  { id: 'pdf', badge: 'PDF', name: 'PDF', note: 'Paginated exactly as on screen. For sharing and printing.' },
+  { id: 'fdx', badge: 'FDX', name: 'Final Draft', note: 'Opens in Final Draft with scene colours and synopses intact.' },
+  { id: 'fountain', badge: 'FTN', name: 'Fountain', note: 'Plain-text screenplay read by Highland, Slugline, Beat and others.' },
+  { id: 'txt', badge: 'TXT', name: 'Plain text', note: 'The script as text, one element per paragraph.' }
+];
+
 export const ExportDialog: React.FC<ExportDialogProps> = ({ project, onClose }) => {
-  const handleExport = (format: 'pdf' | 'fdx' | 'fountain' | 'txt') => {
-    switch (format) {
-      case 'pdf':
-        exportToPDF(project);
-        break;
-      case 'fdx':
-        exportToFDX(project);
-        break;
-      case 'fountain':
-        exportToFountain(project);
-        break;
-      case 'txt':
-        exportToText(project);
-        break;
-    }
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const handleExport = (format: Format) => {
+    if (format === 'pdf') exportToPDF(project);
+    else if (format === 'fdx') exportToFDX(project);
+    else if (format === 'fountain') exportToFountain(project);
+    else exportToText(project);
     onClose();
   };
 
   return (
-    <div className="dialog-overlay" onClick={onClose}>
-      <div className="export-dialog" onClick={e => e.stopPropagation()}>
-        <h2>Export Screenplay</h2>
-        <p className="export-title">"{project.title}"</p>
-        
-        <div className="export-options">
-          <button 
-            className="export-option"
-            onClick={() => handleExport('pdf')}
-          >
-            <div className="export-icon">📄</div>
-            <div className="export-info">
-              <h3>PDF</h3>
-              <p>Industry-standard format for sharing and printing</p>
-            </div>
-          </button>
-          
-          <button 
-            className="export-option"
-            onClick={() => handleExport('fdx')}
-          >
-            <div className="export-icon">📝</div>
-            <div className="export-info">
-              <h3>Final Draft (.fdx)</h3>
-              <p>Compatible with Final Draft and other screenwriting software</p>
-            </div>
-          </button>
-          
-          <button className="export-option" onClick={() => handleExport('fountain')}>
-            <div className="export-icon">⛲</div>
-            <div className="export-info">
-              <h3>Fountain (.fountain)</h3>
-              <p>Plain-text screenplay format read by Highland, Slugline, Beat and others</p>
-            </div>
-          </button>
-
-          <button 
-            className="export-option"
-            onClick={() => handleExport('txt')}
-          >
-            <div className="export-icon">📃</div>
-            <div className="export-info">
-              <h3>Plain Text</h3>
-              <p>Simple text format for basic editing</p>
-            </div>
-          </button>
+    <div className="ui-overlay" onClick={onClose}>
+      <div className="ui-sheet export-dialog" role="dialog" aria-label="Export" onClick={e => e.stopPropagation()}>
+        <div className="export-head">
+          <h2>Export</h2>
+          <p>{project.title}</p>
         </div>
-        
-        <div className="dialog-actions">
-          <button className="btn-secondary" onClick={onClose}>
+        <div className="export-options">
+          {FORMATS.map(f => (
+            <button key={f.id} className="export-option" onClick={() => handleExport(f.id)} autoFocus={f.id === 'pdf'}>
+              <span className="export-badge">{f.badge}</span>
+              <span className="export-info">
+                <span className="export-name">{f.name}</span>
+                <span className="export-note">{f.note}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+        <div className="export-actions">
+          <button className="ui-button outlined" onClick={onClose}>
             Cancel
           </button>
         </div>

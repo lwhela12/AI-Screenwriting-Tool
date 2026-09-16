@@ -3,6 +3,7 @@ import { EditorState } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import { Beat, BeatBoardData, BEAT_COLORS, CARD_WIDTH, CARD_GAP, boardExtent, emptyBoard, newBeatId, normalizeBeats } from './beats';
 import { scenesOf, sceneAt, insertScene, SceneInfo } from './editor-v2/scenes';
+import { PlusIcon } from '../icons';
 import './BeatBoard.css';
 
 interface BeatBoardProps {
@@ -84,13 +85,6 @@ export const BeatBoard: React.FC<BeatBoardProps> = ({ data, onChange, view, stat
 
   return (
     <div className="beat-board">
-      <div className="beat-board-toolbar">
-        <span className="beat-board-title">Beat Board</span>
-        <span className="beat-board-hint">Double-click the board to add a beat · drag cards to arrange · send a beat to the script as a scene</span>
-        <button className="beat-board-add" onClick={addBeatAtEnd}>
-          + Beat
-        </button>
-      </div>
       <div className="beat-board-scroll">
         <div ref={boardRef} className="beat-board-canvas" style={boardStyle} onDoubleClick={onBoardDoubleClick} onPointerDown={onBoardPointerDown}>
           {board.beats.length === 0 && <div className="beat-board-empty">Double-click anywhere to add your first beat.</div>}
@@ -135,11 +129,11 @@ export const BeatBoard: React.FC<BeatBoardProps> = ({ data, onChange, view, stat
                   </div>
                   <div className="beat-card-actions">
                     <button onClick={() => sendToScript(beat, false)} title="Add a scene at the end of the script with this beat as its synopsis">
-                      → Script (end)
+                      Send to script
                     </button>
                     {current && !current.opening && (
                       <button onClick={() => sendToScript(beat, true)} title={`Add a scene after ${current.heading || 'the current scene'}`}>
-                        → After current scene
+                        After current scene
                       </button>
                     )}
                     <button className="danger" onClick={() => removeBeat(beat.id)}>
@@ -152,6 +146,11 @@ export const BeatBoard: React.FC<BeatBoardProps> = ({ data, onChange, view, stat
           ))}
         </div>
       </div>
+      <div className="view-hint">Double-click anywhere to add a beat · drag to arrange · send a beat to the script from its card</div>
+      <button className="view-fab" onClick={addBeatAtEnd}>
+        <PlusIcon />
+        <span>Beat</span>
+      </button>
     </div>
   );
 };
