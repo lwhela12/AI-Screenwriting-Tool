@@ -305,3 +305,34 @@ export async function importPdf(data: ArrayBuffer): Promise<PdfImport> {
   const lines = await extractPdfLines(data, pdfjs);
   return pdfLinesToScript(lines);
 }
+
+/**
+ * A PDF's text as plain prose (for treatments and other documents that are
+ * not scripts): lines in reading order, a blank line where the vertical gap
+ * between lines says a paragraph ended, and one between pages.
+ */
+export async function pdfToText(data: ArrayBuffer): Promise<string> {
+  polyfillStreamIteration();
+  const [pdfjs, worker] = await Promise.all([import('pdfjs-dist/legacy/build/pdf.mjs'), import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url')]);
+  (pdfjs as any).GlobalWorkerOptions.workerSrc = worker.default;
+  return pdfLinesToText(await extractPdfLines(data, pdfjs));
+}
+
+export function pdfLinesToText(lines: PdfLine[]): string {
+  const paragraphs: string[] = [];
+  let current: string[] = [];
+  let last: PdfLine | null = null;
+  const flush = () => {
+    if (current.length) paragraphs.push(current.join(' '));
+    current = [];
+  };
+  for (const line of lines) {
+    const text = line.text.trim();
+    if (!text) continue;
+    if (last && (line.page !== last.page || line.y - last.y > LINE_PT * 1.6 || line.x > last.x + 18)) flush();
+    current.push(text);
+    last = line;
+  }
+  flush();
+  return paragraphs.join('\n\n');
+}

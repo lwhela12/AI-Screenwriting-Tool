@@ -1,6 +1,6 @@
-# AI‑Integrated Screenwriting Tool
+# Pica
 
-This repository contains the source code for an open‑source screenwriting application inspired by **Final Draft 13**.  It provides professional screenplay formatting, planning tools such as a beat board and outline editor, real‑time collaboration and AI‑assisted writing features.
+Pica is a screenwriting app for the Mac: Courier 12 on a US Letter page, and nothing leaves the machine. A pica is twelve points, and Courier 12 on a typewriter is pica type, ten characters to the inch; the app is named for the page it reproduces. It provides screenplay formatting that matches **Final Draft** line for line, planning tools such as a beat board and outline editor, and AI help that breaks the story with you but never writes a line of the script.
 
 ## Structure
 
@@ -18,7 +18,7 @@ There is no server: the app owns files, and the browser build keeps scripts in t
 - **Import and export** – Opens Final Draft `.fdx`, Fountain, PDF and plain text; exports PDF, `.fdx`, Fountain and text.
 - **Find and replace, focus mode, three themes** – Paper, Sepia and Midnight (dark page under the dark theme).
 - **On this Mac, drafting help** – With Apple Intelligence on, the app drafts scene synopses on the Mac's own model, one scene at a time or for every scene that has none. Nothing leaves the machine.
-- **Writers' Room** – Break the story with a model that has read the script, the outline and the beat board. It talks in your terms and proposes beats (or scenes, when asked) as cards; keep the ones you want, send them to the beat board or straight into the outline as scene headings with synopses, and write the scenes yourself. It never writes a line of the script. Modes: break the story, ask me questions, alternatives, pressure test. The conversation is saved in the script file.
+- **Writers' Room** – Break the story with a model that has read the script, the outline and the beat board. It talks first: where the story is going, the arc, what is thin. When you are ready, Lay out the beats puts the story on the beat board as cards (each with the scenes that carry it, and gaps the script does not have yet marked), and the board opens beside the chat so you can move cards while you talk; the room reads your arrangement and edits its own cards by label, never deleting one. Break into scenes then turns the beats into scene proposals for the outline. It knows the page count, where each scene starts and how long it runs, and where every page falls in the text, and a Format menu (feature, hour drama, half-hour comedy, limited series, short) tells it what shape and length to think in. It talks in your terms and proposes beats (or scenes, when asked) as cards; keep the ones you want, send them to the beat board or straight into the outline as scene headings with synopses, and write the scenes yourself. It never writes a line of the script. Modes: break the story, ask me questions, alternatives, pressure test. Bring a treatment (paste it, or import a Word document, PDF, plain text, Markdown or Fountain) and a fifth mode, plot the treatment, breaks it into scenes in order with headings and synopses at the density of a finished feature (fifteen or so a turn, picking up wherever the outline already reaches); send the ones you keep to the outline. Conversations are listed down the left, each named and summarised by a model (on this Mac when Apple Intelligence is on, otherwise Gemini) so you can pick one up again; they, the treatment and the format are saved in the script file.
 - **Continuity report** – Reports > Continuity has a cloud model (Google Gemini, bring your own key) read the whole script and list what it establishes about each character and where the script contradicts itself, with the lines in question linked to their scenes. The key lives in the macOS Keychain; a script is sent only when you ask and only after you confirm, once per script.
 
 ## Editor Keystrokes
@@ -42,7 +42,7 @@ Auto-formatting only touches what you just typed: scene headings, character name
 
 Pagination reproduces Final Draft's screenplay template: 54 lines of 12pt Courier per page inside 1 inch margins (7pt character advance, 61 characters of action), two blank lines before scene headings, splits only after a complete sentence with the remainder re-wrapped, `(MORE)` and the `(CONT'D)` cue printed in the page margins as Final Draft does, at least two rows of a speech kept with its cue, dialogue that crosses a page gets `(MORE)` and a `NAME (CONT'D)` cue, scene headings and character cues are never stranded at the bottom of a page, action never leaves a single line behind, and transitions stay with what precedes them. The same engine drives the on-screen page gaps, the page counter, and the PDF export, so they always agree.
 
-The **Scenes** panel beside the script lists every scene with its page and length. Click a scene to jump to it, drag to reorder scenes (the pages move with them), expand a scene to write its synopsis, which is stored with the scene and exports to Final Draft.
+The **Scenes** panel beside the script lists every scene with its page and length. The highlight follows the cursor and the list scrolls to keep it in view. Click a scene to jump to it, drag to reorder scenes (the pages move with them). The synopsis is written in the inspector on the right (or drafted on-device), is stored with the scene, exports to Final Draft, and shows under the heading here.
 
 The **Outline** tab shows the same scenes as index cards: heading, synopsis, cast, page and length, a colour, and structure labels (Act One, Midpoint…) between cards. Drag a card to reorder the script, add or delete scenes, and open any scene in the editor. The **Beat Board** is a freeform canvas of ideas: double-click to add a beat, drag to arrange, and send a beat into the script as a new scene with the beat's text as its synopsis.
 
@@ -60,12 +60,12 @@ The native Mac app lives in `mac/`: a SwiftUI document-based shell around the sa
 
 ```bash
 cd mac
-./build-app.sh              # builds client/ and Screenwriter.app into mac/.build
+./build-app.sh              # builds client/ and Pica.app into mac/.build
 ./build-app.sh --install    # also copies it to /Applications
 ./build-app.sh --check path/to/script.fdx   # verifies WebKit wraps every line exactly as the pagination engine does
 ```
 
-Settings (⌘,) holds the Gemini key and model: paste a key from Google AI Studio, click Check connection, and the newest Flash model is chosen. Views switch from the View menu or with ⌥⌘1–5. The on-device drafting features need macOS 26 with Apple Intelligence turned on; the app runs on macOS 15 and later without them. For development, `SCREENWRITER_DEBUG_JS='…'` in the environment runs a script in the page once the document has loaded.
+Settings (⌘,) holds the Gemini key and model: paste a key from Google AI Studio and pick a model from the menu of recent ones (Gemini 3.8 Flash by default). Check connection replaces the menu with the models your key can actually use. Views switch from the View menu or with ⌥⌘1–5. The on-device drafting features need macOS 26 with Apple Intelligence turned on; the app runs on macOS 15 and later without them. For development, `SCREENWRITER_DEBUG_JS='…'` in the environment runs a script in the page once the document has loaded.
 
 ## Quick Start
 

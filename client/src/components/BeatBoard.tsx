@@ -12,6 +12,10 @@ interface BeatBoardProps {
   view: EditorView | null;
   state: EditorState;
   onOpenScene: (scene: SceneInfo) => void;
+  /** Cards to draw attention to (just written or changed by the room). */
+  highlightIds?: string[];
+  /** Inside the Writers' Room: no hint line, smaller chrome. */
+  compact?: boolean;
 }
 
 /**
@@ -19,13 +23,18 @@ interface BeatBoardProps {
  * cards to arrange them, edit in place, and send a beat into the script as
  * a new scene (its text becomes the scene synopsis).
  */
-export const BeatBoard: React.FC<BeatBoardProps> = ({ data, onChange, view, state, onOpenScene }) => {
+export const BeatBoard: React.FC<BeatBoardProps> = ({ data, onChange, view, state, onOpenScene, highlightIds = [], compact = false }) => {
   const board = useMemo(() => normalizeBeats(data), [data]);
   const boardRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<{ id: string; dx: number; dy: number } | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const scenes = useMemo(() => scenesOf(state.doc), [state]);
   const current = sceneAt(scenes, state.selection.from);
+  const numbered = scenes.filter(s => !s.opening);
+  const jumpToScene = (n: number) => {
+    const scene = numbered[n - 1];
+    if (scene) onOpenScene(scene);
+  };
 
   const update = (beats: Beat[]) => onChange({ version: 2, beats });
   const patch = (id: string, changes: Partial<Beat>) => update(board.beats.map(b => (b.id === id ? { ...b, ...changes } : b)));
@@ -84,14 +93,14 @@ export const BeatBoard: React.FC<BeatBoardProps> = ({ data, onChange, view, stat
   const boardStyle = { minWidth: extent.width + CARD_GAP * 2, minHeight: extent.height + CARD_GAP * 2 };
 
   return (
-    <div className="beat-board">
+    <div className={`beat-board${compact ? ' compact' : ''}`}>
       <div className="beat-board-scroll">
         <div ref={boardRef} className="beat-board-canvas" style={boardStyle} onDoubleClick={onBoardDoubleClick} onPointerDown={onBoardPointerDown}>
           {board.beats.length === 0 && <div className="beat-board-empty">Double-click anywhere to add your first beat.</div>}
           {board.beats.map(beat => (
             <div
               key={beat.id}
-              className={`beat-card${drag?.id === beat.id ? ' dragging' : ''}${editing === beat.id ? ' editing' : ''}`}
+              className={`beat-card${drag?.id === beat.id ? ' dragging' : ''}${editing === beat.id ? ' editing' : ''}${highlightIds.includes(beat.id) ? ' fresh' : ''}${beat.gap ? ' gap' : ''}`}
               style={{ left: beat.x, top: beat.y, background: beat.color, width: CARD_WIDTH, color: '#1e1c19' }}
               onPointerDown={e => startDrag(e, beat)}
               onPointerMove={onDragMove}
@@ -114,6 +123,16 @@ export const BeatBoard: React.FC<BeatBoardProps> = ({ data, onChange, view, stat
                 onChange={e => patch(beat.id, { text: e.target.value })}
                 onFocus={() => setEditing(beat.id)}
               />
+              {(beat.gap || (beat.scenes && beat.scenes.length > 0)) && (
+                <div className="beat-card-scenes" onPointerDown={e => e.stopPropagation()}>
+                  {beat.gap && <span className="beat-gap-label">Not in the script yet</span>}
+                  {beat.scenes?.map(n => (
+                    <button key={n} className="beat-scene-chip" onClick={() => jumpToScene(n)} title={numbered[n - 1]?.heading || `Scene ${n}`}>
+                      Sc {n}
+                    </button>
+                  ))}
+                </div>
+              )}
               {editing === beat.id && (
                 <div className="beat-card-tools" onPointerDown={e => e.stopPropagation()}>
                   <div className="beat-card-colors">
@@ -146,7 +165,7 @@ export const BeatBoard: React.FC<BeatBoardProps> = ({ data, onChange, view, stat
           ))}
         </div>
       </div>
-      <div className="view-hint">Double-click anywhere to add a beat · drag to arrange · send a beat to the script from its card</div>
+      {!compact && <div className="view-hint">Double-click anywhere to add a beat · drag to arrange · send a beat to the script from its card</div>}
       <button className="view-fab" onClick={addBeatAtEnd}>
         <PlusIcon />
         <span>Beat</span>

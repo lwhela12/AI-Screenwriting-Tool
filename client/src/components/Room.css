@@ -1,4 +1,8 @@
 .room {
+  /* The conversation column: messages and the composer share it. */
+  --room-column: 720px;
+  --room-gutter: 24px;
+  --composer-height: 38px;
   display: flex;
   height: 100%;
   min-height: 0;
@@ -14,8 +18,94 @@
   flex-direction: column;
 }
 
+/* Conversations ---------------------------------------------------------- */
+
+.room-history {
+  flex: 0 0 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 12px;
+  background: var(--panel);
+  border-right: 1px solid var(--chrome-border);
+  overflow: auto;
+}
+
+.room-history .room-proposals-head {
+  padding: 0 4px 6px;
+}
+
+.room-history.collapsed {
+  flex: 0 0 44px;
+  padding: 10px 4px;
+  gap: 4px;
+  align-items: center;
+}
+
+.room-history-strip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.room-history-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.conversation-row {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.conversation-row:hover {
+  background: var(--chrome);
+}
+
+.conversation-row.active {
+  background: var(--current);
+}
+
+.conversation-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation-meta {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--faint);
+}
+
+.conversation-summary {
+  margin-top: 4px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.conversation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-top: 6px;
+}
+
 .room-modes {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 2px;
   padding: 10px 24px;
@@ -30,11 +120,149 @@
   flex: 1;
 }
 
+.room-format {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 8px;
+}
+
+.room-pane-toggle {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: 14px;
+}
+
+.room-pane-toggle .ui-button.active {
+  background: var(--chrome);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+/* The live board beside the conversation; the proposals column folds away meanwhile. */
+.room-proposals[hidden] {
+  display: none;
+}
+
+.room-board {
+  flex: 0 0 42%;
+  min-width: 320px;
+  display: flex;
+  min-height: 0;
+}
+
+/* The drag handle between the chat and the board. */
+.room-splitter {
+  flex: 0 0 7px;
+  margin: 0 -3px;
+  cursor: col-resize;
+  position: relative;
+  z-index: 1;
+  touch-action: none;
+}
+
+.room-splitter::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 1px;
+  background: var(--chrome-border);
+  transition: background 0.15s ease, width 0.15s ease, left 0.15s ease;
+}
+
+.room-splitter:hover::after,
+.room.splitting .room-splitter::after {
+  left: 2px;
+  width: 3px;
+  background: var(--accent);
+}
+
+/* No text selection or pointer flicker on the panes while dragging. */
+.room.splitting {
+  user-select: none;
+  cursor: col-resize;
+}
+
+.room.splitting .room-board,
+.room.splitting .room-conversation {
+  pointer-events: none;
+}
+
+.room-board .beat-board {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.room-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+  max-width: calc(var(--room-column) + 2 * var(--room-gutter));
+  margin: 0 auto;
+  padding: 6px var(--room-gutter) 0;
+}
+
+.room-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.room-step:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.room-step:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.room-proposals-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.room-proposed.as-button {
+  display: block;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--accent);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.room-format .ui-label {
+  margin: 0;
+}
+
+.room-format .ui-select {
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink);
+  background: var(--chrome);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  height: var(--control-height);
+  padding: 0 8px;
+}
+
 .room-scroll {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-  padding: 8px 24px 16px;
+  padding: 8px var(--room-gutter) 16px;
+  /* A visible scrollbar takes the same room on both sides, so the column stays centred. */
+  scrollbar-gutter: stable both-edges;
 }
 
 .room-setup,
@@ -71,10 +299,10 @@
 .room-message {
   display: flex;
   margin: 0 auto 12px;
-  max-width: 720px;
+  max-width: var(--room-column);
 }
 
-.room-message.writer {
+.room-message.by-writer {
   justify-content: flex-end;
 }
 
@@ -86,13 +314,13 @@
   line-height: 1.5;
 }
 
-.room-message.writer .room-bubble {
+.room-message.by-writer .room-bubble {
   background: var(--accent-soft);
   color: var(--ink);
   border-bottom-right-radius: 4px;
 }
 
-.room-message.room .room-bubble {
+.room-message.by-room .room-bubble {
   background: var(--chrome);
   border: 1px solid var(--line);
   border-bottom-left-radius: 4px;
@@ -118,29 +346,36 @@
 }
 
 .room-error {
-  max-width: 720px;
+  max-width: var(--room-column);
   margin: 0 auto;
   color: var(--danger);
   font-size: 12.5px;
 }
 
+/* Same column as the messages: the gutters are inside the max-width. */
 .room-composer {
   display: flex;
   gap: 8px;
   align-items: flex-end;
-  max-width: 720px;
   width: 100%;
+  max-width: calc(var(--room-column) + 2 * var(--room-gutter));
   margin: 0 auto;
-  padding: 8px 24px 16px;
+  padding: 8px var(--room-gutter) 16px;
 }
 
+/* One line tall to match the button; grows with the draft (RoomView sets the height). */
 .room-composer .ui-textarea {
   flex: 1;
   resize: none;
+  min-height: var(--composer-height);
+  max-height: 168px;
+  padding: calc((var(--composer-height) - 19px - 2px) / 2) 10px;
+  overflow-y: auto;
 }
 
 .room-composer .ui-button {
-  height: 36px;
+  height: var(--composer-height);
+  flex: 0 0 auto;
 }
 
 /* Proposals -------------------------------------------------------------- */
@@ -254,4 +489,110 @@
 
 .room-kept-label {
   margin: 6px 0 0;
+}
+
+/* Treatment ---------------------------------------------------------------- */
+
+.treatment {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.treatment-card {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--page);
+  color: var(--page-ink);
+  border: 1px solid var(--line);
+}
+
+.treatment-card.empty {
+  background: transparent;
+  padding: 0;
+  border: none;
+}
+
+.treatment-name {
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.treatment-meta {
+  font-size: 11.5px;
+  color: var(--faint);
+  margin-top: 2px;
+}
+
+.treatment-excerpt {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.treatment-text {
+  margin-top: 6px;
+  max-height: 320px;
+  overflow: auto;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  white-space: pre-wrap;
+}
+
+.treatment-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.treatment-editor .ui-textarea {
+  resize: vertical;
+  font-size: 12.5px;
+}
+
+.treatment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-top: 8px;
+}
+
+.treatment-card.empty .treatment-actions {
+  margin-top: 6px;
+}
+
+.treatment-actions .ui-button.mini.dismiss {
+  color: var(--faint);
+  margin-left: auto;
+}
+
+/* A block the room wrote that the app could not read. */
+.room-unreadable {
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: var(--danger);
+}
+
+.room-unreadable summary {
+  cursor: pointer;
+}
+
+.room-unreadable pre {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  max-height: 240px;
+  overflow: auto;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted);
+  background: var(--desk);
+  border-radius: var(--radius-sm);
+  white-space: pre-wrap;
 }

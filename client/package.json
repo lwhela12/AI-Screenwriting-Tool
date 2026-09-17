@@ -1,5 +1,5 @@
 {
-  "name": "screenwriting-client",
+  "name": "pica-client",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.3.0",
+    "mammoth": "^1.12.3",
     "pdfjs-dist": "^6.3.289",
     "prosemirror-commands": "^1.7.1",
     "prosemirror-dropcursor": "^1.8.3",
