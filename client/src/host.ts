@@ -111,6 +111,8 @@ export interface ScreenplayHostApi {
   /** Edit menu undo/redo, routed to the script's history. */
   undo: () => void;
   redo: () => void;
+  /** View menu: focus mode on and off. */
+  toggleFocus: () => void;
 }
 
 interface HostBindings {
@@ -122,6 +124,7 @@ interface HostBindings {
   exportAs: (format: 'pdf' | 'fdx' | 'fountain' | 'txt') => void;
   undo: () => void;
   redo: () => void;
+  toggleFocus: () => void;
 }
 
 function base64ToBytes(base64: string): Uint8Array {
@@ -332,7 +335,8 @@ export function installHostApi(bindings: HostBindings): void {
     aiResult: (id, result) => resolveAI(id, result),
     aiChunk: (id, text) => chunkAI(id, text),
     undo: () => bindings.undo(),
-    redo: () => bindings.redo()
+    redo: () => bindings.redo(),
+    toggleFocus: () => bindings.toggleFocus()
   };
   window.__screenplay = api;
   postToHost({ type: 'ready' });

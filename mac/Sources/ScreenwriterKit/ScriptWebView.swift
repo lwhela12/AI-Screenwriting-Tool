@@ -49,11 +49,11 @@ public enum HostEvent {
     case openSettings
 }
 
-/// Serves the bundled editor over `screenwriter://web/...`. A real origin
+/// Serves the bundled editor over `pica://web/...`. A real origin
 /// (unlike file://) lets WebKit load ES modules, workers and localStorage.
 public final class WebBundleSchemeHandler: NSObject, WKURLSchemeHandler {
-    public static let scheme = "screenwriter"
-    public static let root = URL(string: "screenwriter://web/")!
+    public static let scheme = "pica"
+    public static let root = URL(string: "pica://web/")!
     let directory: URL
 
     public init(directory: URL) {
@@ -134,6 +134,7 @@ public final class ScriptBridge: NSObject, WKScriptMessageHandler, WKNavigationD
         configuration.defaultWebpagePreferences.allowsContentJavaScript = true
         let view = WKWebView(frame: .zero, configuration: configuration)
         view.navigationDelegate = bridge
+        view.uiDelegate = bridge
         view.allowsMagnification = false
         bridge.webView = view
         return view
@@ -258,6 +259,10 @@ public final class ScriptBridge: NSObject, WKScriptMessageHandler, WKNavigationD
     }
 
     /// Switch the main view: `editor`, `outline`, `board` or `reports`.
+    public func toggleFocus() {
+        call("window.__screenplay && window.__screenplay.toggleFocus && window.__screenplay.toggleFocus()")
+    }
+
     public func setView(_ name: String) {
         call("window.__screenplay && window.__screenplay.setView(\(json(name)))")
     }
@@ -427,6 +432,43 @@ public struct ScriptWebView: NSViewRepresentable {
                     NSAlert(error: error).runModal()
                 }
             }
+        }
+    }
+}
+
+// MARK: - Page dialogs and file choosers
+
+extension ScriptBridge: WKUIDelegate {
+    /// `alert()` and `confirm()` from the page would otherwise be swallowed (confirm answering "no").
+    public func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
+        let alert = NSAlert()
+        alert.messageText = message
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+        completionHandler()
+    }
+
+    public func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
+        let alert = NSAlert()
+        alert.messageText = message
+        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: "Cancel")
+        completionHandler(alert.runModal() == .alertFirstButtonReturn)
+    }
+
+    /// `<input type="file">` in the page (a treatment for the Writers' Room) opens a standard panel.
+    public func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping ([URL]?) -> Void) {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = parameters.allowsDirectories
+        panel.allowsMultipleSelection = parameters.allowsMultipleSelection
+        let finish: (NSApplication.ModalResponse) -> Void = { response in
+            completionHandler(response == .OK ? panel.urls : nil)
+        }
+        if let window = webView.window {
+            panel.beginSheetModal(for: window, completionHandler: finish)
+        } else {
+            panel.begin(completionHandler: finish)
         }
     }
 }

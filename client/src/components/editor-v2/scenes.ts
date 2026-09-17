@@ -191,8 +191,24 @@ export function insertScene(view: EditorView, afterOrdinal: number | null, headi
 /** Put the cursor at the start of a scene and scroll it into view. */
 export function jumpToScene(view: EditorView, scene: SceneInfo): void {
   const pos = Math.min(scene.from + 1, view.state.doc.content.size);
-  view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, pos)).scrollIntoView());
+  // ProseMirror only scrolls to the selection when the editor owns it, and a
+  // click in a sidebar has just taken focus away: take it back, move the
+  // cursor, then scroll the scene's first element near the top ourselves.
   view.focus();
+  view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, pos)));
+  scrollSceneToTop(view, scene);
+}
+
+function scrollSceneToTop(view: EditorView, scene: SceneInfo): void {
+  const target = view.nodeDOM(scene.from) as HTMLElement | null;
+  if (!target || typeof target.getBoundingClientRect !== 'function') return;
+  const container = view.dom.closest('.editor-scroll-container') as HTMLElement | null;
+  if (container) {
+    const top = target.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
+    container.scrollTop = Math.max(0, top - 48);
+  } else if (typeof target.scrollIntoView === 'function') {
+    target.scrollIntoView({ block: 'start' });
+  }
 }
 
 /** Scene containing document position `pos`, or null. */

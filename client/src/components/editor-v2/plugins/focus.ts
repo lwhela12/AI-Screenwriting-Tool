@@ -3,8 +3,9 @@ import { Decoration, DecorationSet } from 'prosemirror-view';
 import { Node as PMNode } from 'prosemirror-model';
 
 /**
- * Focus mode: everything but the element being written fades back. Inside a
- * speech the whole speech (cue, parentheticals, dialogue) stays lit.
+ * Focus mode: the scene being written stays lit, from its heading to the
+ * element before the next heading; everything else fades back (but stays
+ * readable). Before the first heading, the opening material is the scene.
  */
 
 export interface FocusState {
@@ -14,15 +15,11 @@ export interface FocusState {
 
 export const focusKey = new PluginKey<FocusState>('focus');
 
-const SPEECH = new Set(['character', 'parenthetical', 'dialogue']);
-
 function litRange(doc: PMNode, index: number): [number, number] {
-  const type = doc.child(index).type.name;
-  if (!SPEECH.has(type)) return [index, index];
   let from = index;
-  while (from > 0 && SPEECH.has(doc.child(from - 1).type.name) && doc.child(from).type.name !== 'character') from--;
+  while (from > 0 && doc.child(from).type.name !== 'scene_heading') from--;
   let to = index;
-  while (to + 1 < doc.childCount && SPEECH.has(doc.child(to + 1).type.name) && doc.child(to + 1).type.name !== 'character') to++;
+  while (to + 1 < doc.childCount && doc.child(to + 1).type.name !== 'scene_heading') to++;
   return [from, to];
 }
 

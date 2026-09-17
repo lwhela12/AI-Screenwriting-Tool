@@ -1,8 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { EditorState } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import { pageViewKey } from './plugins/pageView';
-import { scenesOf, sceneAt, jumpToScene, moveScene, setSceneAttrs, insertScene, SceneInfo } from './scenes';
+import { scenesOf, sceneAt, jumpToScene, moveScene, insertScene } from './scenes';
 
 interface SceneNavigatorProps {
   view: EditorView | null;
@@ -19,15 +19,25 @@ function lengthLabel(eighths: number): string {
 }
 
 /**
- * The scene list beside the script. Click a scene to jump to it, drag to
- * reorder (the pages move with it), and expand a scene to edit its synopsis.
+ * The scene list beside the script. The highlight follows the cursor and the
+ * list scrolls to keep it in view; click a scene to jump to it, drag to
+ * reorder (the pages move with it). Synopses are edited in the inspector and
+ * shown here as a one-line preview.
  */
 export const SceneNavigator: React.FC<SceneNavigatorProps> = ({ view, state }) => {
   const scenes = useMemo(() => scenesOf(state.doc, pageViewKey.getState(state)?.layout), [state]);
   const current = sceneAt(scenes, state.selection.from);
-  const [expanded, setExpanded] = useState<number | null>(null);
   const [dragging, setDragging] = useState<number | null>(null);
   const [dropTarget, setDropTarget] = useState<{ ordinal: number; after: boolean } | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // Keep the current scene's row visible as the cursor moves through the script.
+  const currentKey = current ? (current.opening ? 'opening' : current.index) : null;
+  useEffect(() => {
+    if (dragging !== null || currentKey === null) return;
+    const row = listRef.current?.querySelector<HTMLElement>('.scene-row.current');
+    if (row && typeof row.scrollIntoView === 'function') row.scrollIntoView({ block: 'nearest' });
+  }, [currentKey, dragging]);
 
   /** Drop the dragged scene before or after `target`; compute the ordinal it ends up at. */
   const onDrop = (target: number, after: boolean) => {
@@ -45,10 +55,9 @@ export const SceneNavigator: React.FC<SceneNavigatorProps> = ({ view, state }) =
         <span>{scenes.filter(s => !s.opening).length} scenes</span>
         <span>{pageViewKey.getState(state)?.layout.pages.length ?? 1} pages</span>
       </div>
-      <div className="scene-navigator-list">
+      <div className="scene-navigator-list" ref={listRef}>
         {scenes.map(scene => {
           const isCurrent = current?.ordinal === scene.ordinal;
-          const isExpanded = expanded === scene.index;
           const dropClass = dropTarget?.ordinal === scene.ordinal ? (dropTarget.after ? ' drop-after' : ' drop-before') : '';
           return (
             <div
@@ -73,10 +82,7 @@ export const SceneNavigator: React.FC<SceneNavigatorProps> = ({ view, state }) =
                 e.preventDefault();
                 if (dropTarget) onDrop(dropTarget.ordinal, dropTarget.after);
               }}
-              onClick={() => {
-                if (view) jumpToScene(view, scene);
-                setExpanded(isExpanded ? null : scene.index);
-              }}
+              onClick={() => view && jumpToScene(view, scene)}
             >
               {scene.structure && <div className="scene-structure">{scene.structure}</div>}
               <span className="scene-number">{scene.number || (scene.opening ? '' : scene.ordinal + (scenes[0]?.opening ? 0 : 1))}</span>
@@ -88,20 +94,7 @@ export const SceneNavigator: React.FC<SceneNavigatorProps> = ({ view, state }) =
                 p{scene.page}
                 {scene.eighths ? ` · ${lengthLabel(scene.eighths)}` : ''}
               </span>
-              {!isExpanded && (scene.synopsis || scene.preview) && <span className="scene-preview">{scene.synopsis || scene.preview}</span>}
-              {isExpanded && !scene.opening && (
-                <>
-                  <textarea
-                    className="scene-synopsis"
-                    placeholder="Synopsis"
-                    value={scene.synopsis}
-                    onClick={e => e.stopPropagation()}
-                    onMouseDown={e => e.stopPropagation()}
-                    onChange={e => view && setSceneAttrs(view, scene.index, { synopsis: e.target.value || null })}
-                  />
-                  {scene.characters.length > 0 && <span className="scene-cast">{scene.characters.join(', ')}</span>}
-                </>
-              )}
+              {(scene.synopsis || scene.preview) && <span className="scene-preview">{scene.synopsis || scene.preview}</span>}
             </div>
           );
         })}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { EditorState } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import BeatBoard from './components/BeatBoard';
@@ -211,6 +211,10 @@ export const App: React.FC = () => {
       },
       undo: () => historyCommand('undo'),
       redo: () => historyCommand('redo'),
+      toggleFocus: () => {
+        setActiveView('editor');
+        setFocusMode(f => !f);
+      },
       getDocument: hostDocument,
       loadDocument: (doc: HostDocument) => {
         const now = new Date().toISOString();
@@ -379,6 +383,39 @@ export const App: React.FC = () => {
   );
 
   if (showProjectManager) return <ProjectManager onProjectSelect={handleProjectSelect} />;
+  // The title sits over the page, not in the middle of the toolbar's spare
+  // room: measure where the page is and slide the title to its centre, kept
+  // within the space the toolbar buttons leave free.
+  const titleSlotRef = useRef<HTMLDivElement>(null);
+  const titleInnerRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const slot = titleSlotRef.current;
+    const inner = titleInnerRef.current;
+    if (!slot || !inner) return;
+    const place = () => {
+      const page = document.querySelector('.view.active .prosemirror-editor') || document.querySelector('.view.active');
+      if (!page) return;
+      const target = page.getBoundingClientRect();
+      const slotRect = slot.getBoundingClientRect();
+      if (!target.width || !slotRect.width) return;
+      const wanted = target.left + target.width / 2 - inner.offsetWidth / 2 - slotRect.left;
+      inner.style.marginLeft = `${Math.round(Math.max(0, Math.min(wanted, slotRect.width - inner.offsetWidth)))}px`;
+    };
+    place();
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(place) : null;
+    observer?.observe(slot);
+    window.addEventListener('resize', place);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', place);
+    };
+  }, [activeView, showScenes, showInspector, focusMode, currentProject?.title, describeSave(saveState).text, editorState === null]);
+
+  // Focus mode is for writing: leaving the Script view leaves it too.
+  useEffect(() => {
+    if (focusMode && activeView !== 'editor') setFocusMode(false);
+  }, [activeView, focusMode]);
+
   if (HOSTED && !currentProject) return <div className="app" />;
 
   const saveInfo = describeSave(saveState);
@@ -399,15 +436,17 @@ export const App: React.FC = () => {
             </button>
           ))}
         </nav>
-        <div className="toolbar-title">
-          <span className="toolbar-title-text">{currentProject?.title || 'Untitled'}</span>
-          <span className={`save-status ${saveInfo.className}`}>{saveInfo.text}</span>
+        <div className="toolbar-title" ref={titleSlotRef}>
+          <div className="toolbar-title-inner" ref={titleInnerRef}>
+            <span className="toolbar-title-text">{currentProject?.title || 'Untitled'}</span>
+            <span className={`save-status ${saveInfo.className}`}>{saveInfo.text}</span>
+          </div>
         </div>
         <div className="toolbar-group">
           <button className="ui-button icon" onClick={openFind} title="Find (⌘F)">
             <SearchIcon />
           </button>
-          <button className={`ui-button icon${focusMode ? ' active' : ''}`} onClick={() => setFocusMode(f => !f)} title="Focus mode (⇧⌘F)">
+          <button className={`ui-button icon${focusMode ? ' active' : ''}`} onClick={() => setFocusMode(f => !f)} disabled={activeView !== 'editor'} title="Focus mode: just the page (⇧⌘F, Esc to leave)">
             <FocusIcon />
           </button>
           {!HOSTED && (
@@ -483,6 +522,12 @@ export const App: React.FC = () => {
         </div>
       </main>
 
+      {focusMode && (
+        <button className="focus-exit" onClick={() => setFocusMode(false)} title="Leave focus mode (Esc or ⇧⌘F)">
+          <FocusIcon />
+          <span>Exit focus</span>
+        </button>
+      )}
       {showExportDialog && currentProject && (
         <ExportDialog project={{ ...currentProject, content: contentRef.current || currentProject.content }} onClose={() => setShowExportDialog(false)} />
       )}

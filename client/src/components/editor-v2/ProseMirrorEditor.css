@@ -140,7 +140,7 @@
 }
 
 .ProseMirror.screenplay > .focus-dim {
-  opacity: 0.28;
+  opacity: 0.55;
 }
 
 .ProseMirror.screenplay .scene-heading {
@@ -515,21 +515,6 @@
   white-space: nowrap;
 }
 
-.scene-row .scene-synopsis {
-  grid-column: 2 / -1;
-  font: inherit;
-  font-size: 12px;
-  width: 100%;
-  min-height: 48px;
-  resize: vertical;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  padding: 4px 6px;
-  color: var(--ink);
-  background: var(--chrome);
-}
-
-.scene-row .scene-cast { grid-column: 2 / -1; color: var(--faint); font-size: 11px; }
 
 .scene-color-dot {
   display: inline-block;

@@ -39,6 +39,11 @@ struct ScreenwriterApp: App {
     @AppStorage("theme") private var theme = AppTheme.paper.rawValue
     @FocusedValue(\.scriptBridge) private var focusedBridge
 
+    init() {
+        // One script per window; the system tab bar (View > Show Tab Bar) only confuses.
+        NSWindow.allowsAutomaticWindowTabbing = false
+    }
+
     var body: some Scene {
         DocumentGroup(newDocument: ScriptDocument()) { configuration in
             ScriptWindow(document: configuration.$document, fileURL: configuration.fileURL, theme: theme)
@@ -62,7 +67,8 @@ struct ScreenwriterApp: App {
                 }
                 .disabled(focusedBridge?.bridge == nil)
             }
-            CommandMenu("View") {
+            // Into the system View menu, above its toolbar and full-screen items.
+            CommandGroup(before: .toolbar) {
                 Button("Script") { focusedBridge?.bridge?.setView("editor") }
                     .keyboardShortcut("1", modifiers: [.command, .option])
                 Button("Outline") { focusedBridge?.bridge?.setView("outline") }
@@ -74,11 +80,16 @@ struct ScreenwriterApp: App {
                 Button("Reports") { focusedBridge?.bridge?.setView("reports") }
                     .keyboardShortcut("5", modifiers: [.command, .option])
                 Divider()
+                Button("Focus Mode") { focusedBridge?.bridge?.toggleFocus() }
+                    .keyboardShortcut("f", modifiers: [.command, .shift])
+                    .disabled(focusedBridge?.bridge == nil)
+                Divider()
                 Picker("Theme", selection: $theme) {
                     ForEach(AppTheme.allCases) { t in
                         Text(t.displayName).tag(t.rawValue)
                     }
                 }
+                Divider()
             }
         }
         Settings {

@@ -139,7 +139,10 @@ export const ProseMirrorEditor: React.FC<ProseMirrorEditorProps> = ({
     const view = viewRef.current;
     if (!view) return;
     const current = focusKey.getState(view.state)?.enabled ?? false;
-    if (current !== focusMode) view.dispatch(view.state.tr.setMeta(focusKey, { enabled: focusMode }));
+    if (current === focusMode) return;
+    // Entering focus mode brings the cursor's scene into view, so the lit scene is the one on screen.
+    view.dispatch(view.state.tr.setMeta(focusKey, { enabled: focusMode }).scrollIntoView());
+    if (focusMode) view.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusMode, editorState === null]);
 
