@@ -20,13 +20,9 @@ struct AISettingsView: View {
                     Spacer()
                     Link("Get a key…", destination: GeminiClient.keyPage)
                 }
-                if models.isEmpty {
-                    TextField("Model", text: $model, prompt: Text("gemini-2.5-flash"))
-                } else {
-                    Picker("Model", selection: $model) {
-                        ForEach(models) { m in
-                            Text("\(m.displayName)  ·  \(m.id)").tag(m.id)
-                        }
+                Picker("Model", selection: selectedModel) {
+                    ForEach(choices) { m in
+                        Text(m.id == CloudModel.defaultModel ? "\(m.displayName)  ·  \(m.id)  (default)" : "\(m.displayName)  ·  \(m.id)").tag(m.id)
                     }
                 }
                 if !status.isEmpty {
@@ -56,6 +52,26 @@ struct AISettingsView: View {
         .onChange(of: model) { _, _ in NotificationCenter.default.post(name: CloudModel.settingsChanged, object: nil) }
     }
 
+    private var current: String {
+        let trimmed = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? CloudModel.defaultModel : trimmed
+    }
+
+    /// The stored choice, with the default standing in while nothing has been chosen.
+    private var selectedModel: Binding<String> {
+        Binding(get: { current }, set: { model = $0 })
+    }
+
+    /// Recent models until the connection has been checked, then Google's own list;
+    /// a stored choice that is in neither still appears so the menu shows it.
+    private var choices: [GeminiClient.Model] {
+        var list = models.isEmpty ? GeminiClient.recentModels : GeminiClient.menuModels(models)
+        if !list.contains(where: { $0.id == current }) {
+            list.insert(GeminiClient.Model(id: current, displayName: current), at: 0)
+        }
+        return list
+    }
+
     private func saveKey() {
         if CloudModel.saveKey(key) {
             status = key.trimmingCharacters(in: .whitespaces).isEmpty ? "Key removed." : "Key saved to your Keychain."
@@ -71,10 +87,10 @@ struct AISettingsView: View {
         do {
             let found = try await GeminiClient(apiKey: key.trimmingCharacters(in: .whitespacesAndNewlines)).listModels()
             models = found
-            if model.isEmpty || !found.contains(where: { $0.id == model }), let preferred = GeminiClient.preferredModel(found) {
+            if !found.contains(where: { $0.id == current }), let preferred = GeminiClient.preferredModel(found) {
                 model = preferred.id
             }
-            status = "Connected. \(found.count) models available; using \(model)."
+            status = "Connected. \(found.count) models available; using \(current)."
         } catch {
             status = error.localizedDescription
         }

@@ -32,17 +32,19 @@ public enum CloudModel {
 
     public static var provider: String { UserDefaults.standard.string(forKey: Keys.provider) ?? "gemini" }
 
-    public static var model: String? {
-        let value = UserDefaults.standard.string(forKey: Keys.model) ?? ""
-        return value.isEmpty ? nil : value
+    /// The model used until the writer picks another in Settings.
+    public static let defaultModel = "gemini-3.8-flash"
+
+    /// The chosen model, or the default when nothing has been chosen.
+    public static var model: String {
+        let value = UserDefaults.standard.string(forKey: Keys.model)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return value.isEmpty ? defaultModel : value
     }
 
     public static func availability() -> Availability {
+        migrateLegacySettings()
         guard UserDefaults.standard.bool(forKey: Keys.hasKey) else {
             return Availability(available: false, provider: provider, model: nil, reason: "Add a Gemini API key in Settings to read whole scripts.")
-        }
-        guard let model else {
-            return Availability(available: false, provider: provider, model: nil, reason: "Choose a model in Settings.")
         }
         return Availability(available: true, provider: provider, model: model, reason: nil)
     }
@@ -50,7 +52,7 @@ public enum CloudModel {
     /// One answer from the configured cloud model. `turns` carries a conversation
     /// (the last turn is the writer's); `onChunk` receives text as it streams.
     public static func respond(instructions: String, turns: [ChatTurn], json: Bool, onChunk: (@Sendable (String) -> Void)? = nil) async throws -> String {
-        guard let model else { throw CloudError(message: "Choose a model in Settings.") }
+        let model = model
         // The Keychain read stays off the main thread: it can prompt, and must never freeze the window.
         let key = await Task.detached { Keychain.load(GeminiClient.keychainAccount) }.value
         guard let key, !key.isEmpty else {
@@ -63,6 +65,23 @@ public enum CloudModel {
             return try await client.stream(model: model, instructions: instructions, turns: turns, onChunk: onChunk)
         }
         return try await client.generate(model: model, instructions: instructions, turns: turns, json: json)
+    }
+
+    /// The app was called Screenwriter before it was Pica; its settings live
+    /// under the old bundle identifier. Copy them across once, so the key flag,
+    /// the model and the per-script consents survive the rename. (The key
+    /// itself is found under the old Keychain service by `Keychain.load`.)
+    static let legacyDomain = "com.lucaswhelan.screenwriter"
+    static let migratedKey = "cloud.migratedFromScreenwriter"
+
+    public static func migrateLegacySettings() {
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: migratedKey), let old = UserDefaults(suiteName: legacyDomain) else { return }
+        defaults.set(true, forKey: migratedKey)
+        for (key, value) in old.dictionaryRepresentation() {
+            guard key == "theme" || key.hasPrefix("cloud."), defaults.object(forKey: key) == nil else { continue }
+            defaults.set(value, forKey: key)
+        }
     }
 
     /// Store or clear the key; an empty string removes it.
@@ -103,7 +122,9 @@ public enum CloudModel {
 
 /// Generic-password storage in the login keychain.
 public enum Keychain {
-    static let service = "com.lucaswhelan.screenwriter"
+    static let service = "com.lucaswhelan.pica"
+    /// Where the key was kept before the app was renamed.
+    static let legacyService = "com.lucaswhelan.screenwriter"
 
     public static func save(_ value: String, account: String) -> Bool {
         delete(account)
@@ -117,6 +138,14 @@ public enum Keychain {
     }
 
     public static func load(_ account: String) -> String? {
+        if let value = load(account, service: service) { return value }
+        // Fall back to the pre-rename item and carry it over.
+        guard let legacy = load(account, service: legacyService) else { return nil }
+        _ = save(legacy, account: account)
+        return legacy
+    }
+
+    private static func load(_ account: String, service: String) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -163,6 +192,19 @@ public struct GeminiClient {
         public let displayName: String
     }
 
+    /// Recent text models, newest first, offered before a connection has been
+    /// checked (after which the live list from Google replaces them).
+    public static let recentModels: [Model] = [
+        Model(id: "gemini-3.8-flash", displayName: "Gemini 3.8 Flash"),
+        Model(id: "gemini-3.7-flash", displayName: "Gemini 3.7 Flash"),
+        Model(id: "gemini-3.6-flash", displayName: "Gemini 3.6 Flash"),
+        Model(id: "gemini-3.5-flash", displayName: "Gemini 3.5 Flash"),
+        Model(id: "gemini-3.1-pro-preview", displayName: "Gemini 3.1 Pro (preview)"),
+        Model(id: "gemini-3-flash-preview", displayName: "Gemini 3 Flash (preview)"),
+        Model(id: "gemini-2.5-pro", displayName: "Gemini 2.5 Pro"),
+        Model(id: "gemini-2.5-flash", displayName: "Gemini 2.5 Flash"),
+    ]
+
     let apiKey: String
 
     public init(apiKey: String) {
@@ -186,11 +228,18 @@ public struct GeminiClient {
         return usable.sorted { GeminiClient.rank($0.id) > GeminiClient.rank($1.id) }
     }
 
-    /// The model to suggest: the newest general-purpose Flash.
+    /// The model to suggest: the default when Google lists it, else the newest general-purpose Flash.
     public static func preferredModel(_ models: [Model]) -> Model? {
+        if let standard = models.first(where: { $0.id == CloudModel.defaultModel }) { return standard }
         let general = models.filter { isGeneralPurpose($0.id) }
         let flash = general.filter { $0.id.contains("flash") }
         return flash.first ?? general.first ?? models.first
+    }
+
+    /// The models worth offering in a menu: general-purpose text models, newest first.
+    public static func menuModels(_ models: [Model]) -> [Model] {
+        let general = models.filter { isGeneralPurpose($0.id) }
+        return general.isEmpty ? models : general
     }
 
     static func isGeneralPurpose(_ id: String) -> Bool {
