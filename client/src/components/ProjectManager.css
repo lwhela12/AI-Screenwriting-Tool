@@ -38,14 +38,12 @@
 }
 
 .project-header h1 {
+  font-family: var(--mono-font);
   font-size: 4rem;
   margin-bottom: 20px;
-  font-weight: 800;
-  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  letter-spacing: -0.03em;
+  font-weight: 400;
+  color: inherit;
+  letter-spacing: 0.12em;
   animation: fadeInScale 0.8s ease-out;
 }
 
@@ -400,12 +398,6 @@
     opacity: 0.5;
   }
   
-  .project-header h1 {
-    background: linear-gradient(135deg, #8B7FFF, #FF8B8B);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
   
   .tagline {
     color: var(--text-light);

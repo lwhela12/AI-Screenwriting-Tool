@@ -1,7 +1,7 @@
 # XcodeGen spec — regenerate with `xcodegen generate` (build-app.sh does it).
 # The editor itself is the web build in client/; build-app.sh copies
 # client/dist to mac/web, which ships inside the bundle as Resources/web.
-name: Screenwriter
+name: Pica
 options:
   bundleIdPrefix: com.lucaswhelan
   deploymentTarget:
@@ -15,7 +15,7 @@ settings:
     ENABLE_USER_SCRIPT_SANDBOXING: true
 
 targets:
-  Screenwriter:
+  Pica:
     type: application
     platform: macOS
     scheme: {}
@@ -24,17 +24,19 @@ targets:
         excludes:
           - "Info.plist"
       - path: Sources/ScreenwriterKit
+      - path: App/Pica.icns
+        buildPhase: resources
       - path: web
         type: folder
         buildPhase: resources
     settings:
       base:
-        PRODUCT_NAME: Screenwriter
-        PRODUCT_BUNDLE_IDENTIFIER: com.lucaswhelan.screenwriter
+        PRODUCT_NAME: Pica
+        PRODUCT_BUNDLE_IDENTIFIER: com.lucaswhelan.pica
         INFOPLIST_FILE: Sources/ScreenwriterApp/Info.plist
         GENERATE_INFOPLIST_FILE: false
         ENABLE_HARDENED_RUNTIME: true
-        CODE_SIGN_ENTITLEMENTS: App/Screenwriter.entitlements
+        CODE_SIGN_ENTITLEMENTS: App/Pica.entitlements
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
   wrapcheck:

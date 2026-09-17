@@ -1,6 +1,6 @@
 # Client
 
-This directory contains the React based front-end for the AI‑Integrated Screenwriting Tool.
+This directory contains the React based front-end for Pica, the screenwriting app.
 It provides the user interface and interacts with the collaboration server and AI service. Beat board and outline data are fetched from the server's JSON API instead of using browser storage.
 
 ## Development

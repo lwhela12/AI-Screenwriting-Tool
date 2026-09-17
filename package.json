@@ -1,5 +1,5 @@
 {
-  "name": "ai-screenwriting-tool",
+  "name": "pica",
   "version": "1.0.0",
   "description": "Screenwriting app: page-accurate screenplay editor with outlining, beats and reports; macOS shell in mac/",
   "private": true,

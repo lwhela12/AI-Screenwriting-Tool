@@ -1,6 +1,6 @@
 # Agents Guide
 
-This repository hosts an open‑source screenwriting tool with AI integration.  The goal is to replicate and extend Final Draft 13’s features while remaining open and extensible.  Below are guidelines for agents who will contribute to this project.
+This repository hosts Pica, an open‑source screenwriting tool with AI integration.  The goal is to replicate and extend Final Draft 13’s features while remaining open and extensible.  Below are guidelines for agents who will contribute to this project.
 
 ## Project Overview
 

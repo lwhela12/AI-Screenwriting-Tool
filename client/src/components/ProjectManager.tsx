@@ -185,8 +185,8 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({ onProjectSelect 
   return (
     <div className="project-manager">
       <div className="project-header">
-        <h1>AI Screenwriting Tool</h1>
-        <p className="tagline">Professional screenplay writing with AI assistance</p>
+        <h1>PICA</h1>
+        <p className="tagline">The page is the page.</p>
       </div>
 
       {serverOnline === false && (
