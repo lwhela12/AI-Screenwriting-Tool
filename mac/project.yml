@@ -18,7 +18,9 @@ targets:
   Pica:
     type: application
     platform: macOS
-    scheme: {}
+    scheme:
+      testTargets:
+        - PicaTests
     sources:
       - path: Sources/ScreenwriterApp
         excludes:
@@ -39,6 +41,17 @@ targets:
         CODE_SIGN_ENTITLEMENTS: App/Pica.entitlements
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
+  PicaTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: Pica
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: true
+        PRODUCT_BUNDLE_IDENTIFIER: com.lucaswhelan.pica.tests
   wrapcheck:
     type: tool
     platform: macOS

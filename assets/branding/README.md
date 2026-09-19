@@ -4,7 +4,7 @@ A warm paper surface extending to every edge, with the centered Courier-style wo
 
 `pica-icon-master.png` is the current artwork, edited with the built-in image generation tool. `pica-icon-v1.png` retains the original inset-paper design. Re-export the macOS icon family and browser PNG with `bash mac/build-icons.sh` on macOS. The checked-in exports are used by normal builds, so regeneration is only needed when the artwork changes.
 
-The macOS bundle includes `mac/App/Pica.icns`, referenced by `CFBundleIconFile`. The browser uses `client/public/pica-icon.png`.
+The macOS bundle includes `mac/App/Pica.icns`, referenced by `CFBundleIconFile`. The export script uses Apple's `iconutil` to encode the icon family, including the small sizes used in Finder lists; manually packing PNGs into the small icon slots can produce scrambled app icons. The browser uses `client/public/pica-icon.png`.
 
 ## Revision prompt
 

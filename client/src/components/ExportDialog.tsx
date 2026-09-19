@@ -12,7 +12,7 @@ type Format = 'pdf' | 'fdx' | 'fountain' | 'txt';
 
 const FORMATS: { id: Format; badge: string; name: string; note: string }[] = [
   { id: 'pdf', badge: 'PDF', name: 'PDF', note: 'Paginated exactly as on screen. For sharing and printing.' },
-  { id: 'fdx', badge: 'FDX', name: 'Final Draft', note: 'Opens in Final Draft with scene colours and synopses intact.' },
+  { id: 'fdx', badge: 'FDX', name: 'Final Draft', note: 'Script, scene colours and synopses for Final Draft. Your Pica beat board and Writers’ Room stay in the workspace.' },
   { id: 'fountain', badge: 'FTN', name: 'Fountain', note: 'Plain-text screenplay read by Highland, Slugline, Beat and others.' },
   { id: 'txt', badge: 'TXT', name: 'Plain text', note: 'The script as text, one element per paragraph.' }
 ];

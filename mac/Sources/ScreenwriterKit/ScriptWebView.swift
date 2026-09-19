@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import WebKit
+import UniformTypeIdentifiers
 
 /// The bridge between the native app and the web editor.
 ///
@@ -421,12 +422,27 @@ public struct ScriptWebView: NSViewRepresentable {
 
         /// Standard save panel for an exported file.
         static func saveExport(filename: String, data: Data) {
+            let ext = URL(fileURLWithPath: filename).pathExtension.lowercased()
+            if ext == "fdx" {
+                do { try ScriptExport.validateFDX(data) }
+                catch { NSAlert(error: error).runModal(); return }
+            }
             let panel = NSSavePanel()
             panel.nameFieldStringValue = filename
             panel.canCreateDirectories = true
+            panel.allowedContentTypes = [UTType(filenameExtension: ext) ?? .data]
+            panel.allowsOtherFileTypes = false
+            if ext == "fdx" {
+                panel.title = "Export Final Draft Copy"
+                panel.message = "Exports your screenplay and supported formatting. Your Writers’ Room conversation and Pica beat board stay in the .pica workspace."
+            }
             panel.begin { response in
                 guard response == .OK, let url = panel.url else { return }
                 do {
+                    guard url.pathExtension.lowercased() == ext else {
+                        throw CocoaError(.fileWriteInapplicableStringEncoding,
+                                         userInfo: [NSLocalizedDescriptionKey: "Use the .\(ext) extension for this export."])
+                    }
                     try data.write(to: url, options: .atomic)
                 } catch {
                     NSAlert(error: error).runModal()

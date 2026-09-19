@@ -52,11 +52,13 @@ The **Reports** tab gives a character report (scenes, speeches, words, share of 
 
 Scripts can be imported from the project screen (**Import script…**): Final Draft `.fdx`, Fountain `.fountain`, PDF, or plain text. PDF import reads the text layer and recovers elements from their indents, rejoining speeches split across pages; check cues and headings after importing a PDF from an unusual template. Final Draft files Scene numbers, synopses, dual dialogue, centered text, page breaks, bold/italic/underline and the title page are preserved, and the FDX export writes them back. Fountain import understands sections (structure labels), synopses, scene numbers, forced elements, dual dialogue and emphasis, and Fountain export writes them all.
 
-Run the editor tests with `cd client && npm test`.
+Run the editor tests with `cd client && npm test`. Native file-safety tests run with `cd mac && xcodegen generate && xcodebuild -project Pica.xcodeproj -scheme Pica -destination 'platform=macOS' test CODE_SIGN_IDENTITY="-"`.
 
 ## macOS App
 
-The native Mac app lives in `mac/`: a SwiftUI document-based shell around the same web editor, built with XcodeGen and Xcode. Scripts are files on disk (`.screenplay`, our JSON format), and Final Draft `.fdx`, Fountain and plain-text files open directly.
+The native Mac app lives in `mac/`: a SwiftUI document-based shell around the same web editor, built with XcodeGen and Xcode. Scripts are saved as `.pica` workspaces containing the screenplay, title page, beat board and Writers’ Room conversations. Opening Final Draft `.fdx`, Fountain, PDF or plain text creates an unsaved Pica workspace and leaves the source file unchanged. Save it as `.pica` to keep working; use **File > Export > Final Draft (.fdx)** to create a genuine Final Draft XML copy. FDX export includes the screenplay and supported formatting, not Pica’s beat board or Writers’ Room conversation.
+
+Legacy `.screenplay` documents and Pica JSON previously saved with an `.fdx` extension still open with their workspace data intact. Pica offers to save a correctly named `.pica` copy, preserving the original. Native JSON is never written through an FDX save path.
 
 ```bash
 cd mac

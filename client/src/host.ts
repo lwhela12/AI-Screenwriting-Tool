@@ -309,16 +309,23 @@ export function resolveAI(id: string, result: AIResult): void {
 
 /** Install `window.__screenplay` and tell the host we are ready. */
 export function installHostApi(bindings: HostBindings): void {
+  // Imports must be ready to save even if the writer has not edited a line yet.
+  const loadImportedDocument = (doc: HostDocument) => {
+    bindings.loadDocument(doc);
+    postToHost({ type: 'changed', text: serializeDocument(doc) });
+  };
   const api: ScreenplayHostApi = {
     load: (text, format, meta) => {
       if (format === 'pdf') {
         const bytes = base64ToBytes(text);
         importPdf(bytes.buffer as ArrayBuffer)
-          .then(imported => bindings.loadDocument({ title: imported.title || meta?.title || '', author: imported.author || '', contact: imported.contact || '', content: docToContent(imported.doc), beats: null }))
+          .then(imported => loadImportedDocument({ title: imported.title || meta?.title || '', author: imported.author || '', contact: imported.contact || '', content: docToContent(imported.doc), beats: null }))
           .catch(err => postToHost({ type: 'log', message: `pdf import failed: ${err?.message || err}\n${err?.stack || ''}` }));
         return;
       }
-      bindings.loadDocument(documentFromText(text, format, meta));
+      const doc = documentFromText(text, format, meta);
+      if (format !== 'screenplay' || !text.trim()) loadImportedDocument(doc);
+      else bindings.loadDocument(doc);
     },
     exportAs: format => bindings.exportAs(format),
     document: () => bindings.getDocument(),
