@@ -50,6 +50,8 @@ struct ScreenwriterApp: App {
                 .frame(minWidth: 1000, minHeight: 640)
         }
         .defaultSize(width: 1440, height: 900)
+        .defaultLaunchBehavior(.suppressed)
+        .commands { WelcomeCommands() }
         .commands {
             // The web view would otherwise answer ⌘Z with WebKit's own undo, not the script's.
             CommandGroup(replacing: .undoRedo) {
@@ -98,6 +100,15 @@ struct ScreenwriterApp: App {
             ImportWorkspace(document: configuration.document.workspace, sourceURL: configuration.fileURL)
         }
         .defaultSize(width: 460, height: 160)
+        .defaultLaunchBehavior(.suppressed)
+        Window("Welcome to Pica", id: "welcome") {
+            WelcomeView()
+        }
+        .windowStyle(.hiddenTitleBar)
+        .windowResizability(.contentSize)
+        .defaultPosition(.center)
+        .defaultLaunchBehavior(.presented)
+        .restorationBehavior(.disabled)
         Settings {
             AISettingsView()
         }
@@ -117,6 +128,7 @@ private struct ImportWorkspace: View {
             .task {
                 guard !imported else { return }
                 imported = true
+                if let sourceURL { RecentScripts.shared.record(sourceURL) }
                 var workspace = document
                 workspace.importedTitle = sourceURL?.deletingPathExtension().lastPathComponent ?? document.importedTitle
                 let importedWorkspace = workspace
@@ -133,6 +145,7 @@ private struct ScriptWindow: View {
     let theme: String
     @StateObject private var bridgeBox = ScriptBridgeBox()
     @Environment(\.openSettings) private var openSettings
+    @Environment(\.dismissWindow) private var dismissWindow
 
     private var title: String {
         fileURL?.deletingPathExtension().lastPathComponent ?? document.importedTitle ?? "Untitled"
@@ -179,5 +192,12 @@ private struct ScriptWindow: View {
             .ignoresSafeArea()
         }
         .focusedSceneValue(\.scriptBridge, bridgeBox)
+        .onAppear {
+            dismissWindow(id: "welcome")
+            if let fileURL { RecentScripts.shared.record(fileURL) }
+        }
+        .onChange(of: fileURL) { _, url in
+            if let url { RecentScripts.shared.record(url) }
+        }
     }
 }

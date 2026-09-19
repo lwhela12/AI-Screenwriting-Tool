@@ -56,6 +56,8 @@ Run the editor tests with `cd client && npm test`. Native file-safety tests run 
 
 ## macOS App
 
+Pica opens to a branded welcome window with **New Script**, **Open Script…** and recent scripts. Saved `.pica` workspaces appear before imported sources, with location and last-opened time where available. Reopen it with **File > Welcome to Pica** (⇧⌘0). Existing document sessions restore normally; opening a document directly goes to the editor. **Clear List** removes recent-file references, never the files themselves.
+
 The native Mac app lives in `mac/`: a SwiftUI document-based shell around the same web editor, built with XcodeGen and Xcode. Scripts are saved as `.pica` workspaces containing the screenplay, title page, beat board and Writers’ Room conversations. Opening Final Draft `.fdx`, Fountain, PDF or plain text creates an unsaved Pica workspace and leaves the source file unchanged. Save it as `.pica` to keep working; use **File > Export > Final Draft (.fdx)** to create a genuine Final Draft XML copy. FDX export includes the screenplay and supported formatting, not Pica’s beat board or Writers’ Room conversation.
 
 Legacy `.screenplay` documents and Pica JSON previously saved with an `.fdx` extension still open with their workspace data intact. Pica offers to save a correctly named `.pica` copy, preserving the original. Native JSON is never written through an FDX save path.
