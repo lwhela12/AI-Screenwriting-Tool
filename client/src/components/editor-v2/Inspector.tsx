@@ -27,7 +27,7 @@ function lengthLabel(eighths: number): string {
 /** The right-hand panel: the scene under the cursor and the session's numbers. */
 export const Inspector: React.FC<InspectorProps> = ({ view, state, sessionStartWords }) => {
   const layout = pageViewKey.getState(state)?.layout;
-  const scenes = useMemo(() => scenesOf(state.doc, layout), [state, layout]);
+  const scenes = useMemo(() => scenesOf(state.doc, layout), [state.doc, layout]);
   const scene = sceneAt(scenes, state.selection.from);
   const words = useMemo(() => countWords(state.doc.textContent), [state.doc]);
   const numbered = scenes.filter(s => !s.opening);
