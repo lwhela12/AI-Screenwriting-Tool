@@ -14,6 +14,8 @@ import type { TitlePageData } from './components/editor-v2/TitleSheet';
 import type { BeatBoardData } from './components/beats';
 import { RoomView } from './components/RoomView';
 import type { RoomData } from './components/room';
+import { captureDraft, createDraft, initializeDrafts, renameDraft, switchDraft } from './drafts';
+import { DraftControls } from './components/DraftControls';
 import { isHosted, installHostApi, postToHost, serializeDocument, HostDocument } from './host';
 import { openSearch } from './components/editor-v2/plugins/search';
 import { undo, redo } from 'prosemirror-history';
@@ -90,6 +92,10 @@ export const App: React.FC = () => {
   const [currentProject, setCurrentProject] = useState<ScreenplayProject | null>(null);
   const [showProjectManager, setShowProjectManager] = useState(!HOSTED);
   const [hostGeneration, setHostGeneration] = useState(0);
+  const sessionRef = useRef(0);
+  const [changingDraft, setChangingDraft] = useState(false);
+  const changingDraftRef = useRef(false);
+  const [draftError, setDraftError] = useState<string | null>(null);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>({ kind: 'clean' });
   const [editorState, setEditorState] = useState<EditorState | null>(null);
@@ -118,6 +124,20 @@ export const App: React.FC = () => {
   const currentProjectRef = useRef<ScreenplayProject | null>(null);
   currentProjectRef.current = currentProject;
 
+  /** Read live refs, including edits that have not reached the autosave timer. */
+  const currentSnapshot = (): ScreenplayProject | null => {
+    const project = currentProjectRef.current;
+    if (!project) return null;
+    return captureDraft({ ...project, content: contentRef.current, beats: beatsRef.current, room: roomRef.current, outline: outlineRef.current });
+  };
+
+  const resetDraftViews = () => {
+    sessionRef.current++;
+    setHostGeneration(sessionRef.current);
+    setEditorState(null);
+    editorViewRef.current = null;
+  };
+
   // Theme: the browser build sets it here; the native app sets it through the bridge.
   useEffect(() => {
     if (HOSTED) return;
@@ -144,20 +164,26 @@ export const App: React.FC = () => {
 
   /** In the native app the host owns the file: every change is handed over as the serialized document. */
   const hostDocument = (): HostDocument | null => {
-    const project = currentProjectRef.current;
+    const project = currentSnapshot();
     if (!project) return null;
-    return { title: project.title, author: project.author || '', contact: project.contact || '', content: contentRef.current || project.content, beats: beatsRef.current ?? null, room: roomRef.current ?? null };
+    return { title: project.title, author: project.author || '', contact: project.contact || '', content: project.content, beats: project.beats, room: project.room, outline: project.outline, drafts: project.drafts };
   };
 
   const save = useCallback(async (): Promise<boolean> => {
     const project = currentProjectRef.current;
     if (!project) return true;
     if (HOSTED) {
-      const doc = hostDocument();
-      if (doc) postToHost({ type: 'changed', text: serializeDocument(doc) });
-      dirtyRef.current = false;
-      setSaveState({ kind: 'clean', at: new Date() });
-      return true;
+      try {
+        const doc = hostDocument();
+        if (doc) postToHost({ type: 'changed', text: serializeDocument(doc) });
+        dirtyRef.current = false;
+        setSaveState({ kind: 'clean', at: new Date() });
+        return true;
+      } catch (error) {
+        dirtyRef.current = true;
+        setSaveState({ kind: 'error', message: (error as Error).message });
+        return false;
+      }
     }
     if (!dirtyRef.current) return true;
     if (savingRef.current) return false;
@@ -166,14 +192,7 @@ export const App: React.FC = () => {
     dirtyRef.current = false;
     setSaveState({ kind: 'saving' });
 
-    const updated: ScreenplayProject = {
-      ...project,
-      content: contentRef.current || project.content,
-      beats: beatsRef.current ?? project.beats,
-      room: roomRef.current ?? project.room,
-      outline: outlineRef.current ?? project.outline,
-      updatedAt: new Date().toISOString()
-    };
+    const updated: ScreenplayProject = { ...currentSnapshot()!, updatedAt: new Date().toISOString() };
 
     let ok = false;
     try {
@@ -192,8 +211,12 @@ export const App: React.FC = () => {
       }
     } catch (error: any) {
       if (error instanceof TypeError) {
-        saveLocalProject(updated);
-        setSaveState({ kind: 'local', at: new Date() });
+        try {
+          saveLocalProject(updated);
+          setSaveState({ kind: 'local', at: new Date() });
+        } catch (localError) {
+          setSaveState({ kind: 'error', message: (localError as Error).message });
+        }
         dirtyRef.current = true;
       } else {
         console.error('Failed to save screenplay:', error);
@@ -224,7 +247,7 @@ export const App: React.FC = () => {
       getDocument: hostDocument,
       loadDocument: (doc: HostDocument) => {
         const now = new Date().toISOString();
-        const project: ScreenplayProject = { id: `host-${Date.now()}`, title: doc.title || 'Untitled', author: doc.author, contact: doc.contact, content: doc.content, beats: doc.beats, room: doc.room ?? null, createdAt: now, updatedAt: now };
+        const project: ScreenplayProject = initializeDrafts({ ...doc, id: `host-${Date.now()}`, title: doc.title || 'Untitled', createdAt: now, updatedAt: now });
         currentProjectRef.current = project;
         setCurrentProject(project);
         contentRef.current = project.content;
@@ -232,13 +255,13 @@ export const App: React.FC = () => {
         setBeats(project.beats ?? null);
         roomRef.current = project.room ?? null;
         setRoom(project.room ?? null);
+        outlineRef.current = project.outline ?? null;
         dirtyRef.current = false;
         setSaveState({ kind: 'clean' });
-        setEditorState(null);
-        editorViewRef.current = null;
+        resetDraftViews();
+        setDraftError(null);
         setShowProjectManager(false);
         setActiveView('editor');
-        setHostGeneration(g => g + 1);
       },
       setTheme: (name: string) => {
         document.documentElement.dataset.theme = name;
@@ -247,7 +270,7 @@ export const App: React.FC = () => {
       exportAs: format => {
         const project = currentProjectRef.current;
         if (!project) return;
-        const current = { ...project, content: contentRef.current || project.content };
+        const current = currentSnapshot()!;
         if (format === 'pdf') void exportToPDF(current);
         else if (format === 'fdx') exportToFDX(current);
         else if (format === 'fountain') exportToFountain(current);
@@ -257,7 +280,8 @@ export const App: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleProjectSelect = (project: ScreenplayProject) => {
+  const handleProjectSelect = (selected: ScreenplayProject) => {
+    const project = initializeDrafts(selected);
     setCurrentProject(project);
     currentProjectRef.current = project;
     contentRef.current = project.content;
@@ -266,12 +290,46 @@ export const App: React.FC = () => {
     roomRef.current = project.room ?? null;
     setRoom(project.room ?? null);
     outlineRef.current = project.outline ?? null;
-    setEditorState(null);
-    editorViewRef.current = null;
+    resetDraftViews();
+    setDraftError(null);
     dirtyRef.current = false;
     setSaveState({ kind: 'clean' });
     setShowProjectManager(false);
     setActiveView('editor');
+  };
+
+  /** Save the outgoing version first, then hand the entire updated workspace to NSDocument. */
+  const changeDraft = async (transform: (project: ScreenplayProject) => ScreenplayProject, remount = true): Promise<boolean> => {
+    if (changingDraftRef.current || savingRef.current) return false;
+    changingDraftRef.current = true;
+    setChangingDraft(true);
+    setDraftError(null);
+    try {
+      if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+      autosaveTimer.current = null;
+      if (!await save()) return false;
+      const snapshot = currentSnapshot();
+      if (!snapshot) return false;
+      const next = transform(snapshot);
+      currentProjectRef.current = next;
+      setCurrentProject(next);
+      contentRef.current = next.content;
+      beatsRef.current = next.beats ?? null;
+      setBeats(next.beats ?? null);
+      roomRef.current = next.room ?? null;
+      setRoom(next.room ?? null);
+      outlineRef.current = next.outline ?? null;
+      if (remount) resetDraftViews();
+      setShowExportDialog(false);
+      dirtyRef.current = true;
+      return await save();
+    } catch (error) {
+      setDraftError((error as Error).message);
+      return false;
+    } finally {
+      changingDraftRef.current = false;
+      setChangingDraft(false);
+    }
   };
 
   const handleContentChange = (content: string) => {
@@ -390,7 +448,6 @@ export const App: React.FC = () => {
     []
   );
 
-  if (showProjectManager) return <ProjectManager onProjectSelect={handleProjectSelect} />;
   // The title sits over the page, not in the middle of the toolbar's spare
   // room: measure where the page is and slide the title to its centre, kept
   // within the space the toolbar buttons leave free.
@@ -424,6 +481,7 @@ export const App: React.FC = () => {
     if (focusMode && activeView !== 'editor') setFocusMode(false);
   }, [activeView, focusMode]);
 
+  if (showProjectManager) return <ProjectManager onProjectSelect={handleProjectSelect} />;
   if (HOSTED && !currentProject) return <div className="app" />;
 
   const saveInfo = describeSave(saveState);
@@ -483,20 +541,32 @@ export const App: React.FC = () => {
         </div>
       </header>
 
-      <main className="views">
+      {currentProject?.drafts && (
+        <DraftControls
+          key={currentProject.drafts.activeId}
+          drafts={currentProject.drafts}
+          busy={changingDraft || saveState.kind === 'saving'}
+          error={draftError}
+          onCreate={() => changeDraft(createDraft)}
+          onSelect={id => changeDraft(project => switchDraft(project, id))}
+          onRename={name => changeDraft(project => renameDraft(project, name), false)}
+        />
+      )}
+
+      <main className="views" key={hostGeneration}>
         {/* The editor stays mounted on every tab so the outline and beat board can act on the live script. */}
         <div className={`view${activeView === 'editor' ? ' active' : ''}`}>
           {currentProject && (
             <ProseMirrorEditor
               key={`${currentProject.id}-${hostGeneration}`}
               initialContent={contentRef.current}
-              onContentChange={handleContentChange}
+              onContentChange={content => { if (sessionRef.current === hostGeneration) handleContentChange(content); }}
               titlePage={{ title: currentProject.title, author: currentProject.author || '', contact: currentProject.contact || '' }}
-              onTitlePageChange={handleTitlePageChange}
+              onTitlePageChange={data => { if (sessionRef.current === hostGeneration) handleTitlePageChange(data); }}
               onReady={view => {
                 editorViewRef.current = view;
               }}
-              onStateChange={setEditorState}
+              onStateChange={state => { if (sessionRef.current === hostGeneration) setEditorState(state); }}
               showScenes={showScenes}
               showInspector={showInspector}
               focusMode={focusMode}
@@ -505,7 +575,7 @@ export const App: React.FC = () => {
         </div>
         <div className={`view${activeView === 'board' ? ' active' : ''}`}>
           {activeView === 'board' && currentProject && editorState && (
-            <BeatBoard data={beats} onChange={handleBeatsChange} view={editorViewRef.current} state={editorState} onOpenScene={openScene} />
+            <BeatBoard data={beats} onChange={data => { if (sessionRef.current === hostGeneration) handleBeatsChange(data); }} view={editorViewRef.current} state={editorState} onOpenScene={openScene} />
           )}
         </div>
         <div className={`view${activeView === 'outline' ? ' active' : ''}`}>
@@ -518,9 +588,9 @@ export const App: React.FC = () => {
               state={editorState}
               title={currentProject.title}
               data={room}
-              onChange={handleRoomChange}
+              onChange={data => { if (sessionRef.current === hostGeneration) handleRoomChange(data); }}
               beats={beats}
-              onBeatsChange={handleBeatsChange}
+              onBeatsChange={data => { if (sessionRef.current === hostGeneration) handleBeatsChange(data); }}
               onOpenScene={openScene}
             />
           )}

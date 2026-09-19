@@ -94,10 +94,11 @@ export const OutlineView: React.FC<OutlineViewProps> = ({ view, state, onOpenSce
     setNote(null);
     const failures: string[] = [];
     let i = 0;
-    for (; i < targets.length && !stopRef.current; i++) {
+    for (; i < targets.length && !stopRef.current && !view.isDestroyed; i++) {
       const target = targets[i];
       try {
         const synopsis = await draftSynopsis(view.state.doc, target);
+        if (view.isDestroyed) return;
         // Re-find the scene: the writer may have edited while we waited.
         const now = scenesOf(view.state.doc).find(s => s.index === target.index && s.heading === target.heading);
         if (now && !now.synopsis.trim()) setSceneAttrs(view, now.index, { synopsis });

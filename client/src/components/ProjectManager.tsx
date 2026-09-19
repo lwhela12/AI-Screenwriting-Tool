@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { apiFetch } from '../api';
+import type { DraftCollection } from '../drafts';
 import { parseFDX } from '../utils/fdx';
 import { parseFountain } from '../utils/fountain';
 import { importPdf } from '../utils/pdfImport';
@@ -18,6 +19,7 @@ export interface ScreenplayProject {
   beats?: any;
   outline?: any;
   room?: any;
+  drafts?: DraftCollection;
 }
 
 const LOCAL_KEY = 'screenplayProjects';
@@ -43,11 +45,8 @@ export function saveLocalProject(project: ScreenplayProject): void {
   const index = projects.findIndex(p => p.id === project.id);
   if (index >= 0) projects[index] = project;
   else projects.push(project);
-  try {
-    localStorage.setItem(LOCAL_KEY, JSON.stringify(projects));
-  } catch (err) {
-    console.error('Could not write to localStorage:', err);
-  }
+  // Let callers report quota/write failures instead of claiming unsaved work is saved.
+  localStorage.setItem(LOCAL_KEY, JSON.stringify(projects));
 }
 
 function removeLocalProject(id: string): void {
