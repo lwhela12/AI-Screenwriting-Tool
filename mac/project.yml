@@ -28,6 +28,8 @@ targets:
       - path: Sources/ScreenwriterKit
       - path: App/Pica.icns
         buildPhase: resources
+      - path: ../assets/branding/pica-wordmark.png
+        buildPhase: resources
       - path: web
         type: folder
         buildPhase: resources
