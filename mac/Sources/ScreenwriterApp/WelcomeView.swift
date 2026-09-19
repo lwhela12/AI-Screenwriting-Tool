@@ -16,19 +16,10 @@ struct WelcomeView: View {
     var body: some View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 0) {
-                Text("A WRITER’S WORKSPACE")
-                    .font(.system(size: 10, weight: .medium))
-                    .tracking(2)
-                    .foregroundStyle(muted)
                 Text("PICA.")
                     .font(.custom("Courier-Bold", size: 68))
                     .tracking(-3)
-                    .padding(.top, 24)
                     .accessibilityLabel("Pica")
-                Text("A place for\nyour next story.")
-                    .font(.system(size: 24, weight: .regular, design: .serif))
-                    .lineSpacing(4)
-                    .padding(.top, 12)
                 Spacer()
                 Button {
                     newDocument(ScriptDocument())
