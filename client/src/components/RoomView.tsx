@@ -6,7 +6,7 @@ import { BeatBoardData, Beat, BEAT_COLORS, CARD_GAP, boardExtent, newBeatId, nor
 import { BeatBoard } from './BeatBoard';
 import { BoardIcon } from '../icons';
 import { pageViewKey } from './editor-v2/plugins/pageView';
-import { RoomData, RoomMode, RoomFormat, RoomMessage, Proposal, Treatment, Conversation, ROOM_MODES, FORMATS, DEFAULT_FORMAT, BEATS_REQUEST, SCENES_REQUEST, applyBeatSheet, activeConversation, newConversation, withConversation, patchConversation, conversationLabel, SUMMARY_INSTRUCTIONS, summaryPrompt, parseSummary, STARTERS, PLOT_STARTERS, PLOT_REQUEST, TREATMENT_FILE_TYPES, normalizeRoom, newRoomId, roomContext, roomInstructions, roomTurns, parseReply, proposalSynopsis, treatmentFromFile, wordCount } from './room';
+import { RoomData, RoomMode, RoomFormat, BeatDepth, BeatPurpose, BEAT_DEPTHS, RoomMessage, Proposal, Treatment, Conversation, ROOM_MODES, FORMATS, DEFAULT_FORMAT, BEATS_REQUEST, SCENES_REQUEST, applyBeatSheet, activeConversation, newConversation, withConversation, patchConversation, conversationLabel, SUMMARY_INSTRUCTIONS, summaryPrompt, parseSummary, STARTERS, PLOT_STARTERS, PLOT_REQUEST, TREATMENT_FILE_TYPES, normalizeRoom, newRoomId, roomContext, roomInstructions, roomTurns, parseReply, proposalSynopsis, treatmentFromFile, wordCount } from './room';
 import { requestAI, openHostSettings } from '../host';
 import { useCloudAvailability, useAIAvailability } from '../ai';
 import { SparkleIcon, PlusIcon, SidebarIcon } from '../icons';
@@ -141,6 +141,8 @@ export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, on
   const current = sceneAt(scenes, state.selection.from);
   const treatment = room.treatment ?? null;
   const format: RoomFormat = room.format ?? DEFAULT_FORMAT;
+  const beatDepth = room.beatDepth ?? 'turns';
+  const beatPurpose = room.beatPurpose ?? 'analyze';
   const layout = pageViewKey.getState(state)?.layout;
   // Plotting needs a treatment; fall back when it goes away.
   const activeMode: RoomMode = mode === 'plot' && !treatment ? 'break' : mode;
@@ -195,7 +197,7 @@ export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, on
     setError(null);
     setStreaming('');
     try {
-      const instructions = roomInstructions(mode, roomContext(state.doc, board, title, treatment, layout), format);
+      const instructions = roomInstructions(mode, roomContext(state.doc, board, title, treatment, layout), format, { depth: beatDepth, purpose: beatPurpose });
       const full = await requestAI(instructions, '', {
         tier: 'cloud',
         messages: roomTurns(base.messages, message),
@@ -203,12 +205,13 @@ export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, on
       });
       const reply: RoomMessage = { id: newRoomId('msg'), role: 'room', text: full, at: new Date().toISOString(), mode };
       const parsed = parseReply(full, mode === 'beats' ? 'beats' : 'proposals');
+      if (parsed.pending) setError('The reply ended inside an unfinished block. That block was not applied. Ask the room to retry that portion; the analysis may be incomplete.');
       const fresh: Proposal[] = parsed.proposals.map(p => ({ id: newRoomId('prop'), ...p, status: 'open', messageId: reply.id }));
       const done: Conversation = { ...withWriter, updatedAt: reply.at, messages: [...withWriter.messages, reply], proposals: [...withWriter.proposals, ...fresh] };
       onChange(withConversation(roomRef.current, done));
       if (parsed.beats.length) {
         // The room edits the board the writer is looking at: cards land, light up, and the pane opens.
-        const applied = applyBeatSheet(boardRef.current, parsed.beats);
+        const applied = applyBeatSheet(boardRef.current, parsed.beats, board);
         onBeatsChange(applied.board);
         setFreshBeats(applied.changedIds);
         setPane('board');
@@ -284,6 +287,7 @@ export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, on
 
   const layOutBeats = () => {
     setPane('board');
+    setMode('beats');
     void send(BEATS_REQUEST, 'beats');
   };
 
@@ -504,6 +508,20 @@ export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, on
             </div>
           )}
           {error && <div className="room-error">{error}</div>}
+        </div>
+        <div className="room-beat-settings">
+          <label>Beats
+            <select className="ui-select" aria-label="Beat detail" value={beatDepth} disabled={streaming !== null} onChange={e => onChange({ ...room, beatDepth: e.target.value as BeatDepth })}>
+              {BEAT_DEPTHS.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
+            </select>
+          </label>
+          <label>Purpose
+            <select className="ui-select" aria-label="Beat purpose" value={beatPurpose} disabled={streaming !== null} onChange={e => onChange({ ...room, beatPurpose: e.target.value as BeatPurpose })}>
+              <option value="analyze">Analyze existing script</option>
+              <option value="develop">Develop the story</option>
+            </select>
+          </label>
+          <span>No beat limit</span>
         </div>
         <div className="room-steps">
           <button className="ui-chip room-step" onClick={layOutBeats} disabled={!cloud.available || streaming !== null} title="Read the script and the conversation and put the story on the board as beats">

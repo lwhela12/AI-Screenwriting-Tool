@@ -43,9 +43,8 @@
   border-radius: 10px;
   color: #1e1c19;
   box-shadow: 0 2px 6px rgba(20, 18, 14, 0.14);
-  cursor: grab;
+  cursor: default;
   user-select: none;
-  touch-action: none;
 }
 
 .beat-card.dragging {
@@ -79,13 +78,13 @@
   color: rgba(30, 28, 25, 0.45);
 }
 
-.beat-card-title {
+.beat-card .beat-card-title {
   font-size: 13.5px;
   font-weight: 650;
   line-height: 18px;
 }
 
-.beat-card-text {
+.beat-card .beat-card-text {
   font-size: 12.5px;
   line-height: 17px;
   color: #3b3834;
@@ -195,4 +194,58 @@
 .beat-board.compact .view-fab {
   right: 16px;
   bottom: 16px;
+}
+
+.beat-board-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.beat-drag-handle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: -5px -7px 0;
+  padding: 4px 7px;
+  min-height: 26px;
+  border: 0;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.045);
+  color: #605b51;
+  font: 11px var(--ui-font);
+  cursor: grab;
+  touch-action: none;
+}
+
+.beat-drag-handle:hover { background: rgba(0, 0, 0, 0.09); }
+.beat-card.dragging .beat-drag-handle { cursor: grabbing; }
+.beat-drag-handle:focus-visible,
+.beat-scenes-toggle:focus-visible { outline: 2px solid #665324; outline-offset: 2px; }
+
+.beat-scenes-toggle {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  border: 0;
+  padding: 4px 0;
+  background: transparent;
+  color: #4b453b;
+  font: 11px var(--ui-font);
+  text-align: left;
+  cursor: pointer;
+}
+
+.beat-scene-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-height: 110px;
+  overflow: auto;
+  width: 100%;
 }
