@@ -456,10 +456,12 @@
   flex: 1 1 auto;
   overflow-y: auto;
   padding: 0 6px 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
+  /* Keep the long list in normal block flow. A flex column makes WebKit
+     repeatedly size every row when the current scene changes. */
+  display: block;
 }
+
+.scene-row + .scene-row { margin-top: 1px; }
 
 .scene-row {
   display: grid;
