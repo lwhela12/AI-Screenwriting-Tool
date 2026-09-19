@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeBeats, boardExtent, CARD_WIDTH, CARD_GAP } from '../src/components/beats';
+import { normalizeBeats, boardExtent, CARD_WIDTH, CARD_GAP, CARD_HEIGHT, arrangeBeats, sceneSummary } from '../src/components/beats';
 import { b, stateFor, viewFor } from './helpers';
 import { insertScene, scenesOf, setSceneHeading, deleteScene } from '../src/components/editor-v2/scenes';
 
@@ -60,5 +60,23 @@ describe('sending a beat to the script', () => {
     expect(view.state.doc.childCount).toBe(1);
     expect(view.state.doc.firstChild!.type.name).toBe('action');
     view.destroy();
+  });
+});
+
+
+describe('readable board layout', () => {
+  it('lays each row below the tallest measured card and preserves data', () => {
+    const beats = Array.from({ length: 5 }, (_, i) => ({ id: String(i), title: `Beat ${i}`, text: 'Keep', color: '#fff', x: i * 244, y: 24 }));
+    const arranged = arrangeBeats(beats, ['0', '0', 'missing', '1', '2', '3', '4'], 2, { '0': 320, '1': 150, '2': 100, '3': 250, '4': 480 });
+    expect(arranged.map(b => b.y)).toEqual([24, 24, 368, 368, 642]);
+    expect(arranged[0]).toMatchObject({ title: 'Beat 0', text: 'Keep' });
+    expect(boardExtent({ version: 2, beats: arranged }, { '4': 480 }).height).toBe(1122);
+    expect(arrangeBeats(beats, [], 0)[1].y).toBe(24 + CARD_HEIGHT + CARD_GAP);
+  });
+
+  it('labels only genuinely contiguous scene ranges', () => {
+    expect(sceneSummary([3, 1, 2, 2])).toBe('Scenes 1–3 · 3 scenes');
+    expect(sceneSummary([1, 3, 90])).toBe('3 linked scenes');
+    expect(sceneSummary([8])).toBe('Scene 8');
   });
 });

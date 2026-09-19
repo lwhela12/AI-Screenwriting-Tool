@@ -27,7 +27,7 @@ export const BEAT_COLORS = ['#fef3c7', '#fde68a', '#fecaca', '#fbcfe8', '#ddd6fe
 export const CARD_WIDTH = 220;
 export const CARD_GAP = 24;
 /** The height a card is laid out at when arranged in a grid. */
-export const CARD_HEIGHT = 150;
+export const CARD_HEIGHT = 200;
 /** Cards a gap is drawn in. */
 export const GAP_COLOR = BEAT_COLORS[2];
 
@@ -81,32 +81,53 @@ export function normalizeBeats(raw: unknown): BeatBoardData {
 }
 
 /** Bottom-right extent of the board, for sizing the canvas. */
-export function boardExtent(data: BeatBoardData): { width: number; height: number } {
+export function boardExtent(data: BeatBoardData, heights: Record<string, number> = {}): { width: number; height: number } {
   let width = 0;
   let height = 0;
   for (const b of data.beats) {
     width = Math.max(width, b.x + CARD_WIDTH);
-    height = Math.max(height, b.y + 160);
+    height = Math.max(height, b.y + (heights[b.id] || CARD_HEIGHT));
   }
   return { width, height };
 }
 
-/** Cards in reading order: row by row (bands a card's height tall), left to right. */
+/** Read nearby card tops as a row, independent of collapsed/expanded heights. */
 export function readingOrder(beats: Beat[]): Beat[] {
-  const band = (b: Beat) => Math.round(Math.max(0, b.y - CARD_GAP) / (CARD_HEIGHT + CARD_GAP));
-  return [...beats].sort((a, b) => band(a) - band(b) || a.x - b.x || a.y - b.y);
+  const remaining = [...beats].sort((a, b) => a.y - b.y || a.x - b.x);
+  const ordered: Beat[] = [];
+  for (let i = 0; i < remaining.length;) {
+    const top = remaining[i].y;
+    const row: Beat[] = [];
+    while (i < remaining.length && remaining[i].y <= top + CARD_GAP) row.push(remaining[i++]);
+    ordered.push(...row.sort((a, b) => a.x - b.x || a.y - b.y));
+  }
+  return ordered;
 }
 
 /**
  * Lay the cards named in `orderIds` out in a grid in that order; any other
  * cards follow in their present reading order.
  */
-export function arrangeBeats(beats: Beat[], orderIds: string[], columns = 4): Beat[] {
-  const rest = readingOrder(beats.filter(b => !orderIds.includes(b.id))).map(b => b.id);
-  const order = [...orderIds.filter(id => beats.some(b => b.id === id)), ...rest];
-  return beats.map(b => {
-    const i = order.indexOf(b.id);
-    if (i < 0) return b;
-    return { ...b, x: CARD_GAP + (i % columns) * (CARD_WIDTH + CARD_GAP), y: CARD_GAP + Math.floor(i / columns) * (CARD_HEIGHT + CARD_GAP) };
-  });
+export function arrangeBeats(beats: Beat[], orderIds: string[], columns = 4, heights: Record<string, number> = {}): Beat[] {
+  const byId = new Map(beats.map(b => [b.id, b]));
+  const requested = new Set(orderIds.filter(id => byId.has(id)));
+  const order = [...requested, ...readingOrder(beats.filter(b => !requested.has(b.id))).map(b => b.id)];
+  const positions = new Map<string, { x: number; y: number }>();
+  const count = Number.isFinite(columns) ? Math.max(1, Math.floor(columns)) : 4;
+  let y = CARD_GAP;
+  for (let row = 0; row < order.length; row += count) {
+    const ids = order.slice(row, row + count);
+    ids.forEach((id, col) => positions.set(id, { x: CARD_GAP + col * (CARD_WIDTH + CARD_GAP), y }));
+    y += Math.max(...ids.map(id => heights[id] || CARD_HEIGHT)) + CARD_GAP;
+  }
+  return beats.map(b => ({ ...b, ...positions.get(b.id) }));
+}
+
+/** A compact label that never implies missing scene numbers are linked. */
+export function sceneSummary(scenes: number[]): string {
+  const numbers = [...new Set(scenes)].sort((a, b) => a - b);
+  if (!numbers.length) return 'No linked scenes';
+  if (numbers.length === 1) return `Scene ${numbers[0]}`;
+  const contiguous = numbers.every((n, i) => i === 0 || n === numbers[i - 1] + 1);
+  return contiguous ? `Scenes ${numbers[0]}–${numbers[numbers.length - 1]} · ${numbers.length} scenes` : `${numbers.length} linked scenes`;
 }

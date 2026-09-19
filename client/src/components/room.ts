@@ -18,10 +18,9 @@ export type RoomMode = 'break' | 'ask' | 'alternatives' | 'pressure' | 'plot' | 
 /** What the script is, so the room thinks in the right shape and length. */
 export type RoomFormat = 'feature' | 'tv-hour' | 'tv-half' | 'limited' | 'short';
 
-export const FORMATS: { id: RoomFormat; label: string; shape: string; density: string; /** Beats for the whole story at working density. */ beats: string }[] = [
+export const FORMATS: { id: RoomFormat; label: string; shape: string; density: string; }[] = [
   {
     id: 'feature',
-    beats: '25 to 40 beats',
     label: 'Feature film',
     shape:
       'The script is a feature film. A feature runs 90 to 120 pages, a page being about a minute of screen time, and has 50 to 90 scenes. Think in sequences and acts; the writer decides the structure, but a feature has no act breaks to lean on and has to earn its ending in one sitting.',
@@ -29,7 +28,6 @@ export const FORMATS: { id: RoomFormat; label: string; shape: string; density: s
   },
   {
     id: 'tv-hour',
-    beats: '18 to 30 beats',
     label: 'TV drama (hour)',
     shape:
       'The script is an hour-long television drama episode. It runs 45 to 60 pages with 25 to 45 scenes: usually a teaser and four or five acts, each act ending on a turn strong enough to hold through a break. An A story, a B story and often a C story are braided together, and the episode answers its own question while moving the season along. Talk in acts and act breaks.',
@@ -37,7 +35,6 @@ export const FORMATS: { id: RoomFormat; label: string; shape: string; density: s
   },
   {
     id: 'tv-half',
-    beats: '12 to 20 beats',
     label: 'TV comedy (half hour)',
     shape:
       'The script is a half-hour television comedy episode. It runs 22 to 35 pages: a cold open, two or three acts and often a tag; an A story and a B story; scenes are short and each turns on a joke or a reversal. Talk in acts, runners and buttons.',
@@ -45,7 +42,6 @@ export const FORMATS: { id: RoomFormat; label: string; shape: string; density: s
   },
   {
     id: 'limited',
-    beats: '20 to 35 beats',
     label: 'Limited series',
     shape:
       'The script is an episode of a limited series, fully serialized. It runs 50 to 60 pages; the season is the story and the episode is a chapter that ends on a question. Scenes can run longer than in network television, and setups may pay off episodes later.',
@@ -53,12 +49,34 @@ export const FORMATS: { id: RoomFormat; label: string; shape: string; density: s
   },
   {
     id: 'short',
-    beats: '5 to 12 beats',
     label: 'Short film',
     shape: 'The script is a short film. It runs 5 to 20 pages: one situation, few locations, and one turn the whole film exists for. Everything that is not that turn is suspect.',
     density: 'a short of 5 to 20 pages has 5 to 20 scenes; do not pad it'
   }
 ];
+
+/** Granularity is a reading lens, never a card quota. */
+export type BeatDepth = 'overview' | 'turns' | 'scenes';
+export type BeatPurpose = 'analyze' | 'develop';
+export const BEAT_DEPTHS: { id: BeatDepth; label: string; instruction: string }[] = [
+  { id: 'overview', label: 'Sequence overview', instruction: 'Summarize the major dramatic sequences. Group scenes only when they serve the same dramatic movement; do not sweep unrelated intercut threads into a contiguous scene range.' },
+  { id: 'turns', label: 'Detailed dramatic turns', instruction: 'Identify each meaningful change in goal, information, stakes, power or character choice. A scene may carry several turns; several scenes may carry one continuous turn. Keep distinct turns separate.' },
+  { id: 'scenes', label: 'Scene by scene', instruction: 'Work through every numbered scene in order. Give each scene its own card, or multiple cards when it contains distinct turns. Link only that scene on each card. Describe connective scenes honestly without inventing a reversal.' }
+];
+export interface BeatOptions { depth?: BeatDepth; purpose?: BeatPurpose }
+
+/** Applies to every request, including a beat request made through freeform chat. */
+export function beatInstructions(options: BeatOptions = {}): string {
+  const depth = BEAT_DEPTHS.find(d => d.id === options.depth) ?? BEAT_DEPTHS[1];
+  const purpose = options.purpose ?? 'analyze';
+  return 'Beat settings: ' + depth.instruction + ' ' +
+    'There is no target, minimum or maximum number of beats, no per-reply card quota, no beats-per-page ratio and no scene-count limit per beat. Let the requested granularity and the story determine the count. Never compress later material to fit a count. ' +
+    'Use actual script scene numbers, not assumed format lengths. Link only scenes that substantiate the beat; links may be noncontiguous and may appear on more than one card. Check the described events against the supplied script, not memory of a film. ' +
+    (purpose === 'analyze'
+      ? 'Purpose: analyze the existing script. Treat the supplied script as the source of truth. Do not invent missing events or add rewrite suggestions as beats. Keep criticism and uncertainty in the prose, clearly separate from observed events. If no script is supplied, ask for one instead of fabricating an analysis. '
+      : 'Purpose: develop the story. Use the treatment and conversation for proposed changes. Keep observed script events distinct from suggestions: every invented or not-yet-written beat must have gap: true and no scene links that imply it already happens. Explain uncertainty in the prose. ') +
+    'Complete the requested scope when possible. If the response limit prevents completion, return a valid closed beats block for the completed portion and explain before it exactly where you stopped and what remains. Never claim partial coverage is complete.';
+}
 
 export const DEFAULT_FORMAT: RoomFormat = 'feature';
 
@@ -117,6 +135,8 @@ export interface RoomData {
   treatment?: Treatment | null;
   /** What the script is; a feature when unset. */
   format?: RoomFormat;
+  beatDepth?: BeatDepth;
+  beatPurpose?: BeatPurpose;
 }
 
 export const ROOM_MODES: { id: RoomMode; label: string; hint: string; needsTreatment?: boolean; step?: boolean }[] = [
@@ -197,7 +217,9 @@ export function normalizeRoom(raw: unknown): RoomData {
     conversations,
     ...(activeId ? { activeId } : {}),
     ...(treatment ? { treatment } : {}),
-    ...(format ? { format } : {})
+    ...(format ? { format } : {}),
+    ...(BEAT_DEPTHS.some(d => d.id === r.beatDepth) ? { beatDepth: r.beatDepth as BeatDepth } : {}),
+    ...(r.beatPurpose === 'analyze' || r.beatPurpose === 'develop' ? { beatPurpose: r.beatPurpose } : {})
   };
 }
 
@@ -304,14 +326,10 @@ const MODE_RULES: Record<RoomMode, string | ((format: (typeof FORMATS)[number]) 
   ask: 'Mode: questions. Do not propose anything and do not solve the story. Ask the writer the two or three most useful questions about what they have not decided yet, and say in a line why each matters. No proposals block.',
   alternatives: 'Mode: alternatives. For the beat or scene the writer names, offer three genuinely different versions as proposals, each with a different cost, and say in the prose which you would try first and why.',
   pressure: 'Mode: pressure test. Find where the structure gives: where an audience gets ahead of the story, what is set up and not paid off, what a choice costs the character, where the stakes go flat. Cite scenes and pages. No proposals or beats blocks unless asked.',
-  beats: format =>
-    'Mode: laying out the beats. Read the script as it stands, the treatment if there is one, and what the writer has said, and put the whole story on the board as beats, in story order: each beat a turn (what happens and what it changes, one or two sentences), with the scenes that carry it. ' +
-    `Work at the density of a working beat sheet for this format: ${format.beats} for the whole story, about one every three to five pages. The part of the story that is not written yet needs as many beats per page as the part that is; do not thin out as you pass the last written scene. ` +
-    'A beat covers at most three or four scenes unless they are one continuous movement; split anything larger into its turns. ' +
-    'Where the story needs a beat the script does not have yet, add it with gap set, and make it story, not a slot: say what happens and what it changes, never just "midpoint" or "climax". If you are unsure what happens there, propose the most specific version you can and say in the prose that it is a guess. ' +
-    'If the board already has beats, keep them by ref and improve them rather than starting over: reword, split, reorder if the story order demands it, add what is missing; never drop one. ' +
-    'Up to twenty beats per turn. If the story needs more, stop at a natural point, say where you stopped, and the writer will ask you to carry on. ' +
-    `Think in the shape of the format (${format.label.toLowerCase()}). Before the block, say in a few lines what the story is about, where it turns, and where it is thin.`,
+  beats:
+    'Mode: laying out the beats. Apply the beat settings below to the requested scope, in story order. Each card says what happens and what it changes, with accurate scene references. ' +
+    'If the board already has beats, use refs to update the same story units, add genuinely distinct units, and never delete existing cards. Do not change the meaning of a sequence summary just to reuse its ref for an unrelated detail. ' +
+    'Before the block, briefly explain the granularity, coverage, and any uncertainty. When old sequence summaries remain alongside new detailed cards, identify them as summaries rather than counting them as additional distinct turns.',
   scenes: format =>
     'Mode: breaking into scenes. Turn the beats on the board (in their order, or the ones the writer names) into the scenes that tell them: a proposals block of "scene" entries with a heading (INT./EXT., place, time) and one or two sentences saying what happens and what it turns, in story order. ' +
     'A scene is one heading, one place, one continuous stretch of time; a beat usually needs more than one, and one scene can carry parts of two beats. ' +
@@ -427,10 +445,10 @@ export function roomContext(doc: PMNode, beats: BeatBoardData | null, title: str
   return parts.join('\n\n');
 }
 
-export function roomInstructions(mode: RoomMode, context: string, format: RoomFormat = DEFAULT_FORMAT): string {
+export function roomInstructions(mode: RoomMode, context: string, format: RoomFormat = DEFAULT_FORMAT, beatOptions: BeatOptions = {}): string {
   const info = formatInfo(format);
   const rule = MODE_RULES[mode];
-  return `${RULES}\n\nFormat: ${info.shape}\n\n${typeof rule === 'function' ? rule(info) : rule}\n\n${context}`;
+  return `${RULES}\n\nFormat: ${mode === 'beats' ? info.label : info.shape}\n\n${typeof rule === 'function' ? rule(info) : rule}\n\n${beatInstructions(beatOptions)}\n\n${context}`;
 }
 
 /** The conversation as turns for the model: recent history plus the writer's new message. */
@@ -471,9 +489,9 @@ export interface BeatEntry {
  * out in the block's order when the order changed or beats were added;
  * a pure rewording keeps the writer's arrangement.
  */
-export function applyBeatSheet(board: BeatBoardData, entries: BeatEntry[]): { board: BeatBoardData; changedIds: string[] } {
+export function applyBeatSheet(board: BeatBoardData, entries: BeatEntry[], referenceBoard: BeatBoardData = board): { board: BeatBoardData; changedIds: string[] } {
   const ordered = readingOrder(board.beats);
-  const byLabel = new Map<string, string>(ordered.map((b, i) => [`b${i + 1}`, b.id]));
+  const byLabel = new Map<string, string>(readingOrder(referenceBoard.beats).map((b, i) => [`b${i + 1}`, b.id]));
   const beats = board.beats.map(b => ({ ...b }));
   const changed: string[] = [];
   const orderIds: string[] = [];
@@ -481,6 +499,7 @@ export function applyBeatSheet(board: BeatBoardData, entries: BeatEntry[]): { bo
   for (const e of entries) {
     const id = e.ref ? byLabel.get(e.ref.trim().toLowerCase()) : undefined;
     const existing = id ? beats.find(b => b.id === id) : undefined;
+    if (id && !existing) continue; // The writer deleted this card while the request was running.
     if (existing) {
       const next: Beat = {
         ...existing,

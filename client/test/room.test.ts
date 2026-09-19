@@ -232,8 +232,8 @@ describe('beats on the board', () => {
     const context = roomContext(b.doc(b.sh('INT. A - DAY')), null, 'Rain');
     expect(roomInstructions('break', context)).toContain('No proposals or beats blocks unless the writer asks');
     expect(roomInstructions('beats', context)).toContain('Mode: laying out the beats');
-    expect(roomInstructions('beats', context)).toContain('25 to 40 beats for the whole story');
-    expect(roomInstructions('beats', context, 'tv-half')).toContain('12 to 20 beats');
+    expect(roomInstructions('beats', context)).toContain('There is no target, minimum or maximum number of beats');
+    expect(roomInstructions('beats', context, 'tv-half')).not.toContain('12 to 20 beats');
     expect(roomInstructions('scenes', context, 'tv-hour')).toContain('an hour drama episode of 45 to 60 pages');
   });
 });
@@ -263,5 +263,48 @@ describe('mending hand-written JSON', () => {
     expect(parsed.beats[0].text).toBe('Reginald says "no" to Wallace. He gets slugged.');
     const mixed = '```beats\n[{"title":"Good","text":"Fine."},{"title":"Bad" "text":"Missing colon"},{"title":"Also good","text":"Ok."}]\n```';
     expect(parseReply(mixed).beats.map(b => b.title)).toEqual(['Good', 'Also good']);
+  });
+});
+
+
+describe('uncapped beat analysis', () => {
+  it('uses the requested depth and separates analysis from invention in every format', () => {
+    for (const format of ['feature', 'tv-hour', 'tv-half', 'limited', 'short'] as const) {
+      const prompt = roomInstructions('beats', 'Source script', format, { depth: 'scenes', purpose: 'analyze' });
+      expect(prompt).toContain('every numbered scene in order');
+      expect(prompt).toContain('Do not invent missing events');
+      expect(prompt).toContain('no per-reply card quota');
+      expect(prompt).not.toMatch(/Up to twenty|three to five pages|at most three or four|25 to 40 beats|5 to 12 beats/);
+      expect(prompt).toContain('Never claim partial coverage is complete');
+    }
+    expect(roomInstructions('break', '', 'feature')).toContain('no per-reply card quota');
+    expect(roomInstructions('beats', '', 'feature', { depth: 'overview', purpose: 'develop' })).toContain('every invented or not-yet-written beat must have gap: true');
+    expect(roomInstructions('beats', '', 'feature', { depth: 'turns' })).toContain('each meaningful change');
+  });
+
+  it('roundtrips beat preferences and discards unknown values', () => {
+    expect(normalizeRoom({ version: 2, conversations: [], beatDepth: 'scenes', beatPurpose: 'develop' })).toMatchObject({ beatDepth: 'scenes', beatPurpose: 'develop' });
+    expect(normalizeRoom({ version: 2, conversations: [], beatDepth: 'nope', beatPurpose: 'nope' })).not.toHaveProperty('beatDepth');
+    expect(normalizeRoom({ version: 2, conversations: [] })).not.toHaveProperty('beatPurpose');
+  });
+
+  it('parses and applies an uncapped response without dropping cards', () => {
+    const entries = Array.from({ length: 120 }, (_, i) => ({ title: `Turn ${i + 1}`, text: 'A new discovery.', scenes: [i + 1] }));
+    const parsed = parseReply('```beats\n' + JSON.stringify(entries) + '\n```');
+    expect(parsed.beats).toHaveLength(120);
+    const result = applyBeatSheet({ version: 2, beats: [] }, parsed.beats);
+    expect(result.board.beats).toHaveLength(120);
+    expect(readingOrder(result.board.beats).map(b => b.title)).toEqual(entries.map(e => e.title));
+  });
+
+  it('keeps reply refs attached to the requested cards after dragging or deleting during a request', () => {
+    const first = { id: 'a', title: 'First', text: 'Original', color: '#fff', x: 24, y: 24 };
+    const second = { ...first, id: 'b', title: 'Second', x: 268 };
+    const snapshot = { version: 2 as const, beats: [first, second] };
+    const moved = { version: 2 as const, beats: [{ ...first, x: 500 }, { ...second, x: 24 }] };
+    const entries = [{ ref: 'b1', title: 'First updated', text: 'Updated' }];
+    expect(applyBeatSheet(moved, entries, snapshot).board.beats.find(b => b.id === 'a')?.title).toBe('First updated');
+    const deleted = applyBeatSheet({ version: 2, beats: [second] }, entries, snapshot);
+    expect(deleted.board.beats).toEqual([second]);
   });
 });
