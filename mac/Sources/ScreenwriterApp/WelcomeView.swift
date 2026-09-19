@@ -12,15 +12,20 @@ struct WelcomeView: View {
 
     private let ink = Color(red: 0.16, green: 0.15, blue: 0.13)
     private let muted = Color(red: 0.43, green: 0.41, blue: 0.37)
+    private let wordmark = Bundle.main.url(forResource: "pica-wordmark", withExtension: "png")
+        .flatMap { NSImage(contentsOf: $0) }
 
     var body: some View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 0) {
-                Text("PICA.")
-                    .font(.custom("Courier-Bold", size: 68))
-                    .tracking(-3)
+                Image(nsImage: wordmark ?? NSImage())
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 262, height: 262)
+                    // Keep the original ink while letting the panel's paper show through.
+                    .blendMode(.darken)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                     .accessibilityLabel("Pica")
-                Spacer()
                 Button {
                     newDocument(ScriptDocument())
                 } label: {
@@ -41,10 +46,11 @@ struct WelcomeView: View {
                     .padding(.top, 18)
             }
             .padding(.horizontal, 38)
-            .padding(.top, 60)
+            .padding(.top, 20)
             .padding(.bottom, 38)
             .frame(width: 338)
             .background(Color(red: 0.95, green: 0.93, blue: 0.88))
+            .compositingGroup()
 
             Rectangle().fill(ink.opacity(0.1)).frame(width: 1)
 
