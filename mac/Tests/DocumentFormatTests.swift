@@ -13,6 +13,44 @@ final class DocumentFormatTests: XCTestCase {
         XCTAssertEqual(try document.dataForWriting(contentType: .picaDocument), workspace)
     }
 
+    func testDraftWorkspacePreservesAllVersionsThroughDiskSaveAndReopen() throws {
+        let script = #"{"type":"doc","content":[{"type":"action"}]}"#
+        let drafts: [[String: Any]] = [
+            ["id": "first", "name": "Draft 1", "title": "Test", "content": script,
+             "createdAt": "2026-09-19", "updatedAt": "2026-09-19", "beats": ["original": true]],
+            ["id": "second", "name": "Alternate ending", "title": "Test", "content": script,
+             "createdAt": "2026-09-19", "updatedAt": "2026-09-19", "room": ["alternate": true]]
+        ]
+        let data = try JSONSerialization.data(withJSONObject: [
+            "format": "screenplay", "version": 2, "content": script,
+            "drafts": ["version": 1, "activeId": "second", "items": drafts]
+        ])
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("pica")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let document = try ScriptDocument(data: data, contentType: .picaDocument)
+        try document.dataForWriting(contentType: .picaDocument).write(to: url, options: .atomic)
+        let reopened = try ScriptDocument(data: Data(contentsOf: url), contentType: .picaDocument)
+        XCTAssertEqual(try reopened.dataForWriting(contentType: .picaDocument), data)
+        XCTAssertThrowsError(try reopened.dataForWriting(contentType: .finalDraft))
+    }
+
+    func testDamagedDraftCollectionsAreRejected() throws {
+        let draft: [String: Any] = ["id": "one", "name": "Draft 1", "title": "Test", "content": "{}", "createdAt": "", "updatedAt": ""]
+        let invalid: [[String: Any]] = [
+            [:],
+            ["version": 1, "activeId": "one", "items": []],
+            ["version": 1, "activeId": "missing", "items": [draft]],
+            ["version": 1, "activeId": "one", "items": [draft, draft]],
+            ["version": 9, "activeId": "one", "items": [draft]]
+        ]
+        for drafts in invalid {
+            let data = try JSONSerialization.data(withJSONObject: ["format": "screenplay", "version": 2, "content": [:], "drafts": drafts])
+            XCTAssertThrowsError(try ScriptDocument(data: data, contentType: .picaDocument))
+        }
+        let missing = Data(#"{"format":"screenplay","version":2,"content":{}}"#.utf8)
+        XCTAssertThrowsError(try ScriptDocument(data: missing, contentType: .picaDocument))
+    }
+
     func testMislabeledAndLegacyWorkspacesKeepBeatsAndConversation() throws {
         for type in [UTType.finalDraft, .screenplayScript, .plainText] {
             let document = try ScriptDocument(data: workspace, contentType: type)

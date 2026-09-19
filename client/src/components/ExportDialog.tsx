@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { ScreenplayProject } from './ProjectManager';
 import { exportToPDF, exportToFDX, exportToText, exportToFountain } from '../utils/exporters';
 import './ExportDialog.css';
+import { activeDraftName } from '../drafts';
 
 interface ExportDialogProps {
   project: ScreenplayProject;
@@ -39,7 +40,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({ project, onClose }) 
       <div className="ui-sheet export-dialog" role="dialog" aria-label="Export" onClick={e => e.stopPropagation()}>
         <div className="export-head">
           <h2>Export</h2>
-          <p>{project.title}</p>
+          <p>{project.title}{activeDraftName(project) ? ` · ${activeDraftName(project)}` : ''}</p>
         </div>
         <div className="export-options">
           {FORMATS.map(f => (

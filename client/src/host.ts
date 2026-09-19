@@ -5,6 +5,7 @@ import { parseFountain } from './utils/fountain';
 import { contentToDoc, docToContent, textToDoc } from './components/editor-v2/docConverter';
 import { PAGE } from './components/editor-v2/pagination/layout';
 import { importPdf } from './utils/pdfImport';
+import { captureDraft, initializeDrafts, readDrafts, DraftCollection } from './drafts';
 
 /**
  * The bridge to a native host (the macOS app's WKWebView).
@@ -24,6 +25,8 @@ export interface HostDocument {
   beats: unknown;
   /** The Writers' Room conversation and proposals. */
   room?: unknown;
+  outline?: unknown;
+  drafts?: DraftCollection;
 }
 
 type HostMessage =
@@ -148,18 +151,28 @@ export function documentFromText(text: string, format: 'screenplay' | 'fdx' | 'f
   let doc;
   let extracted: Partial<HostDocument> = {};
   if (format === 'screenplay') {
+    let parsed;
     try {
-      const parsed = JSON.parse(text);
-      return {
+      parsed = JSON.parse(text);
+    } catch {
+      doc = textToDoc(text);
+    }
+    if (parsed) {
+      if (parsed.version !== undefined && parsed.version !== 1 && parsed.version !== 2) {
+        throw new Error('This workspace requires a newer version of Pica.');
+      }
+      const drafts = parsed.version === 2 || parsed.drafts !== undefined ? readDrafts(parsed.drafts) : undefined;
+      const result: HostDocument = {
         title: parsed.title || meta.title || '',
         author: parsed.author || '',
         contact: parsed.contact || '',
         content: typeof parsed.content === 'string' ? parsed.content : JSON.stringify(parsed.content || ''),
         beats: parsed.beats ?? null,
-        room: parsed.room ?? null
+        room: parsed.room ?? null,
+        outline: parsed.outline ?? null,
+        ...(drafts ? { drafts } : {})
       };
-    } catch {
-      doc = textToDoc(text);
+      return drafts ? initializeDrafts(result) : result;
     }
   } else if (format === 'fdx') {
     const imported = parseFDX(text);
@@ -183,7 +196,8 @@ export function documentFromText(text: string, format: 'screenplay' | 'fdx' | 'f
 
 /** Serialize a host document to the app's own file format. */
 export function serializeDocument(doc: HostDocument): string {
-  return JSON.stringify({ format: 'screenplay', version: 1, title: doc.title, author: doc.author, contact: doc.contact, content: JSON.parse(doc.content), beats: doc.beats ?? null, room: doc.room ?? null }, null, 2);
+  const current = doc.drafts ? captureDraft(doc) : doc;
+  return JSON.stringify({ format: 'screenplay', version: current.drafts ? 2 : 1, title: current.title, author: current.author, contact: current.contact, content: JSON.parse(current.content), beats: current.beats ?? null, room: current.room ?? null, outline: current.outline ?? null, ...(current.drafts ? { drafts: current.drafts } : {}) }, null, 2);
 }
 
 /**

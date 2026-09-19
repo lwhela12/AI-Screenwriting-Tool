@@ -90,9 +90,29 @@ struct ScriptDocument: FileDocument {
     private static func validateWorkspace(_ data: Data) throws {
         guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               object["format"] as? String == "screenplay",
-              object["version"] as? Int == 1,
+              let version = object["version"] as? Int, [1, 2].contains(version),
               object["content"] is [String: Any] || object["content"] is String else {
             throw PicaFileError.invalidWorkspace
+        }
+        // Version 2 contains independent drafts. Reject damaged archives before
+        // the editor opens them; older Pica builds reject v2 instead of losing drafts.
+        if version == 2 || object["drafts"] != nil {
+            guard let drafts = object["drafts"] as? [String: Any],
+                  drafts["version"] as? Int == 1,
+                  let activeID = drafts["activeId"] as? String,
+                  let items = drafts["items"] as? [[String: Any]], !items.isEmpty else {
+                throw PicaFileError.invalidWorkspace
+            }
+            var ids = Set<String>()
+            for draft in items {
+                guard let id = draft["id"] as? String, !id.isEmpty, ids.insert(id).inserted,
+                      let name = draft["name"] as? String, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                      draft["title"] is String, draft["content"] is String,
+                      draft["createdAt"] is String, draft["updatedAt"] is String else {
+                    throw PicaFileError.invalidWorkspace
+                }
+            }
+            guard ids.contains(activeID) else { throw PicaFileError.invalidWorkspace }
         }
     }
 }

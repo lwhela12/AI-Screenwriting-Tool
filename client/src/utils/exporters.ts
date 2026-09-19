@@ -7,6 +7,7 @@ import { docToFDX } from './fdx';
 import { docToFountain } from './fountain';
 import { layoutFromDoc } from '../components/editor-v2/pagination/fromDoc';
 import { isHosted, sendFileToHost } from '../host';
+import { activeDraftName } from '../drafts';
 
 function notify(message: string, kind: 'info' | 'success' | 'error'): () => void {
   const el = document.createElement('div');
@@ -21,6 +22,12 @@ function notify(message: string, kind: 'info' | 'success' | 'error'): () => void
 function safeFilename(title: string, ext: string): string {
   const base = title.replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '').toLowerCase() || 'screenplay';
   return `${base}.${ext}`;
+}
+
+/** Export the selected draft without changing the script's title page. */
+export function exportFilename(project: ScreenplayProject, ext: string): string {
+  const name = activeDraftName(project);
+  return safeFilename(name ? `${project.title} - ${name}` : project.title, ext);
 }
 
 function downloadBlob(filename: string, blob: Blob): void {
@@ -52,7 +59,7 @@ export async function exportToPDF(project: ScreenplayProject): Promise<void> {
       layout: layoutFromDoc(contentToDoc(project.content)).layout
     };
     const blob = await pdf(React.createElement(ScreenplayDocument, { data }) as any).toBlob();
-    downloadBlob(safeFilename(project.title, 'pdf'), blob);
+    downloadBlob(exportFilename(project, 'pdf'), blob);
     dismiss();
     const done = notify('PDF downloaded', 'success');
     setTimeout(done, 3000);
@@ -66,15 +73,15 @@ export async function exportToPDF(project: ScreenplayProject): Promise<void> {
 
 export function exportToFDX(project: ScreenplayProject): void {
   const fdx = docToFDX(contentToDoc(project.content), project);
-  downloadText(safeFilename(project.title, 'fdx'), fdx, 'application/xml');
+  downloadText(exportFilename(project, 'fdx'), fdx, 'application/xml');
 }
 
 export function exportToFountain(project: ScreenplayProject): void {
   const text = docToFountain(contentToDoc(project.content), project);
-  downloadText(safeFilename(project.title, 'fountain'), text, 'text/plain');
+  downloadText(exportFilename(project, 'fountain'), text, 'text/plain');
 }
 
 export function exportToText(project: ScreenplayProject): void {
   const text = elementsToText(contentToElements(project.content));
-  downloadText(safeFilename(project.title, 'txt'), text, 'text/plain');
+  downloadText(exportFilename(project, 'txt'), text, 'text/plain');
 }

@@ -41,6 +41,7 @@ export const Inspector: React.FC<InspectorProps> = ({ view, state, sessionStartW
     setDraftError(null);
     try {
       const synopsis = await draftSynopsis(view.state.doc, scene);
+      if (view.isDestroyed) return;
       setSceneAttrs(view, scene.index, { synopsis });
     } catch (err) {
       setDraftError((err as Error).message);

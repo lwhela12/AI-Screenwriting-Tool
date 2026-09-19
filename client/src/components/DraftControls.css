@@ -1,0 +1,31 @@
+.draft-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding: 7px 18px;
+  background: var(--chrome);
+  border-bottom: 1px solid var(--chrome-border);
+  font-size: 12px;
+}
+
+.draft-label, .draft-count { color: var(--muted); }
+.draft-count { margin-left: auto; white-space: nowrap; }
+.draft-select {
+  font: inherit;
+  color: var(--ink);
+  background: var(--chrome);
+  border: 1px solid var(--chrome-border);
+  border-radius: 6px;
+  min-height: var(--control-height);
+  min-width: 140px;
+  max-width: 240px;
+  padding: 0 8px;
+  text-overflow: ellipsis;
+}
+.draft-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.draft-rename { display: flex; align-items: center; gap: 6px; }
+.draft-rename .ui-input { width: 200px; }
+.draft-error { color: var(--danger); }
+.app.focus-mode .draft-toolbar { display: none; }
