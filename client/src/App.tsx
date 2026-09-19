@@ -50,7 +50,7 @@ const THEMES = [
 type SaveState = { kind: 'clean'; at?: Date } | { kind: 'dirty' } | { kind: 'saving' } | { kind: 'local'; at: Date } | { kind: 'error'; message: string };
 
 const HOSTED = isHosted();
-const AUTOSAVE_DELAY_MS = HOSTED ? 400 : 3000;
+const AUTOSAVE_DELAY_MS = 3000;
 
 function describeSave(state: SaveState): { text: string; className: string } {
   const time = (d: Date) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -128,6 +128,12 @@ export const App: React.FC = () => {
   const markDirty = useCallback(() => {
     dirtyRef.current = true;
     setSaveState(prev => (prev.kind === 'saving' ? prev : { kind: 'dirty' }));
+    // NSDocument owns disk autosave. Keep its snapshot current immediately so
+    // native Save/Save As/Close cannot act on the previous browser debounce.
+    if (HOSTED) {
+      void save();
+      return;
+    }
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     autosaveTimer.current = setTimeout(() => {
       autosaveTimer.current = null;
@@ -346,7 +352,9 @@ export const App: React.FC = () => {
           clearTimeout(autosaveTimer.current);
           autosaveTimer.current = null;
         }
-        void save();
+        void save().then(saved => {
+          if (HOSTED && saved) postToHost({ type: 'save' });
+        });
       } else if (mod && event.shiftKey && event.key.toLowerCase() === 'f') {
         event.preventDefault();
         setFocusMode(f => !f);

@@ -92,9 +92,37 @@ struct ScreenwriterApp: App {
                 Divider()
             }
         }
+        // Foreign files are opened by a read-only scene, then copied into a new
+        // native document. They are never attached to an editable workspace.
+        DocumentGroup(viewing: ScriptImportDocument.self) { configuration in
+            ImportWorkspace(document: configuration.document.workspace, sourceURL: configuration.fileURL)
+        }
+        .defaultSize(width: 460, height: 160)
         Settings {
             AISettingsView()
         }
+    }
+}
+
+private struct ImportWorkspace: View {
+    let document: ScriptDocument
+    let sourceURL: URL?
+    @Environment(\.newDocument) private var newDocument
+    @Environment(\.dismissWindow) private var dismissWindow
+    @State private var imported = false
+
+    var body: some View {
+        ProgressView("Opening Pica workspace…")
+            .padding(32)
+            .task {
+                guard !imported else { return }
+                imported = true
+                var workspace = document
+                workspace.importedTitle = sourceURL?.deletingPathExtension().lastPathComponent ?? document.importedTitle
+                let importedWorkspace = workspace
+                newDocument(importedWorkspace)
+                dismissWindow()
+            }
     }
 }
 
@@ -107,29 +135,49 @@ private struct ScriptWindow: View {
     @Environment(\.openSettings) private var openSettings
 
     private var title: String {
-        fileURL?.deletingPathExtension().lastPathComponent ?? "Untitled"
+        fileURL?.deletingPathExtension().lastPathComponent ?? document.importedTitle ?? "Untitled"
     }
 
     var body: some View {
-        ScriptWebView(
-            load: ScriptLoad(document: document, title: title),
-            theme: theme,
-            documentKey: fileURL?.path,
-            bridgeBox: bridgeBox,
-            onChanged: { text in
-                // The page hands back the whole serialized document on every change.
-                document.text = text
-                document.format = "screenplay"
-            },
-            onSave: {
-                NSApp.sendAction(#selector(NSDocument.save(_:)), to: nil, from: nil)
-            },
-            onOpenSettings: {
-                NSApp.activate(ignoringOtherApps: true)
-                openSettings()
+        VStack(spacing: 0) {
+            if fileURL == nil {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(document.recoveredWorkspace ? "Save this workspace as a Pica document" : "Save your Pica workspace")
+                            .font(.headline)
+                        Text(document.recoveredWorkspace
+                             ? "This file contains Pica workspace data. Save a .pica copy to keep your script, beat board and Writers’ Room. The original file stays unchanged."
+                             : "A .pica document keeps your script, beat board and Writers’ Room together. Imported files stay unchanged. Export a Final Draft copy whenever you need one.")
+                            .font(.callout)
+                    }
+                    Spacer()
+                    Button("Save as Pica…") {
+                        NSApp.sendAction(#selector(NSDocument.save(_:)), to: nil, from: nil)
+                    }
+                }
+                .padding()
+                Divider()
             }
-        )
-        .ignoresSafeArea()
+            ScriptWebView(
+                load: ScriptLoad(document: document, title: title),
+                theme: theme,
+                documentKey: fileURL?.path,
+                bridgeBox: bridgeBox,
+                onChanged: { text in
+                    // The page hands back the whole serialized document on every change.
+                    document.text = text
+                    document.format = "screenplay"
+                },
+                onSave: {
+                    NSApp.sendAction(#selector(NSDocument.save(_:)), to: nil, from: nil)
+                },
+                onOpenSettings: {
+                    NSApp.activate(ignoringOtherApps: true)
+                    openSettings()
+                }
+            )
+            .ignoresSafeArea()
+        }
         .focusedSceneValue(\.scriptBridge, bridgeBox)
     }
 }
