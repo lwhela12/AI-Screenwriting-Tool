@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { EditorState } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import { history } from 'prosemirror-history';
@@ -78,6 +78,9 @@ export const ProseMirrorEditor: React.FC<ProseMirrorEditorProps> = ({
   const [editorState, setEditorState] = useState<EditorState | null>(null);
   const [sessionStartWords, setSessionStartWords] = useState(0);
   const [elementMenuOpen, setElementMenuOpen] = useState(false);
+  // Cursor moves and plugin updates do not change the script's word count.
+  const doc = editorState?.doc;
+  const words = useMemo(() => doc ? countWords(doc.textContent) : 0, [doc]);
 
   useEffect(() => {
     if (!editorRef.current || viewRef.current) return;
@@ -184,7 +187,7 @@ export const ProseMirrorEditor: React.FC<ProseMirrorEditorProps> = ({
         <span>
           Page {status.page} of {status.pageCount}
         </span>
-        <span className="status-right">{editorState ? `${countWords(editorState.doc.textContent).toLocaleString()} words` : ''}</span>
+        <span className="status-right">{editorState ? `${words.toLocaleString()} words` : ''}</span>
       </div>
     </div>
   );
