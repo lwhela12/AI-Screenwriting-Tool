@@ -40,7 +40,9 @@ type HostMessage =
   /** Ask a language model for a completion; the answer comes back through `aiResult`. */
   | { type: 'ai'; id: string; tier: AITier; json: boolean; stream: boolean; instructions: string; prompt: string; messages?: ChatTurn[] }
   /** Open the app's Settings window (to add a cloud key). */
-  | { type: 'openSettings' };
+  | { type: 'openSettings' }
+  /** Bring a window forward: the script's, or the beat board's own. */
+  | { type: 'focus'; target: 'main' | 'board' };
 
 /** `device` runs on the Mac (Apple Intelligence); `cloud` sends the text to the configured provider. */
 export type AITier = 'device' | 'cloud';
@@ -116,6 +118,10 @@ export interface ScreenplayHostApi {
   redo: () => void;
   /** View menu: focus mode on and off. */
   toggleFocus: () => void;
+  /** View menu: open the beat board in its own window, or bring it back. */
+  toggleBoardWindow: () => void;
+  /** The host closed the board's window. */
+  boardClosed: () => void;
 }
 
 interface HostBindings {
@@ -128,6 +134,8 @@ interface HostBindings {
   undo: () => void;
   redo: () => void;
   toggleFocus: () => void;
+  toggleBoardWindow: () => void;
+  boardClosed: () => void;
 }
 
 function base64ToBytes(base64: string): Uint8Array {
@@ -357,7 +365,9 @@ export function installHostApi(bindings: HostBindings): void {
     aiChunk: (id, text) => chunkAI(id, text),
     undo: () => bindings.undo(),
     redo: () => bindings.redo(),
-    toggleFocus: () => bindings.toggleFocus()
+    toggleFocus: () => bindings.toggleFocus(),
+    toggleBoardWindow: () => bindings.toggleBoardWindow(),
+    boardClosed: () => bindings.boardClosed()
   };
   window.__screenplay = api;
   postToHost({ type: 'ready' });

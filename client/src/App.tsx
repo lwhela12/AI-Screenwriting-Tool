@@ -13,6 +13,7 @@ import { exportToPDF, exportToFDX, exportToFountain, exportToText } from './util
 import type { TitlePageData } from './components/editor-v2/TitleSheet';
 import type { BeatBoardData } from './components/beats';
 import { RoomView } from './components/RoomView';
+import { BoardAway, BoardWindow, notifyBoardClosed, openBoardWindow } from './components/BoardWindow';
 import type { RoomData, RoomSession } from './components/room';
 import { captureDraft, createDraft, initializeDrafts, renameDraft, switchDraft } from './drafts';
 import { DraftMenu } from './components/DraftMenu';
@@ -101,6 +102,12 @@ export const App: React.FC = () => {
   const [editorState, setEditorState] = useState<EditorState | null>(null);
   const [beats, setBeats] = useState<BeatBoardData | null>(null);
   const [room, setRoom] = useState<unknown>(null);
+  // The beat board's own window, while it is open; the board is drawn there instead of here.
+  const [boardWindow, setBoardWindow] = useState<Window | null>(null);
+  const boardWindowRef = useRef<Window | null>(null);
+  boardWindowRef.current = boardWindow;
+  // Cards the room just wrote, lit up wherever the board is drawn.
+  const [freshBeats, setFreshBeats] = useState<string[]>([]);
   const roomRef = useRef<unknown>(null);
   // What the Room view was doing when the writer left it; cleared with the views.
   const roomSessionRef = useRef<RoomSession>({});
@@ -247,6 +254,8 @@ export const App: React.FC = () => {
         setActiveView('editor');
         setFocusMode(f => !f);
       },
+      toggleBoardWindow: () => (boardWindowRef.current ? dockBoard() : popOutBoard()),
+      boardClosed: () => notifyBoardClosed(),
       getDocument: hostDocument,
       loadDocument: (doc: HostDocument) => {
         const now = new Date().toISOString();
@@ -362,6 +371,11 @@ export const App: React.FC = () => {
   /** Switch to the script and put the cursor at a scene. */
   const openScene = (scene: SceneInfo) => {
     setActiveView('editor');
+    // From the board's window, the script window comes forward.
+    if (boardWindowRef.current?.document.hasFocus()) {
+      if (HOSTED) postToHost({ type: 'focus', target: 'main' });
+      else window.focus();
+    }
     requestAnimationFrame(() => {
       if (editorViewRef.current) jumpToScene(editorViewRef.current, scene);
     });
@@ -374,6 +388,40 @@ export const App: React.FC = () => {
     }
     await save();
     setShowProjectManager(true);
+  };
+
+  /** Open the board in its own window, or bring that window forward. Call from a click. */
+  const popOutBoard = () => {
+    const open = boardWindowRef.current;
+    if (open && !open.closed) {
+      showBoardWindow();
+      return;
+    }
+    const win = openBoardWindow();
+    if (!win) return;
+    boardWindowRef.current = win;
+    setBoardWindow(win);
+  };
+
+  const showBoardWindow = () => {
+    const win = boardWindowRef.current;
+    if (!win) return;
+    if (HOSTED) postToHost({ type: 'focus', target: 'board' });
+    else win.focus();
+  };
+
+  /** Close the board's window and show the board here again. */
+  const dockBoard = () => {
+    boardWindowRef.current = null;
+    setBoardWindow(null);
+    setActiveView(v => (v === 'room' ? v : 'board'));
+    if (HOSTED) postToHost({ type: 'focus', target: 'main' });
+  };
+
+  // The room lights cards up; bring the board's window forward so they are seen.
+  const handleFreshBeats = (ids: string[]) => {
+    setFreshBeats(ids);
+    if (ids.length && boardWindowRef.current) showBoardWindow();
   };
 
   const toggleScenes = () => setShowScenes(v => (writePref('ui.scenes', String(!v)), !v));
@@ -392,10 +440,13 @@ export const App: React.FC = () => {
    * has focus.
    */
   const historyCommand = (which: 'undo' | 'redo') => {
-    const active = document.activeElement as HTMLElement | null;
+    const board = boardWindowRef.current;
+    // Typing in a card in the board's window: that window's field history.
+    const doc = board && !board.closed && board.document.hasFocus() ? board.document : document;
+    const active = doc.activeElement as HTMLElement | null;
     const view = editorViewRef.current;
     if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
-      document.execCommand(which);
+      doc.execCommand(which);
       return;
     }
     if (!view) return;
@@ -429,9 +480,11 @@ export const App: React.FC = () => {
         setFocusMode(false);
       }
     };
-    window.addEventListener('keydown', onKeyDown, true);
-    return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, [save, focusMode]);
+    // The board's window answers the same keys.
+    const targets = boardWindow ? [window, boardWindow] : [window];
+    targets.forEach(t => t.addEventListener('keydown', onKeyDown, true));
+    return () => targets.forEach(t => t.removeEventListener('keydown', onKeyDown, true));
+  }, [save, focusMode, boardWindow]);
 
   useEffect(() => {
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -578,9 +631,11 @@ export const App: React.FC = () => {
           )}
         </div>
         <div className={`view${activeView === 'board' ? ' active' : ''}`}>
-          {activeView === 'board' && currentProject && editorState && (
-            <BeatBoard data={beats} onChange={data => { if (sessionRef.current === hostGeneration) handleBeatsChange(data); }} view={editorViewRef.current} state={editorState} onOpenScene={openScene} />
-          )}
+          {activeView === 'board' && currentProject && editorState && (boardWindow ? (
+            <BoardAway onShow={showBoardWindow} onDock={dockBoard} />
+          ) : (
+            <BeatBoard data={beats} onChange={data => { if (sessionRef.current === hostGeneration) handleBeatsChange(data); }} view={editorViewRef.current} state={editorState} onOpenScene={openScene} onPopOut={popOutBoard} />
+          ))}
         </div>
         <div className={`view${activeView === 'outline' ? ' active' : ''}`}>
           {activeView === 'outline' && currentProject && editorState && <OutlineView view={editorViewRef.current} state={editorState} onOpenScene={openScene} />}
@@ -598,6 +653,10 @@ export const App: React.FC = () => {
               onOpenScene={openScene}
               session={roomSessionRef.current}
               onSession={patch => Object.assign(roomSessionRef.current, patch)}
+              freshBeats={freshBeats}
+              onFreshBeats={handleFreshBeats}
+              onPopOutBoard={popOutBoard}
+              boardAway={boardWindow ? <BoardAway onShow={showBoardWindow} onDock={dockBoard} /> : undefined}
             />
           )}
         </div>
@@ -606,6 +665,13 @@ export const App: React.FC = () => {
         </div>
       </main>
 
+      {boardWindow && (
+        <BoardWindow win={boardWindow} title={currentProject?.title ?? ''} theme={theme} onClosed={() => { boardWindowRef.current = null; setBoardWindow(null); }}>
+          {currentProject && editorState ? (
+            <BeatBoard key={hostGeneration} data={beats} onChange={data => { if (sessionRef.current === hostGeneration) handleBeatsChange(data); }} view={editorViewRef.current} state={editorState} onOpenScene={openScene} highlightIds={freshBeats} onDock={dockBoard} />
+          ) : null}
+        </BoardWindow>
+      )}
       {focusMode && (
         <button className="focus-exit" onClick={() => setFocusMode(false)} title="Leave focus mode (Esc or ⇧⌘F)">
           <FocusIcon />

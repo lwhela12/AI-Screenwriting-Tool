@@ -10,7 +10,8 @@ import UniformTypeIdentifiers
 /// `ready` (the bridge is installed), `changed` (the serialized document to
 /// write to disk), `save` (the page asked to save), `log`, and `wrapCheck`
 /// (a line-wrapping comparison result), `ai` (a request for the on-device
-/// model, answered through `aiResult`). The app drives the page through
+/// model, answered through `aiResult`), `focus` (bring the script or board
+/// window forward). The app drives the page through
 /// `window.__screenplay`: `load(text, format, meta)`, `document()`,
 /// `wrapCheck()`, `setTheme(name)`, `setView(name)`, `exportAs(format)`.
 ///
@@ -48,6 +49,21 @@ public enum HostEvent {
     case export(filename: String, mime: String, data: Data)
     /// The page asked for the Settings window (to add a cloud key).
     case openSettings
+}
+
+/// The beat board's own window. The page draws the board into it (a popup
+/// sharing the page's script), so it never becomes the main window: Save,
+/// Export and the document's other commands keep going to the script window.
+public final class BoardWindow: NSWindow {
+    public weak var bridge: ScriptBridge?
+
+    public override var canBecomeMain: Bool { false }
+
+    /// The bridge of the board window that has keyboard focus, for menu commands.
+    @MainActor
+    public static var keyBridge: ScriptBridge? {
+        (NSApp.keyWindow as? BoardWindow)?.bridge
+    }
 }
 
 /// Serves the bundled editor over `pica://web/...`. A real origin
@@ -102,6 +118,10 @@ public final class ScriptBridge: NSObject, WKScriptMessageHandler, WKNavigationD
     public var documentTitle = "this script"
     private var schemeHandler: WebBundleSchemeHandler?
     private var settingsObserver: NSObjectProtocol?
+    /// The beat board's window, while the page has one open.
+    private var boardWindow: BoardWindow?
+    private var boardTitleObservation: NSKeyValueObservation?
+    private var theme = "paper"
 
     public override init() {
         super.init()
@@ -133,6 +153,8 @@ public final class ScriptBridge: NSObject, WKScriptMessageHandler, WKNavigationD
         configuration.userContentController.addUserScript(WKUserScript(source: errorScript, injectionTime: .atDocumentStart, forMainFrameOnly: true))
         configuration.preferences.setValue(true, forKey: "developerExtrasEnabled")
         configuration.defaultWebpagePreferences.allowsContentJavaScript = true
+        // The View menu opens the board's window from outside a click.
+        configuration.preferences.javaScriptCanOpenWindowsAutomatically = true
         let view = WKWebView(frame: .zero, configuration: configuration)
         view.navigationDelegate = bridge
         view.uiDelegate = bridge
@@ -187,6 +209,14 @@ public final class ScriptBridge: NSObject, WKScriptMessageHandler, WKNavigationD
             }
         case "openSettings":
             onEvent?(.openSettings)
+        case "focus":
+            MainActor.assumeIsolated {
+                if body["target"] as? String == "board" {
+                    boardWindow?.makeKeyAndOrderFront(nil)
+                } else {
+                    webView?.window?.makeKeyAndOrderFront(nil)
+                }
+            }
         default:
             break
         }
@@ -256,6 +286,8 @@ public final class ScriptBridge: NSObject, WKScriptMessageHandler, WKNavigationD
     }
 
     public func setTheme(_ name: String) {
+        theme = name
+        MainActor.assumeIsolated { boardWindow?.appearance = Self.appearance(for: name) }
         call("window.__screenplay && window.__screenplay.setTheme(\(json(name)))")
     }
 
@@ -266,6 +298,22 @@ public final class ScriptBridge: NSObject, WKScriptMessageHandler, WKNavigationD
 
     public func setView(_ name: String) {
         call("window.__screenplay && window.__screenplay.setView(\(json(name)))")
+    }
+
+    /// Paper and Sepia are the light themes; the board window's title bar follows the page.
+    static func appearance(for theme: String) -> NSAppearance? {
+        NSAppearance(named: ["paper", "sepia"].contains(theme) ? .aqua : .darkAqua)
+    }
+
+    /// View menu: the beat board in its own window, or back in the script window.
+    public func toggleBoardWindow() {
+        call("window.__screenplay && window.__screenplay.toggleBoardWindow && window.__screenplay.toggleBoardWindow()")
+    }
+
+    /// The script window is going away; its board window goes with it.
+    @MainActor
+    public func closeBoardWindow() {
+        boardWindow?.close()
     }
 
     public func undo() {
@@ -333,6 +381,10 @@ public struct ScriptWebView: NSViewRepresentable {
     }
 
     public func makeCoordinator() -> Coordinator { Coordinator() }
+
+    public static func dismantleNSView(_ nsView: WKWebView, coordinator: Coordinator) {
+        coordinator.bridge.closeBoardWindow()
+    }
 
     public func makeNSView(context: Context) -> WKWebView {
         let coordinator = context.coordinator
@@ -448,6 +500,74 @@ public struct ScriptWebView: NSViewRepresentable {
                     NSAlert(error: error).runModal()
                 }
             }
+        }
+    }
+}
+
+// MARK: - The beat board's window
+
+extension ScriptBridge: NSWindowDelegate {
+    /// `window.open` from the page: the beat board, drawn by the page into a native window.
+    public func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+        MainActor.assumeIsolated {
+            // One board window per script.
+            if let boardWindow {
+                boardWindow.makeKeyAndOrderFront(nil)
+                return nil
+            }
+            // WebKit's configuration keeps the popup in the page's process, so the page can draw into it.
+            let child = WKWebView(frame: .zero, configuration: configuration)
+            child.uiDelegate = self
+            child.allowsMagnification = false
+            let width = CGFloat(windowFeatures.width?.doubleValue ?? 900)
+            let height = CGFloat(windowFeatures.height?.doubleValue ?? 700)
+            let window = BoardWindow(contentRect: NSRect(x: 0, y: 0, width: width, height: height),
+                                     styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                                     backing: .buffered, defer: false)
+            window.bridge = self
+            window.isReleasedWhenClosed = false
+            window.tabbingMode = .disallowed
+            window.minSize = NSSize(width: 480, height: 360)
+            window.contentView = child
+            window.title = "\(documentTitle) — Beat Board"
+            window.delegate = self
+            window.appearance = Self.appearance(for: theme)
+            // Beside the script window the first time; where the writer left it after that.
+            if !window.setFrameUsingName("PicaBeatBoard") {
+                if let main = webView.window {
+                    let origin = NSPoint(x: main.frame.maxX - width - 40, y: main.frame.maxY - height - 80)
+                    window.setFrameOrigin(origin)
+                } else {
+                    window.center()
+                }
+            }
+            boardTitleObservation = child.observe(\.title, options: [.new]) { [weak window] view, _ in
+                DispatchQueue.main.async {
+                    if let title = view.title, !title.isEmpty { window?.title = title }
+                }
+            }
+            boardWindow = window
+            window.makeKeyAndOrderFront(nil)
+            return child
+        }
+    }
+
+    /// The page closed the board's window (`window.close()`), for instance to show the board in the script window again.
+    public func webViewDidClose(_ webView: WKWebView) {
+        MainActor.assumeIsolated {
+            if let boardWindow, boardWindow.contentView === webView { boardWindow.close() }
+        }
+    }
+
+    public func windowWillClose(_ notification: Notification) {
+        MainActor.assumeIsolated {
+            guard let window = notification.object as? BoardWindow, window === boardWindow else { return }
+            window.saveFrame(usingName: "PicaBeatBoard")
+            boardTitleObservation = nil
+            boardWindow = nil
+            window.contentView = nil
+            // Tell the page, so the board is drawn in the script window again.
+            call("window.__screenplay && window.__screenplay.boardClosed && window.__screenplay.boardClosed()")
         }
     }
 }

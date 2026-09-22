@@ -25,6 +25,13 @@ interface RoomViewProps {
   /** Survives leaving the view: the unsent message, the pane, the scroll position. */
   session: RoomSession;
   onSession: (patch: Partial<RoomSession>) => void;
+  /** Cards the room just wrote, lit up wherever the board is drawn. */
+  freshBeats?: string[];
+  onFreshBeats?: (ids: string[]) => void;
+  /** Move the board into its own window. */
+  onPopOutBoard?: () => void;
+  /** Drawn in place of the board while it is in its own window. */
+  boardAway?: React.ReactNode;
 }
 
 /** Plain prose with paragraph breaks; the room writes no markup. */
@@ -46,7 +53,7 @@ const CHAT_MIN_WIDTH = 420;
 /** The beat granularity as it reads in the composer's settings line. */
 const DEPTH_SHORT: Record<BeatDepth, string> = { overview: 'Sequences', turns: 'Dramatic turns', scenes: 'Scene by scene' };
 
-export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, onChange, beats, onBeatsChange, onOpenScene, session, onSession }) => {
+export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, onChange, beats, onBeatsChange, onOpenScene, session, onSession, freshBeats: sharedFresh, onFreshBeats, onPopOutBoard, boardAway }) => {
   const room = useMemo(() => normalizeRoom(data), [data]);
   const board = useMemo(() => normalizeBeats(beats), [beats]);
   const cloud = useCloudAvailability();
@@ -64,7 +71,9 @@ export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, on
     setPaneState(next);
     onSession({ pane: next });
   };
-  const [freshBeats, setFreshBeats] = useState<string[]>([]);
+  const [localFresh, setLocalFresh] = useState<string[]>([]);
+  const freshBeats = sharedFresh ?? localFresh;
+  const setFreshBeats = onFreshBeats ?? setLocalFresh;
   const boardRef = useRef(board);
   boardRef.current = board;
   // The board's width beside the chat: dragged on the splitter, remembered between sessions.
@@ -640,7 +649,7 @@ export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, on
             onDoubleClick={resetSplit}
           />
           <section className="room-board" aria-label="Beat board" style={boardWidth ? { flex: `0 0 ${clampBoardWidth(boardWidth)}px` } : undefined}>
-            <BeatBoard data={beats} onChange={onBeatsChange} view={view} state={state} onOpenScene={onOpenScene} highlightIds={freshBeats} compact />
+            {boardAway ?? <BeatBoard data={beats} onChange={onBeatsChange} view={view} state={state} onOpenScene={onOpenScene} highlightIds={freshBeats} compact onPopOut={onPopOutBoard} />}
           </section>
         </>
       )}

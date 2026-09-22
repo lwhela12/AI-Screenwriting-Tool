@@ -46,7 +46,7 @@ describe('native import handoff', () => {
     const bindings: Parameters<typeof installHostApi>[0] = {
       getView: () => null, getDocument: () => null, loadDocument: vi.fn(),
       exportAs: vi.fn(), setView: vi.fn(), setTheme: vi.fn(),
-      undo: vi.fn(), redo: vi.fn(), toggleFocus: vi.fn()
+      undo: vi.fn(), redo: vi.fn(), toggleFocus: vi.fn(), toggleBoardWindow: vi.fn(), boardClosed: vi.fn()
     };
     installHostApi(bindings);
     postMessage.mockClear();

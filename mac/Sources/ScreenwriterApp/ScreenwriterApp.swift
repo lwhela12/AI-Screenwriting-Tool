@@ -39,6 +39,11 @@ struct ScreenwriterApp: App {
     @AppStorage("theme") private var theme = AppTheme.paper.rawValue
     @FocusedValue(\.scriptBridge) private var focusedBridge
 
+    /// The focused script window's bridge, or the one behind a focused beat board window.
+    private var activeBridge: ScriptBridge? {
+        BoardWindow.keyBridge ?? focusedBridge?.bridge
+    }
+
     init() {
         // One script per window; the system tab bar (View > Show Tab Bar) only confuses.
         NSWindow.allowsAutomaticWindowTabbing = false
@@ -55,34 +60,37 @@ struct ScreenwriterApp: App {
         .commands {
             // The web view would otherwise answer ⌘Z with WebKit's own undo, not the script's.
             CommandGroup(replacing: .undoRedo) {
-                Button("Undo") { focusedBridge?.bridge?.undo() }
+                Button("Undo") { activeBridge?.undo() }
                     .keyboardShortcut("z", modifiers: .command)
-                Button("Redo") { focusedBridge?.bridge?.redo() }
+                Button("Redo") { activeBridge?.redo() }
                     .keyboardShortcut("z", modifiers: [.command, .shift])
             }
             CommandGroup(after: .saveItem) {
                 Menu("Export") {
-                    Button("PDF…") { focusedBridge?.bridge?.exportAs("pdf") }
-                    Button("Final Draft (.fdx)…") { focusedBridge?.bridge?.exportAs("fdx") }
-                    Button("Fountain…") { focusedBridge?.bridge?.exportAs("fountain") }
-                    Button("Plain Text…") { focusedBridge?.bridge?.exportAs("txt") }
+                    Button("PDF…") { activeBridge?.exportAs("pdf") }
+                    Button("Final Draft (.fdx)…") { activeBridge?.exportAs("fdx") }
+                    Button("Fountain…") { activeBridge?.exportAs("fountain") }
+                    Button("Plain Text…") { activeBridge?.exportAs("txt") }
                 }
                 .disabled(focusedBridge?.bridge == nil)
             }
             // Into the system View menu, above its toolbar and full-screen items.
             CommandGroup(before: .toolbar) {
-                Button("Script") { focusedBridge?.bridge?.setView("editor") }
+                Button("Script") { activeBridge?.setView("editor") }
                     .keyboardShortcut("1", modifiers: [.command, .option])
-                Button("Outline") { focusedBridge?.bridge?.setView("outline") }
+                Button("Outline") { activeBridge?.setView("outline") }
                     .keyboardShortcut("2", modifiers: [.command, .option])
-                Button("Beat Board") { focusedBridge?.bridge?.setView("board") }
+                Button("Beat Board") { activeBridge?.setView("board") }
                     .keyboardShortcut("3", modifiers: [.command, .option])
-                Button("Writers' Room") { focusedBridge?.bridge?.setView("room") }
+                Button("Writers' Room") { activeBridge?.setView("room") }
                     .keyboardShortcut("4", modifiers: [.command, .option])
-                Button("Reports") { focusedBridge?.bridge?.setView("reports") }
+                Button("Reports") { activeBridge?.setView("reports") }
                     .keyboardShortcut("5", modifiers: [.command, .option])
+                Button("Beat Board in Separate Window") { activeBridge?.toggleBoardWindow() }
+                    .keyboardShortcut("b", modifiers: [.command, .option])
+                    .disabled(focusedBridge?.bridge == nil)
                 Divider()
-                Button("Focus Mode") { focusedBridge?.bridge?.toggleFocus() }
+                Button("Focus Mode") { activeBridge?.toggleFocus() }
                     .keyboardShortcut("f", modifiers: [.command, .shift])
                     .disabled(focusedBridge?.bridge == nil)
                 Divider()

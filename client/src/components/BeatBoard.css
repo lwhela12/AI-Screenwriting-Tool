@@ -249,3 +249,37 @@
   overflow: auto;
   width: 100%;
 }
+
+/* The count on the left; the actions gather on the right. */
+.beat-board-toolbar > span:first-child {
+  margin-right: auto;
+}
+
+/* The board in its own window fills it. */
+#board-root {
+  height: 100%;
+}
+
+/* Where the board would be while it is in its own window. */
+.beat-board-away {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 auto;
+  gap: 12px;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 16px;
+  text-align: center;
+  background: var(--desk);
+  color: var(--muted);
+  font-family: var(--ui-font);
+  font-size: 13px;
+}
+
+.beat-board-away-actions {
+  display: flex;
+  gap: 8px;
+}

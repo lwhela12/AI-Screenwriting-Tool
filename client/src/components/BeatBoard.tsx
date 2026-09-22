@@ -16,6 +16,10 @@ interface BeatBoardProps {
   highlightIds?: string[];
   /** Inside the Writers' Room: no hint line, smaller chrome. */
   compact?: boolean;
+  /** Move the board into its own window. */
+  onPopOut?: () => void;
+  /** In its own window: put the board back in the main window. */
+  onDock?: () => void;
 }
 
 /**
@@ -23,7 +27,7 @@ interface BeatBoardProps {
  * cards to arrange them, edit in place, and send a beat into the script as
  * a new scene (its text becomes the scene synopsis).
  */
-export const BeatBoard: React.FC<BeatBoardProps> = ({ data, onChange, view, state, onOpenScene, highlightIds = [], compact = false }) => {
+export const BeatBoard: React.FC<BeatBoardProps> = ({ data, onChange, view, state, onOpenScene, highlightIds = [], compact = false, onPopOut, onDock }) => {
   const board = useMemo(() => normalizeBeats(data), [data]);
   const boardRef = useRef<HTMLDivElement>(null);
   const [editing, setEditing] = useState<string | null>(null);
@@ -41,7 +45,9 @@ export const BeatBoard: React.FC<BeatBoardProps> = ({ data, onChange, view, stat
       setHeights(previous => JSON.stringify(previous) === JSON.stringify(next) ? previous : next);
     };
     measure();
-    const observer = new ResizeObserver(measure);
+    // The board may be drawn into another window; observe with that window's observer.
+    const Observer = (boardRef.current?.ownerDocument.defaultView as (Window & typeof globalThis) | null)?.ResizeObserver ?? ResizeObserver;
+    const observer = new Observer(measure);
     cardRefs.current.forEach(el => observer.observe(el));
     return () => observer.disconnect();
   }, [board.beats, expanded, editing]);
@@ -68,7 +74,7 @@ export const BeatBoard: React.FC<BeatBoardProps> = ({ data, onChange, view, stat
   };
 
   const removeBeat = (id: string) => {
-    if (!confirm('Delete this beat?')) return;
+    if (!(boardRef.current?.ownerDocument.defaultView ?? window).confirm('Delete this beat?')) return;
     update(board.beats.filter(b => b.id !== id));
   };
 
@@ -142,6 +148,8 @@ export const BeatBoard: React.FC<BeatBoardProps> = ({ data, onChange, view, stat
       <div className="beat-board-toolbar">
         <span>{board.beats.length} {board.beats.length === 1 ? 'beat' : 'beats'}</span>
         <button className="ui-chip" onClick={tidy} disabled={!board.beats.length} title="Arrange cards in rows with room for their current height">Tidy board</button>
+        {onPopOut && <button className="ui-chip" onClick={onPopOut} title="Open the board in its own window">Open in window</button>}
+        {onDock && <button className="ui-chip" onClick={onDock} title="Close this window and show the board in the main window again">Back to main window</button>}
       </div>
       <div className="beat-board-scroll" ref={scrollRef}>
         <div ref={boardRef} className="beat-board-canvas" style={boardStyle} onDoubleClick={onBoardDoubleClick} onPointerDown={onBoardPointerDown}>
