@@ -274,14 +274,19 @@ export interface AIRequestOptions {
   onChunk?: (delta: string, full: string) => void;
 }
 
+// Fixed objects: React's external-store hooks re-render forever on a fresh object per read.
+const NOT_HOSTED: AIAvailability = { available: false, reason: 'Available in the Mac app.' };
+const CHECKING_DEVICE: AIAvailability = { available: false, reason: 'Checking Apple Intelligence…' };
+const NO_CLOUD_KEY: CloudAvailability = { available: false, reason: 'Add a Gemini API key in Settings.' };
+
 export function aiAvailability(): AIAvailability {
-  if (!isHosted()) return { available: false, reason: 'Available in the Mac app.' };
-  return capabilities.ai ?? { available: false, reason: 'Checking Apple Intelligence…' };
+  if (!isHosted()) return NOT_HOSTED;
+  return capabilities.ai ?? CHECKING_DEVICE;
 }
 
 export function cloudAvailability(): CloudAvailability {
-  if (!isHosted()) return { available: false, reason: 'Available in the Mac app.' };
-  return capabilities.cloud ?? { available: false, reason: 'Add a Gemini API key in Settings.' };
+  if (!isHosted()) return NOT_HOSTED;
+  return capabilities.cloud ?? NO_CLOUD_KEY;
 }
 
 export function openHostSettings(): void {

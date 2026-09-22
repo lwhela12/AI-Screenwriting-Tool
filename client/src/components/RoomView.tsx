@@ -30,8 +30,10 @@ interface RoomViewProps {
   onFreshBeats?: (ids: string[]) => void;
   /** Move the board into its own window. */
   onPopOutBoard?: () => void;
-  /** Drawn in place of the board while it is in its own window. */
-  boardAway?: React.ReactNode;
+  /** The board is in its own window: the right-hand pane collapses and the chat takes the width. */
+  boardInWindow?: boolean;
+  /** Bring the board's window forward. */
+  onShowBoardWindow?: () => void;
 }
 
 /** Plain prose with paragraph breaks; the room writes no markup. */
@@ -53,7 +55,7 @@ const CHAT_MIN_WIDTH = 420;
 /** The beat granularity as it reads in the composer's settings line. */
 const DEPTH_SHORT: Record<BeatDepth, string> = { overview: 'Sequences', turns: 'Dramatic turns', scenes: 'Scene by scene' };
 
-export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, onChange, beats, onBeatsChange, onOpenScene, session, onSession, freshBeats: sharedFresh, onFreshBeats, onPopOutBoard, boardAway }) => {
+export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, onChange, beats, onBeatsChange, onOpenScene, session, onSession, freshBeats: sharedFresh, onFreshBeats, onPopOutBoard, boardInWindow = false, onShowBoardWindow }) => {
   const room = useMemo(() => normalizeRoom(data), [data]);
   const board = useMemo(() => normalizeBeats(beats), [beats]);
   const cloud = useCloudAvailability();
@@ -71,6 +73,14 @@ export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, on
     setPaneState(next);
     onSession({ pane: next });
   };
+  // With the board in its own window, "the board" means that window.
+  const showBoard = () => (boardInWindow ? onShowBoardWindow?.() : setPane('board'));
+  // Popping the board out collapses the pane, Proposals included; they are one click away.
+  useEffect(() => {
+    if (boardInWindow) setPane('board');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boardInWindow]);
+  const boardPaneOpen = pane === 'board' && !boardInWindow;
   const [localFresh, setLocalFresh] = useState<string[]>([]);
   const freshBeats = sharedFresh ?? localFresh;
   const setFreshBeats = onFreshBeats ?? setLocalFresh;
@@ -466,9 +476,10 @@ export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, on
       </aside>
       <div className="room-conversation">
         <div className="room-pane-toggle" role="tablist" aria-label="Right pane">
-          <button className={`ui-button${pane === 'board' ? ' active' : ''}`} onClick={() => setPane('board')} title="The beat board, live: the room writes to it and you can move things while you talk">
+          <button className={`ui-button${boardPaneOpen ? ' active' : ''}`} onClick={showBoard} title={boardInWindow ? 'The beat board is in its own window: bring it forward' : 'The beat board, live: the room writes to it and you can move things while you talk'}>
             <BoardIcon />
             <span>Board{board.beats.length ? ` ${board.beats.length}` : ''}</span>
+            {boardInWindow && <span aria-hidden="true">↗</span>}
           </button>
           <button className={`ui-button${pane === 'proposals' ? ' active' : ''}`} onClick={() => setPane('proposals')} title="Scene proposals and the treatment">
             <span>Proposals{open.length ? ` ${open.length}` : ''}</span>
@@ -522,7 +533,7 @@ export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, on
                     </button>
                   ) : null}
                   {beatCount > 0 && (
-                    <button className="room-proposed as-button" onClick={() => setPane('board')}>
+                    <button className="room-proposed as-button" onClick={showBoard}>
                       {beatCount} {beatCount === 1 ? 'beat' : 'beats'} on the board →
                     </button>
                   )}
@@ -637,7 +648,7 @@ export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, on
         </div>
       </div>
 
-      {pane === 'board' && (
+      {boardPaneOpen && (
         <>
           <div
             className="room-splitter"
@@ -649,7 +660,7 @@ export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, on
             onDoubleClick={resetSplit}
           />
           <section className="room-board" aria-label="Beat board" style={boardWidth ? { flex: `0 0 ${clampBoardWidth(boardWidth)}px` } : undefined}>
-            {boardAway ?? <BeatBoard data={beats} onChange={onBeatsChange} view={view} state={state} onOpenScene={onOpenScene} highlightIds={freshBeats} compact onPopOut={onPopOutBoard} />}
+            <BeatBoard data={beats} onChange={onBeatsChange} view={view} state={state} onOpenScene={onOpenScene} highlightIds={freshBeats} compact onPopOut={onPopOutBoard} />
           </section>
         </>
       )}

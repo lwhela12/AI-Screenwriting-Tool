@@ -656,7 +656,8 @@ export const App: React.FC = () => {
               freshBeats={freshBeats}
               onFreshBeats={handleFreshBeats}
               onPopOutBoard={popOutBoard}
-              boardAway={boardWindow ? <BoardAway onShow={showBoardWindow} onDock={dockBoard} /> : undefined}
+              boardInWindow={!!boardWindow}
+              onShowBoardWindow={showBoardWindow}
             />
           )}
         </div>
