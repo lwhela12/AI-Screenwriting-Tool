@@ -171,12 +171,13 @@ export function moveScene(view: EditorView, fromOrdinal: number, toOrdinal: numb
   return true;
 }
 
-/** Insert a new scene (heading plus an empty action) after scene `afterOrdinal`, or at the end when null. */
+/** Insert a new scene (heading plus an empty action) after scene `afterOrdinal`, at the end when null, or at the very start when negative. */
 export function insertScene(view: EditorView, afterOrdinal: number | null, heading = '', synopsis = ''): void {
   const { state } = view;
   const scenes = scenesOf(state.doc);
-  const after = afterOrdinal === null ? null : scenes[afterOrdinal];
-  const pos = after ? after.to : state.doc.content.size;
+  // null: the end of the script; a negative ordinal: the very start.
+  const after = afterOrdinal === null || afterOrdinal < 0 ? null : scenes[afterOrdinal];
+  const pos = after ? after.to : afterOrdinal !== null && afterOrdinal < 0 ? 0 : state.doc.content.size;
   const headingNode = screenplaySchema.nodes.scene_heading.create(
     { synopsis: synopsis || null },
     heading ? screenplaySchema.text(heading.toUpperCase()) : undefined

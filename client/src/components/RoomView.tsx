@@ -1,15 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { EditorState } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
-import { scenesOf, sceneAt, insertScene, SceneInfo } from './editor-v2/scenes';
+import { scenesOf, sceneAt, SceneInfo } from './editor-v2/scenes';
 import { BeatBoardData, Beat, BEAT_COLORS, CARD_GAP, boardExtent, newBeatId, normalizeBeats } from './beats';
 import { BeatBoard } from './BeatBoard';
 import { BoardIcon } from '../icons';
 import { pageViewKey } from './editor-v2/plugins/pageView';
-import { RoomData, RoomMode, RoomFormat, BeatDepth, BeatPurpose, BEAT_DEPTHS, RoomMessage, Proposal, Treatment, Conversation, ROOM_MODES, FORMATS, DEFAULT_FORMAT, BEATS_REQUEST, SCENES_REQUEST, applyBeatSheet, activeConversation, newConversation, withConversation, patchConversation, conversationLabel, SUMMARY_INSTRUCTIONS, summaryPrompt, parseSummary, STARTERS, PLOT_STARTERS, PLOT_REQUEST, TREATMENT_FILE_TYPES, normalizeRoom, newRoomId, roomContext, roomInstructions, roomTurns, parseReply, proposalSynopsis, treatmentFromFile, wordCount } from './room';
+import { RoomData, RoomSession, RoomMode, RoomFormat, BeatDepth, BEAT_DEPTHS, RoomMessage, Proposal, Treatment, Conversation, ROOM_MODES, FORMATS, DEFAULT_FORMAT, BEATS_REQUEST, SCENES_REQUEST, applyBeatSheet, activeConversation, newConversation, withConversation, patchConversation, conversationLabel, SUMMARY_INSTRUCTIONS, summaryPrompt, parseSummary, startersFor, purposeFor, PLOT_REQUEST, TREATMENT_FILE_TYPES, normalizeRoom, newRoomId, roomContext, roomInstructions, roomTurns, parseReply, proposalSynopsis, acceptedProposals, placeScenes, placementLabel, treatmentFromFile, wordCount } from './room';
 import { requestAI, openHostSettings } from '../host';
 import { useCloudAvailability, useAIAvailability } from '../ai';
-import { SparkleIcon, PlusIcon, SidebarIcon } from '../icons';
+import { SparkleIcon, PlusIcon, SidebarIcon, ChevronDownIcon, ArrowUpIcon } from '../icons';
+import { Popover, MenuItem } from './Popover';
 import './Room.css';
 
 interface RoomViewProps {
@@ -21,6 +22,9 @@ interface RoomViewProps {
   beats: unknown;
   onBeatsChange: (data: BeatBoardData) => void;
   onOpenScene: (scene: SceneInfo) => void;
+  /** Survives leaving the view: the unsent message, the pane, the scroll position. */
+  session: RoomSession;
+  onSession: (patch: Partial<RoomSession>) => void;
 }
 
 /** Plain prose with paragraph breaks; the room writes no markup. */
@@ -39,8 +43,10 @@ const HISTORY_KEY = 'ui.roomHistory';
 const BOARD_WIDTH_KEY = 'ui.roomBoardWidth';
 const BOARD_MIN_WIDTH = 320;
 const CHAT_MIN_WIDTH = 420;
+/** The beat granularity as it reads in the composer's settings line. */
+const DEPTH_SHORT: Record<BeatDepth, string> = { overview: 'Sequences', turns: 'Dramatic turns', scenes: 'Scene by scene' };
 
-export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, onChange, beats, onBeatsChange, onOpenScene }) => {
+export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, onChange, beats, onBeatsChange, onOpenScene, session, onSession }) => {
   const room = useMemo(() => normalizeRoom(data), [data]);
   const board = useMemo(() => normalizeBeats(beats), [beats]);
   const cloud = useCloudAvailability();
@@ -53,7 +59,11 @@ export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, on
   const proposals = conversation?.proposals ?? [];
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   // The right-hand pane: the live board (beats) or the scene proposals and treatment.
-  const [pane, setPane] = useState<'board' | 'proposals'>('proposals');
+  const [pane, setPaneState] = useState<'board' | 'proposals'>(session.pane ?? 'proposals');
+  const setPane = (next: 'board' | 'proposals') => {
+    setPaneState(next);
+    onSession({ pane: next });
+  };
   const [freshBeats, setFreshBeats] = useState<string[]>([]);
   const boardRef = useRef(board);
   boardRef.current = board;
@@ -128,9 +138,20 @@ export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, on
       // Ignore.
     }
   };
-  const [mode, setMode] = useState<RoomMode>('break');
-  const [draft, setDraft] = useState('');
+  // The mode lives with the room, so it holds across views and reopening the script.
+  const mode: RoomMode = room.mode ?? 'break';
+  const setMode = (next: RoomMode) => onChange({ ...room, mode: next });
+  // Which composer menu is open: the actions, the mode, or the settings.
+  const [menu, setMenu] = useState<'plus' | 'mode' | 'settings' | null>(null);
+  const closeMenu = () => setMenu(null);
+  const [draft, setDraftState] = useState(session.draft ?? '');
+  const setDraft = (next: string) => {
+    setDraftState(next);
+    onSession({ draft: next });
+  };
   const [streaming, setStreaming] = useState<string | null>(null);
+  // The mode of the request in flight, which may be a step (beats, scenes) rather than the conversation's mode.
+  const [streamingMode, setStreamingMode] = useState<RoomMode>('break');
   const [error, setError] = useState<string | null>(null);
   const [treatmentDraft, setTreatmentDraft] = useState<string | null>(null);
   const [treatmentOpen, setTreatmentOpen] = useState(false);
@@ -142,15 +163,31 @@ export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, on
   const treatment = room.treatment ?? null;
   const format: RoomFormat = room.format ?? DEFAULT_FORMAT;
   const beatDepth = room.beatDepth ?? 'turns';
-  const beatPurpose = room.beatPurpose ?? 'analyze';
   const layout = pageViewKey.getState(state)?.layout;
   // Plotting needs a treatment; fall back when it goes away.
   const activeMode: RoomMode = mode === 'plot' && !treatment ? 'break' : mode;
 
+  // New messages scroll to the bottom; coming back to the view returns to where the writer was.
+  const restoredScroll = useRef(false);
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    const saved = session.scroll;
+    if (!restoredScroll.current && saved && saved.conversationId === conversation?.id) {
+      restoredScroll.current = true;
+      el.scrollTop = saved.top;
+      return;
+    }
+    restoredScroll.current = true;
+    el.scrollTop = el.scrollHeight;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversation?.id, messages.length, streaming]);
+  const conversationId = conversation?.id;
+  useEffect(() => () => {
+    const el = scrollRef.current;
+    if (el) onSession({ scroll: { conversationId, top: el.scrollTop } });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId]);
 
   useEffect(() => {
     if (streaming !== null && /```\s*beats/i.test(streaming)) setPane('board');
@@ -196,8 +233,9 @@ export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, on
     setDraft('');
     setError(null);
     setStreaming('');
+    setStreamingMode(mode);
     try {
-      const instructions = roomInstructions(mode, roomContext(state.doc, board, title, treatment, layout), format, { depth: beatDepth, purpose: beatPurpose });
+      const instructions = roomInstructions(mode, roomContext(state.doc, board, title, treatment, layout, base.proposals), format, { depth: beatDepth, purpose: purposeFor(activeMode) });
       const full = await requestAI(instructions, '', {
         tier: 'cloud',
         messages: roomTurns(base.messages, message),
@@ -207,7 +245,17 @@ export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, on
       const parsed = parseReply(full, mode === 'beats' ? 'beats' : 'proposals');
       if (parsed.pending) setError('The reply ended inside an unfinished block. That block was not applied. Ask the room to retry that portion; the analysis may be incomplete.');
       const fresh: Proposal[] = parsed.proposals.map(p => ({ id: newRoomId('prop'), ...p, status: 'open', messageId: reply.id }));
-      const done: Conversation = { ...withWriter, updatedAt: reply.at, messages: [...withWriter.messages, reply], proposals: [...withWriter.proposals, ...fresh] };
+      // An accept block places proposals that were waiting when the writer sent this message.
+      let placed: Proposal[] = [];
+      if (parsed.accept) {
+        const chosen = acceptedProposals(withWriter.proposals, parsed.accept);
+        if (!chosen.length) setError('The room tried to place proposals that are no longer waiting. Nothing was added to the outline.');
+        else if (!view) setError('The room tried to place proposals, but the script is not open. Nothing was added to the outline.');
+        else placed = placeScenes(view, chosen);
+      }
+      const placedById = new Map(placed.filter(p => p.status === 'kept').map(p => [p.id, p]));
+      if (placedById.size) reply.placed = placedById.size;
+      const done: Conversation = { ...withWriter, updatedAt: reply.at, messages: [...withWriter.messages, reply], proposals: [...withWriter.proposals.map(p => placedById.get(p.id) ?? p), ...fresh] };
       onChange(withConversation(roomRef.current, done));
       if (parsed.beats.length) {
         // The room edits the board the writer is looking at: cards land, light up, and the pane opens.
@@ -216,7 +264,7 @@ export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, on
         setFreshBeats(applied.changedIds);
         setPane('board');
         window.setTimeout(() => setFreshBeats([]), 6000);
-      } else if (fresh.length) {
+      } else if (fresh.length || placedById.size) {
         setPane('proposals');
       }
       void summarize(done);
@@ -287,7 +335,6 @@ export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, on
 
   const layOutBeats = () => {
     setPane('board');
-    setMode('beats');
     void send(BEATS_REQUEST, 'beats');
   };
 
@@ -310,29 +357,20 @@ export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, on
     patchProposal(p.id, { status: 'kept' });
   };
 
-  /** A proposal becomes a scene at the end of the script (or after the current scene). */
-  const toScene = (p: Proposal, afterCurrent: boolean): number | null => {
-    if (!view) return null;
-    const after = afterCurrent && current && !current.opening ? current.ordinal : null;
-    insertScene(view, after, p.heading || '', proposalSynopsis(p));
-    const created = scenesOf(view.state.doc);
-    const ordinal = after === null ? created.length - 1 : after + 1;
-    return ordinal;
+  /** One proposal becomes a scene: after the current scene when asked, else where it was proposed to go. */
+  const addScene = (p: Proposal, afterCurrent = false) => {
+    if (!view) return;
+    const placed = placeScenes(view, [afterCurrent && current && !current.opening ? { ...p, after: sceneNumberOf(current) } : p]);
+    patchProposal(p.id, { status: 'kept', sceneOrdinal: placed[0].sceneOrdinal });
   };
 
-  const addScene = (p: Proposal, afterCurrent = false) => {
-    const ordinal = toScene(p, afterCurrent);
-    if (ordinal !== null) patchProposal(p.id, { status: 'kept', sceneOrdinal: ordinal });
-  };
+  /** The number a scene has in the outline (opening material is scene 0). */
+  const sceneNumberOf = (scene: SceneInfo): number => scenes.filter(s => !s.opening && s.ordinal <= scene.ordinal).length;
 
   const sendAllToOutline = () => {
     if (!view || !conversation) return;
-    let next = proposals;
-    for (const p of proposals.filter(p => p.status === 'open')) {
-      const ordinal = toScene(p, false);
-      if (ordinal !== null) next = next.map(q => (q.id === p.id ? { ...q, status: 'kept', sceneOrdinal: ordinal } : q));
-    }
-    onChange(patchConversation(room, conversation.id, { proposals: next }));
+    const placed = new Map(placeScenes(view, proposals.filter(p => p.status === 'open')).map(p => [p.id, p]));
+    onChange(patchConversation(room, conversation.id, { proposals: proposals.map(p => placed.get(p.id) ?? p) }));
   };
 
   const writeIt = (p: Proposal) => {
@@ -342,8 +380,11 @@ export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, on
   };
 
   const open = proposals.filter(p => p.status === 'open');
+  const modes = ROOM_MODES.filter(m => !m.step && (!m.needsTreatment || treatment));
+  const modeInfo = ROOM_MODES.find(m => m.id === activeMode) ?? ROOM_MODES[0];
+  const formatInfo = FORMATS.find(f => f.id === format) ?? FORMATS[0];
   const kept = proposals.filter(p => p.status === 'kept');
-  const live = streaming !== null ? parseReply(streaming, activeMode === 'beats' ? 'beats' : 'proposals') : null;
+  const live = streaming !== null ? parseReply(streaming, streamingMode === 'beats' ? 'beats' : 'proposals') : null;
   const dateLabel = (iso: string) => {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return '';
@@ -415,32 +456,14 @@ export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, on
         })}
       </aside>
       <div className="room-conversation">
-        <div className="room-modes" role="tablist" aria-label="Mode">
-          {ROOM_MODES.filter(m => !m.step && (!m.needsTreatment || treatment)).map(m => (
-            <button key={m.id} className={`ui-button${activeMode === m.id ? ' active' : ''}`} onClick={() => setMode(m.id)} title={m.hint}>
-              {m.label}
-            </button>
-          ))}
-          <span className="room-modes-spacer" />
-          <div className="room-pane-toggle" role="tablist" aria-label="Right pane">
-            <button className={`ui-button${pane === 'board' ? ' active' : ''}`} onClick={() => setPane('board')} title="The beat board, live: the room writes to it and you can move things while you talk">
-              <BoardIcon />
-              <span>Board{board.beats.length ? ` ${board.beats.length}` : ''}</span>
-            </button>
-            <button className={`ui-button${pane === 'proposals' ? ' active' : ''}`} onClick={() => setPane('proposals')} title="Scene proposals and the treatment">
-              <span>Proposals{open.length ? ` ${open.length}` : ''}</span>
-            </button>
-          </div>
-          <label className="room-format" title="What the script is, so the room thinks in the right shape and length">
-            <span className="ui-label">Format</span>
-            <select className="ui-select" value={format} onChange={e => onChange({ ...room, format: e.target.value as RoomFormat })}>
-              {FORMATS.map(f => (
-                <option key={f.id} value={f.id}>
-                  {f.label}
-                </option>
-              ))}
-            </select>
-          </label>
+        <div className="room-pane-toggle" role="tablist" aria-label="Right pane">
+          <button className={`ui-button${pane === 'board' ? ' active' : ''}`} onClick={() => setPane('board')} title="The beat board, live: the room writes to it and you can move things while you talk">
+            <BoardIcon />
+            <span>Board{board.beats.length ? ` ${board.beats.length}` : ''}</span>
+          </button>
+          <button className={`ui-button${pane === 'proposals' ? ' active' : ''}`} onClick={() => setPane('proposals')} title="Scene proposals and the treatment">
+            <span>Proposals{open.length ? ` ${open.length}` : ''}</span>
+          </button>
         </div>
         <div className="room-scroll" ref={scrollRef}>
           {!cloud.available && (
@@ -458,12 +481,12 @@ export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, on
           {cloud.available && messages.length === 0 && streaming === null && (
             <div className="room-empty">
               <p>
-                Break the story with someone who has read every page. Talk about where it is going first; when you are ready, Lay out the beats puts the story on the board, and Break into
-                scenes turns the beats into an outline. Nothing lands on the board or in the outline until you ask.
+                Break the story with someone who has read every page. Talk about where it is going first; when you are ready, the + button lays the story out on the board as beats and
+                breaks the beats into scenes. Nothing lands on the board or in the outline until you ask.
               </p>
               {treatment && <p>The room has read the treatment too. Ask it to plot the scenes, and send the ones you keep to the outline.</p>}
               <div className="room-starters">
-                {(activeMode === 'plot' ? PLOT_STARTERS : STARTERS).map(s => (
+                {startersFor(activeMode).map(s => (
                   <button key={s} className="ui-chip room-starter" onClick={() => send(s)}>
                     {s}
                   </button>
@@ -484,6 +507,11 @@ export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, on
                       {count} {count === 1 ? 'proposal' : 'proposals'} →
                     </div>
                   )}
+                  {m.placed ? (
+                    <button className="room-proposed as-button" onClick={() => setPane('proposals')}>
+                      {m.placed} {m.placed === 1 ? 'scene' : 'scenes'} added to the outline →
+                    </button>
+                  ) : null}
                   {beatCount > 0 && (
                     <button className="room-proposed as-button" onClick={() => setPane('board')}>
                       {beatCount} {beatCount === 1 ? 'beat' : 'beats'} on the board →
@@ -509,42 +537,12 @@ export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, on
           )}
           {error && <div className="room-error">{error}</div>}
         </div>
-        <div className="room-beat-settings">
-          <label>Beats
-            <select className="ui-select" aria-label="Beat detail" value={beatDepth} disabled={streaming !== null} onChange={e => onChange({ ...room, beatDepth: e.target.value as BeatDepth })}>
-              {BEAT_DEPTHS.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
-            </select>
-          </label>
-          <label>Purpose
-            <select className="ui-select" aria-label="Beat purpose" value={beatPurpose} disabled={streaming !== null} onChange={e => onChange({ ...room, beatPurpose: e.target.value as BeatPurpose })}>
-              <option value="analyze">Analyze existing script</option>
-              <option value="develop">Develop the story</option>
-            </select>
-          </label>
-          <span>No beat limit</span>
-        </div>
-        <div className="room-steps">
-          <button className="ui-chip room-step" onClick={layOutBeats} disabled={!cloud.available || streaming !== null} title="Read the script and the conversation and put the story on the board as beats">
-            <SparkleIcon />
-            <span>Lay out the beats</span>
-          </button>
-          <button className="ui-chip room-step" onClick={breakIntoScenes} disabled={!cloud.available || streaming !== null || board.beats.length === 0} title="Turn the beats on the board into scene proposals for the outline">
-            <SparkleIcon />
-            <span>Break into scenes</span>
-          </button>
-          {treatment && (
-            <button className="ui-chip room-step" onClick={plotIt} disabled={!cloud.available || streaming !== null} title="Break the treatment into scenes, in order">
-              <SparkleIcon />
-              <span>Plot the treatment</span>
-            </button>
-          )}
-        </div>
-        <div className="room-composer">
+        <div className={`room-composer${draft.trim() ? ' has-draft' : ''}`}>
           <textarea
             ref={composerRef}
             className="ui-textarea"
             rows={1}
-            placeholder={!cloud.available ? 'Add a Gemini key in Settings to open the room.' : activeMode === 'plot' ? 'Ask for the next stretch of the treatment, or a different take on a scene… (Enter to send)' : 'Talk about the story… (Enter to send, Shift-Enter for a new line)'}
+            placeholder={!cloud.available ? 'Add a Gemini key in Settings to open the room.' : activeMode === 'plot' ? 'Ask for the next stretch of the treatment, or a different take on a scene…' : 'Talk about the story…'}
             value={draft}
             disabled={!cloud.available || streaming !== null}
             onChange={e => setDraft(e.target.value)}
@@ -555,10 +553,78 @@ export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, on
               }
             }}
           />
-          <button className="ui-button outlined" onClick={() => send(draft)} disabled={!cloud.available || streaming !== null || !draft.trim()}>
-            <SparkleIcon />
-            <span>Send</span>
-          </button>
+          <div className="room-composer-bar">
+            <Popover open={menu === 'plus'} onClose={closeMenu} placement="above"
+              trigger={
+                <button className={`ui-button icon${menu === 'plus' ? ' active' : ''}`} onClick={() => setMenu(m => (m === 'plus' ? null : 'plus'))} disabled={!cloud.available} aria-haspopup="menu" aria-expanded={menu === 'plus'} title="Put the story on the board, break it into scenes, or bring a treatment">
+                  <PlusIcon />
+                </button>
+              }>
+              <MenuItem icon={<SparkleIcon />} hint="Read the script and the conversation; put the story on the board" disabled={streaming !== null} onClick={() => { closeMenu(); layOutBeats(); }}>
+                Lay out the beats
+              </MenuItem>
+              <MenuItem icon={<SparkleIcon />} hint={board.beats.length ? 'Turn the beats on the board into scene proposals' : 'Needs beats on the board first'} disabled={streaming !== null || board.beats.length === 0} onClick={() => { closeMenu(); breakIntoScenes(); }}>
+                Break into scenes
+              </MenuItem>
+              {treatment && (
+                <MenuItem icon={<SparkleIcon />} hint="Break the treatment into scenes, in order" disabled={streaming !== null} onClick={() => { closeMenu(); plotIt(); }}>
+                  Plot the treatment
+                </MenuItem>
+              )}
+              <div className="ui-menu-sep" />
+              {treatment ? (
+                <>
+                  <div className="ui-menu-title">Treatment · {treatment.name}</div>
+                  <MenuItem onClick={() => { closeMenu(); setPane('proposals'); setTreatmentDraft(treatment.text); }}>Edit the treatment</MenuItem>
+                  <MenuItem onClick={() => { closeMenu(); fileRef.current?.click(); }}>Replace with a file…</MenuItem>
+                  <MenuItem tone="quiet" onClick={() => { closeMenu(); setTreatment(null); }}>Remove the treatment</MenuItem>
+                </>
+              ) : (
+                <>
+                  <MenuItem hint="Word, PDF, plain text, Markdown or Fountain; the room plots it as scenes" onClick={() => { closeMenu(); fileRef.current?.click(); }}>Add a treatment…</MenuItem>
+                  <MenuItem onClick={() => { closeMenu(); setPane('proposals'); setTreatmentDraft(''); }}>Paste a treatment…</MenuItem>
+                </>
+              )}
+            </Popover>
+            <Popover open={menu === 'mode'} onClose={closeMenu} placement="above"
+              trigger={
+                <button className={`ui-button room-mode${menu === 'mode' ? ' active' : ''}`} onClick={() => setMenu(m => (m === 'mode' ? null : 'mode'))} aria-haspopup="menu" aria-expanded={menu === 'mode'} title={modeInfo.hint}>
+                  <span>{modeInfo.label}</span>
+                  <ChevronDownIcon />
+                </button>
+              }>
+              {modes.map(m => (
+                <MenuItem key={m.id} checked={activeMode === m.id} hint={m.hint} onClick={() => { setMode(m.id); closeMenu(); composerRef.current?.focus(); }}>
+                  {m.label}
+                </MenuItem>
+              ))}
+            </Popover>
+            <Popover open={menu === 'settings'} onClose={closeMenu} placement="above"
+              trigger={
+                <button className={`ui-button room-settings${menu === 'settings' ? ' active' : ''}`} onClick={() => setMenu(m => (m === 'settings' ? null : 'settings'))} aria-haspopup="menu" aria-expanded={menu === 'settings'} title="What the script is, and how finely the room lays out beats">
+                  {formatInfo.label} · {DEPTH_SHORT[beatDepth]}
+                </button>
+              }>
+              <div className="ui-menu-fields">
+                <label>
+                  <span className="ui-label">Format</span>
+                  <select className="ui-select" value={format} onChange={e => onChange({ ...room, format: e.target.value as RoomFormat })}>
+                    {FORMATS.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
+                  </select>
+                </label>
+                <label>
+                  <span className="ui-label">Beats</span>
+                  <select className="ui-select" aria-label="Beat detail" value={beatDepth} disabled={streaming !== null} onChange={e => onChange({ ...room, beatDepth: e.target.value as BeatDepth })}>
+                    {BEAT_DEPTHS.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
+                  </select>
+                </label>
+              </div>
+            </Popover>
+            <span className="room-composer-spacer" />
+            <button className="ui-button icon room-send" onClick={() => send(draft)} disabled={!cloud.available || streaming !== null || !draft.trim()} title="Send (Enter; Shift-Enter for a new line)" aria-label="Send">
+              <ArrowUpIcon />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -617,34 +683,9 @@ export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, on
               </div>
               <div className="treatment-meta">{wordCount(treatment.text).toLocaleString()} words</div>
               {treatmentOpen ? <div className="treatment-text">{treatment.text}</div> : <p className="treatment-excerpt">{treatment.text.slice(0, 220)}{treatment.text.length > 220 ? '…' : ''}</p>}
-              <div className="treatment-actions">
-                <button className="ui-button mini" onClick={plotIt} disabled={!cloud.available || streaming !== null} title="Ask the room to break the treatment into scenes">
-                  <SparkleIcon />
-                  <span>Plot it</span>
-                </button>
-                <button className="ui-button mini" onClick={() => setTreatmentDraft(treatment.text)}>
-                  Edit
-                </button>
-                <button className="ui-button mini" onClick={() => fileRef.current?.click()}>
-                  Replace…
-                </button>
-                <button className="ui-button mini dismiss" onClick={() => setTreatment(null)}>
-                  Remove
-                </button>
-              </div>
             </div>
           ) : (
-            <div className="treatment-card empty">
-              <p className="room-proposals-empty">Bring a treatment or a prose outline (Word, PDF or text) and the room will help you plot it as scenes.</p>
-              <div className="treatment-actions">
-                <button className="ui-button mini" onClick={() => fileRef.current?.click()} title="Word (.docx), PDF, plain text, Markdown or Fountain">
-                  Import file…
-                </button>
-                <button className="ui-button mini" onClick={() => setTreatmentDraft('')}>
-                  Paste text…
-                </button>
-              </div>
-            </div>
+            <p className="room-proposals-empty">No treatment yet. Add one from the + button by the message box and the room will help you plot it as scenes.</p>
           )}
         </section>
         <div className="room-proposals-head">
@@ -660,15 +701,16 @@ export const RoomView: React.FC<RoomViewProps> = ({ view, state, title, data, on
             </span>
           )}
         </div>
-        {open.length === 0 && kept.length === 0 && <p className="room-proposals-empty">Beats and scenes the room proposes appear here. Keep them on the board, or turn them into scenes and write them.</p>}
+        {open.length === 0 && kept.length === 0 && <p className="room-proposals-empty">Beats and scenes the room proposes wait here. Keep them on the board, add them to the outline, or ask the room to send them over.</p>}
         {open.map(p => (
           <div key={p.id} className={`proposal ${p.kind}`}>
             <div className="proposal-kind">{p.kind === 'scene' ? 'Scene' : 'Beat'}</div>
             <div className="proposal-title">{p.title}</div>
             {p.heading && <div className="proposal-heading">{p.heading}</div>}
             {p.text && <div className="proposal-text">{p.text}</div>}
+            {p.after !== undefined && <div className="proposal-note">{placementLabel(p.after, scenes.filter(s => !s.opening).length)}</div>}
             <div className="proposal-actions">
-              <button className="ui-button mini" onClick={() => addScene(p)} title="Add a scene at the end of the script with this as its synopsis">
+              <button className="ui-button mini" onClick={() => addScene(p)} title={`Add a scene ${placementLabel(p.after, scenes.filter(s => !s.opening).length).toLowerCase()} with this as its synopsis`}>
                 <PlusIcon />
                 <span>Scene</span>
               </button>

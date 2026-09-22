@@ -25,13 +25,24 @@ async function click(text: string) {
   expect(button).toBeTruthy();
   await act(async () => button.click());
 }
-async function select(id: string) {
-  await act(async () => {
-    const field = mount.querySelector<HTMLSelectElement>('#active-draft')!;
-    field.value = id;
-    field.dispatchEvent(new Event('change', { bubbles: true }));
-  });
+/** The drafts live in the title menu: open it, then pick an item by its label. */
+async function openDrafts() {
+  if (!mount.querySelector('.draft-menu .ui-popover')) await act(async () => mount.querySelector<HTMLButtonElement>('.toolbar-title-button')!.click());
 }
+async function menuClick(label: string) {
+  await openDrafts();
+  const item = [...mount.querySelectorAll<HTMLButtonElement>('.draft-menu .ui-menu-item')].find(b => b.querySelector('.ui-menu-text > span')?.textContent === label)!;
+  expect(item).toBeTruthy();
+  await act(async () => item.click());
+}
+async function select(id: string) {
+  await openDrafts();
+  const item = mount.querySelector<HTMLButtonElement>(`.draft-menu [data-draft-id="${id}"]`)!;
+  expect(item).toBeTruthy();
+  await act(async () => item.click());
+}
+async function createDraft() { await menuClick('New draft'); }
+function activeDraftLabel(): string { return mount.querySelector('.toolbar-draft-name')?.textContent ?? ''; }
 async function input(selector: string, text: string) {
   await act(async () => {
     const field = mount.querySelector<HTMLInputElement | HTMLTextAreaElement>(selector)!;
@@ -73,7 +84,7 @@ describe('drafts in the native app', () => {
   it('copies fresh synopsis edits, isolates subsequent changes, and reopens every draft', async () => {
     const firstID = snapshot().drafts!.activeId;
     await input('.inspector textarea', 'Original scene plan');
-    await click('Create New Draft');
+    await createDraft();
     const secondID = snapshot().drafts!.activeId;
     expect(secondID).not.toBe(firstID);
     expect((mount.querySelector('.inspector textarea') as HTMLTextAreaElement).value).toBe('Original scene plan');
@@ -94,13 +105,13 @@ describe('drafts in the native app', () => {
   });
 
   it('renames without resetting the editor and exports the selected content from the native menu', async () => {
-    await click('Create New Draft');
+    await createDraft();
     const editor = mount.querySelector('.ProseMirror');
-    await click('Rename');
+    await menuClick('Rename…');
     await input('[aria-label="Draft name"]', 'Alternate ending');
     await click('Save name');
     expect(mount.querySelector('.ProseMirror')).toBe(editor);
-    expect(mount.querySelector<HTMLSelectElement>('#active-draft')!.selectedOptions[0].text).toBe('Alternate ending');
+    expect(activeDraftLabel()).toBe('Alternate ending');
     await input('.inspector textarea', 'Only in the alternate draft');
     postMessage.mockClear();
     await act(async () => { window.__screenplay!.exportAs('fdx'); });
@@ -114,7 +125,7 @@ describe('drafts in the native app', () => {
     const firstID = snapshot().drafts!.activeId;
     await click('Room');
     const lateReply = pending.room!;
-    await click('Create New Draft');
+    await createDraft();
     await select(firstID);
     await act(async () => lateReply());
     expect(snapshot().room).toBeNull();
@@ -124,14 +135,14 @@ describe('drafts in the native app', () => {
   it('does not switch if handing the current workspace to the native host fails', async () => {
     const firstID = snapshot().drafts!.activeId;
     postMessage.mockImplementationOnce(() => { throw new Error('Host unavailable'); });
-    await click('Create New Draft');
+    await createDraft();
     expect(snapshot().drafts!.activeId).toBe(firstID);
     expect(snapshot().drafts!.items).toHaveLength(1);
     expect(mount.textContent).toContain('Save failed: Host unavailable');
   });
 
   it('keeps draft data in the immediate native save snapshot', async () => {
-    await click('Create New Draft');
+    await createDraft();
     await input('.inspector textarea', 'Saved immediately');
     const reopened = documentFromText(lastSaved(), 'screenplay');
     expect(reopened.drafts!.items).toHaveLength(2);

@@ -518,3 +518,127 @@ body {
 :root[data-theme='gruvbox'] .ui-overlay {
   background: rgba(0, 0, 0, 0.55);
 }
+
+/* Anchored menus and pickers (Popover). */
+.ui-popover-anchor {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+}
+
+.ui-popover {
+  position: absolute;
+  z-index: 1000;
+  min-width: 220px;
+  max-width: 360px;
+  padding: 4px;
+  background: var(--chrome);
+  color: var(--ink);
+  border: 1px solid var(--chrome-border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  font-family: var(--ui-font);
+  font-size: 13px;
+}
+
+.ui-popover.below { top: calc(100% + 6px); }
+.ui-popover.above { bottom: calc(100% + 6px); }
+.ui-popover.start { left: 0; }
+.ui-popover.end { right: 0; }
+
+.ui-menu-title {
+  padding: 6px 10px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.ui-menu-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ui-menu-item:hover:not(:disabled) { background: var(--panel); }
+.ui-menu-item:disabled { opacity: 0.45; cursor: default; }
+.ui-menu-item.danger { color: var(--danger); }
+.ui-menu-item.quiet { color: var(--muted); }
+.ui-menu-item svg { flex: 0 0 auto; margin-top: 2px; color: var(--muted); }
+
+.ui-menu-check {
+  flex: 0 0 14px;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.ui-menu-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.ui-menu-hint {
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--faint);
+}
+
+.ui-menu-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--line);
+}
+
+.ui-menu-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+}
+
+.ui-menu-form .ui-input { width: 200px; }
+
+.ui-menu-error {
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--danger);
+}
+
+/* Labelled fields inside a popover. */
+.ui-menu-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 10px;
+  min-width: 260px;
+}
+
+.ui-menu-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ui-select {
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink);
+  background: var(--chrome);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  height: var(--control-height);
+  padding: 0 8px;
+}

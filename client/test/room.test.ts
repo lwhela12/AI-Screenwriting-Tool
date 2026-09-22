@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest';
-import { b } from './helpers';
-import { parseReply, roomContext, roomTurns, roomInstructions, proposalSynopsis, normalizeRoom, wordCount, withConversation, patchConversation, activeConversation, newConversation, conversationLabel, parseSummary, summaryPrompt, boardContext, applyBeatSheet, repairJson } from '../src/components/room';
+import { describe, it, expect, beforeAll } from 'vitest';
+import { b, stateFor, viewFor } from './helpers';
+import { parseReply, roomContext, roomTurns, roomInstructions, proposalSynopsis, proposalsContext, acceptedProposals, placementPlan, placementLabel, placeScenes, normalizeRoom, wordCount, withConversation, patchConversation, activeConversation, newConversation, conversationLabel, parseSummary, summaryPrompt, boardContext, applyBeatSheet, repairJson, purposeFor } from '../src/components/room';
 import { readingOrder } from '../src/components/beats';
+import { scenesOf } from '../src/components/editor-v2/scenes';
 import { pdfLinesToText } from '../src/utils/pdfImport';
 import { docxToText } from '../src/utils/docx';
 import { documentFromText, serializeDocument } from '../src/host';
@@ -48,7 +49,7 @@ describe('room context', () => {
     expect(context).toContain('1. INT. A - DAY (MAE)');
     expect(context).toContain('b1. Turn — The reveal.');
     expect(context).toContain('SCENE 1 — INT. A - DAY\nMae waits.\nMAE: Still here.');
-    expect(roomInstructions('ask', context)).toContain('Mode: questions');
+    expect(roomInstructions('analyze', context)).toContain('Mode: analyzing the script');
   });
 
   it('sends recent turns starting with the writer', () => {
@@ -230,7 +231,7 @@ describe('beats on the board', () => {
 
   it('talks first and only fills the board or the outline in the steps', () => {
     const context = roomContext(b.doc(b.sh('INT. A - DAY')), null, 'Rain');
-    expect(roomInstructions('break', context)).toContain('No proposals or beats blocks unless the writer asks');
+    expect(roomInstructions('break', context)).toContain('no proposals or beats blocks unless the writer asks');
     expect(roomInstructions('beats', context)).toContain('Mode: laying out the beats');
     expect(roomInstructions('beats', context)).toContain('There is no target, minimum or maximum number of beats');
     expect(roomInstructions('beats', context, 'tv-half')).not.toContain('12 to 20 beats');
@@ -283,9 +284,13 @@ describe('uncapped beat analysis', () => {
   });
 
   it('roundtrips beat preferences and discards unknown values', () => {
-    expect(normalizeRoom({ version: 2, conversations: [], beatDepth: 'scenes', beatPurpose: 'develop' })).toMatchObject({ beatDepth: 'scenes', beatPurpose: 'develop' });
-    expect(normalizeRoom({ version: 2, conversations: [], beatDepth: 'nope', beatPurpose: 'nope' })).not.toHaveProperty('beatDepth');
-    expect(normalizeRoom({ version: 2, conversations: [] })).not.toHaveProperty('beatPurpose');
+    expect(normalizeRoom({ version: 2, conversations: [], beatDepth: 'scenes' })).toMatchObject({ beatDepth: 'scenes' });
+    expect(normalizeRoom({ version: 2, conversations: [], beatDepth: 'nope' })).not.toHaveProperty('beatDepth');
+    expect(normalizeRoom({ version: 2, conversations: [], mode: 'analyze' })).toMatchObject({ mode: 'analyze' });
+    expect(normalizeRoom({ version: 2, conversations: [], mode: 'beats' })).not.toHaveProperty('mode');
+    expect(purposeFor('analyze')).toBe('analyze');
+    expect(purposeFor('break')).toBe('develop');
+    expect(purposeFor('plot')).toBe('develop');
   });
 
   it('parses and applies an uncapped response without dropping cards', () => {
@@ -306,5 +311,122 @@ describe('uncapped beat analysis', () => {
     expect(applyBeatSheet(moved, entries, snapshot).board.beats.find(b => b.id === 'a')?.title).toBe('First updated');
     const deleted = applyBeatSheet({ version: 2, beats: [second] }, entries, snapshot);
     expect(deleted.board.beats).toEqual([second]);
+  });
+});
+
+describe('accepting proposals into the outline', () => {
+  const waiting = [
+    { id: 'a', kind: 'scene' as const, title: 'The logbook', text: 'Owen finds it under the charts.', heading: 'INT. WHEELHOUSE - NIGHT', status: 'open' as const, messageId: 'm' },
+    { id: 'b', kind: 'scene' as const, title: 'Dawn', text: 'Mae is gone.', heading: 'EXT. CLIFF PATH - DAWN', status: 'kept' as const, messageId: 'm' },
+    { id: 'c', kind: 'beat' as const, title: 'The call', text: 'The call', status: 'open' as const, messageId: 'm' }
+  ];
+
+  it('reads an accept block in its several spellings', () => {
+    expect(parseReply('Done.\n\n```accept\n["p1","p3"]\n```').accept).toEqual([{ label: 'p1' }, { label: 'p3' }]);
+    expect(parseReply('```accept\nall\n```').accept).toBe('all');
+    expect(parseReply('```accept\n["all"]\n```').accept).toBe('all');
+    expect(parseReply('```accept\np1, p2\n```').accept).toEqual([{ label: 'p1' }, { label: 'p2' }]);
+    expect(parseReply('```accept\n[1, 2]\n```').accept).toEqual([{ label: 'p1' }, { label: 'p2' }]);
+    expect(parseReply('```accept\n{"accept":["p2"]}\n```').accept).toEqual([{ label: 'p2' }]);
+    expect(parseReply('```accept\n{"after":12,"scenes":["p1",{"label":"p2","after":3}]}\n```').accept).toEqual([{ label: 'p1', after: 12 }, { label: 'p2', after: 3 }]);
+    expect(parseReply('```accept\n[{"label":"p1","after":"scene 4"}]\n```').accept).toEqual([{ label: 'p1', after: 4 }]);
+    const parsed = parseReply('Placing them.\n\n```accept\n["p1"]\n```\n');
+    expect(parsed.prose).toBe('Placing them.');
+    expect(parsed.proposals).toEqual([]);
+    expect(parseReply('Nothing here.').accept).toBeUndefined();
+    expect(parseReply('```accept\n\n```').accept).toBeUndefined();
+  });
+
+  it('lists only the waiting proposals for the model, labelled in pane order', () => {
+    expect(proposalsContext(waiting)).toBe('p1. INT. WHEELHOUSE - NIGHT — The logbook — Owen finds it under the charts.\np2. The call');
+    expect(proposalsContext([])).toBe('');
+    const context = roomContext(b.doc(b.sh('INT. A - DAY')), null, 'Rain', null, undefined, waiting);
+    expect(context).toContain('## Proposals waiting');
+    expect(context).toContain('p1. INT. WHEELHOUSE - NIGHT');
+    expect(context).not.toContain('Dawn');
+    expect(roomContext(b.doc(b.sh('INT. A - DAY')), null, 'Rain')).not.toContain('## Proposals waiting');
+  });
+
+  it('resolves labels, titles and all against the waiting proposals', () => {
+    const labels = (...ls: string[]) => ls.map(label => ({ label }));
+    expect(acceptedProposals(waiting, 'all').map(p => p.id)).toEqual(['a', 'c']);
+    expect(acceptedProposals(waiting, labels('p2', 'p1')).map(p => p.id)).toEqual(['c', 'a']);
+    expect(acceptedProposals(waiting, labels('P1', '1', 'p1')).map(p => p.id)).toEqual(['a']);
+    expect(acceptedProposals(waiting, labels('the call', 'ext. cliff path - dawn', 'p9')).map(p => p.id)).toEqual(['c']);
+    expect(acceptedProposals(waiting, labels('Dawn'))).toEqual([]);
+    // The block can say where a proposal goes, overriding what it was proposed with.
+    const placed = [{ ...waiting[0], after: 2 }, waiting[2]];
+    expect(acceptedProposals(placed, [{ label: 'p1' }, { label: 'p2', after: 0 }]).map(p => p.after)).toEqual([2, 0]);
+    expect(acceptedProposals(placed, [{ label: 'p1', after: 7 }]).map(p => p.after)).toEqual([7]);
+  });
+
+  it('reads where a proposed scene goes', () => {
+    const parsed = parseReply('```proposals\n[{"kind":"scene","title":"A","text":"a","heading":"INT. A - DAY","after":12},{"title":"B","text":"b","heading":"INT. B - DAY","after":"scene 3"},{"title":"C","text":"c","heading":"INT. C - DAY"}]\n```');
+    expect(parsed.proposals.map(p => p.after)).toEqual([12, 3, undefined]);
+    const shown = proposalsContext([{ ...waiting[0], after: 12 }, { ...waiting[2], after: 0 }]);
+    expect(shown).toContain('(after scene 12)');
+    expect(shown).toContain('(before scene 1)');
+    expect(placementLabel(12, 30)).toBe('After scene 12');
+    expect(placementLabel(0, 30)).toBe('Before scene 1');
+    expect(placementLabel(undefined, 30)).toBe('At the end');
+    expect(placementLabel(40, 30)).toBe('At the end');
+  });
+
+  it('plans insertions so each scene lands where it was asked, in a 10-scene outline', () => {
+    // Two after scene 3 (in order), one before the first, one at the end, one beyond the outline.
+    const plan = placementPlan([{ after: 3 }, { after: 3 }, { after: 0 }, {}, { after: 99 }], 10);
+    // Later anchors first; the same anchor in reverse, so insertion order keeps the listed order.
+    expect(plan.map(s => s.index)).toEqual([4, 3, 1, 0, 2]);
+    expect(plan.map(s => s.after)).toEqual([10, 10, 3, 3, 0]);
+    // Final numbers: the outline is now 15 scenes.
+    const byIndex = new Map(plan.map(s => [s.index, s.number]));
+    expect(byIndex.get(2)).toBe(1); // before the old scene 1
+    expect(byIndex.get(0)).toBe(5); // old scene 3 is now 4
+    expect(byIndex.get(1)).toBe(6);
+    expect(byIndex.get(3)).toBe(14);
+    expect(byIndex.get(4)).toBe(15);
+    expect(placementPlan([], 0)).toEqual([]);
+    expect(placementPlan([{ after: 2 }], 0)).toEqual([{ index: 0, after: 0, number: 1 }]);
+  });
+
+  it('tells the model that proposals wait until placed', () => {
+    const instructions = roomInstructions('break', 'ctx');
+    expect(instructions).toContain('```accept');
+    expect(instructions).toContain('do not propose them again');
+  });
+});
+
+describe('placing scenes in the script', () => {
+  // jsdom has no layout: give ProseMirror empty rectangles when it scrolls the new scene into view.
+  beforeAll(() => {
+    const proto = Range.prototype as unknown as Record<string, unknown>;
+    if (typeof proto.getClientRects !== 'function') proto.getClientRects = () => [];
+    if (typeof proto.getBoundingClientRect !== 'function') proto.getBoundingClientRect = () => ({ top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0 });
+  });
+  const prop = (title: string, heading: string, after?: number) => ({ id: title, kind: 'scene' as const, title, text: `${title} happens.`, heading, status: 'open' as const, messageId: 'm', ...(after !== undefined ? { after } : {}) });
+  const headings = (view: ReturnType<typeof viewFor>) => scenesOf(view.state.doc).map(s => s.heading);
+
+  it('lands each scene where it was asked, in a script with opening material', () => {
+    const view = viewFor(stateFor(b.doc(b.a('FADE IN.'), b.sh('INT. ONE - DAY'), b.sh('INT. TWO - DAY'), b.sh('INT. THREE - DAY'))));
+    const placed = placeScenes(view, [prop('A', 'INT. A - DAY', 2), prop('B', 'INT. B - DAY', 2), prop('C', 'INT. C - DAY', 0), prop('D', 'INT. D - DAY'), prop('E', 'INT. E - DAY', 40)]);
+    expect(headings(view)).toEqual(['', 'INT. C - DAY', 'INT. ONE - DAY', 'INT. TWO - DAY', 'INT. A - DAY', 'INT. B - DAY', 'INT. THREE - DAY', 'INT. D - DAY', 'INT. E - DAY']);
+    expect(placed.map(p => p.status)).toEqual(['kept', 'kept', 'kept', 'kept', 'kept']);
+    // Each ordinal points at the scene it became.
+    const scenes = scenesOf(view.state.doc);
+    expect(placed.map(p => scenes[p.sceneOrdinal!].heading)).toEqual(['INT. A - DAY', 'INT. B - DAY', 'INT. C - DAY', 'INT. D - DAY', 'INT. E - DAY']);
+    expect(scenes[4].synopsis).toBe('A happens.');
+    view.destroy();
+  });
+
+  it('puts a scene before the first when nothing comes before it, and at the end of an empty script', () => {
+    const view = viewFor(stateFor(b.doc(b.sh('INT. ONE - DAY'), b.sh('INT. TWO - DAY'))));
+    placeScenes(view, [prop('C', 'INT. C - DAY', 0)]);
+    expect(headings(view)).toEqual(['INT. C - DAY', 'INT. ONE - DAY', 'INT. TWO - DAY']);
+    view.destroy();
+    const empty = viewFor(stateFor(b.doc(b.a(''))));
+    const placed = placeScenes(empty, [prop('A', 'INT. A - DAY', 5)]);
+    expect(headings(empty)).toEqual(['', 'INT. A - DAY']);
+    expect(placed[0].sceneOrdinal).toBe(1);
+    empty.destroy();
   });
 });

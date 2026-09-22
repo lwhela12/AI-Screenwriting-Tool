@@ -56,6 +56,51 @@
   white-space: nowrap;
 }
 
+/* The title is the drafts menu: the script, the open draft, a chevron. */
+.toolbar-title-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: var(--control-height);
+  padding: 0 8px;
+  margin: 0 -8px;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.toolbar-title-button:hover,
+.toolbar-title-button[aria-expanded='true'] {
+  background: var(--panel);
+}
+
+.toolbar-title-button svg {
+  flex: 0 0 auto;
+  color: var(--faint);
+}
+
+.toolbar-draft-name {
+  font-weight: 400;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.toolbar-draft-name::before {
+  content: '·';
+  margin-right: 6px;
+  color: var(--faint);
+}
+
+.draft-menu .ui-popover {
+  min-width: 260px;
+}
+
 .save-status {
   font-weight: 400;
   font-size: 12px;

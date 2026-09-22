@@ -1,5 +1,6 @@
 import { Node as PMNode } from 'prosemirror-model';
-import { scenesOf, SceneInfo } from './editor-v2/scenes';
+import { scenesOf, insertScene, SceneInfo } from './editor-v2/scenes';
+import type { EditorView } from 'prosemirror-view';
 import { Layout } from './editor-v2/pagination/layout';
 import { Beat, BeatBoardData, BEAT_COLORS, GAP_COLOR, arrangeBeats, newBeatId, readingOrder } from './beats';
 import { ChatTurn } from '../host';
@@ -13,7 +14,7 @@ import { docxToText } from '../utils/docx';
  * outline, and writes the scenes. It never writes dialogue or action.
  */
 
-export type RoomMode = 'break' | 'ask' | 'alternatives' | 'pressure' | 'plot' | 'beats' | 'scenes';
+export type RoomMode = 'break' | 'analyze' | 'plot' | 'beats' | 'scenes';
 
 /** What the script is, so the room thinks in the right shape and length. */
 export type RoomFormat = 'feature' | 'tv-hour' | 'tv-half' | 'limited' | 'short';
@@ -99,6 +100,8 @@ export interface RoomMessage {
   text: string;
   at: string;
   mode?: RoomMode;
+  /** How many waiting proposals this reply placed in the outline with an accept block. */
+  placed?: number;
 }
 
 export interface Proposal {
@@ -108,6 +111,8 @@ export interface Proposal {
   text: string;
   /** A scene heading when the room proposed a scene. */
   heading?: string;
+  /** The outline scene (its number) this one goes after; 0 puts it before the first. Absent: the end of the script. */
+  after?: number;
   status: 'open' | 'kept' | 'dismissed';
   /** Ordinal of the scene created from this proposal, to jump back to it. */
   sceneOrdinal?: number;
@@ -136,15 +141,23 @@ export interface RoomData {
   /** What the script is; a feature when unset. */
   format?: RoomFormat;
   beatDepth?: BeatDepth;
-  beatPurpose?: BeatPurpose;
+  /** The conversation mode the writer chose; breaking the story when unset. */
+  mode?: RoomMode;
+}
+
+/** The transient state of the Room view, kept while the writer is in another view. */
+export interface RoomSession {
+  /** Typed but not sent. */
+  draft?: string;
+  pane?: 'board' | 'proposals';
+  /** Where the conversation was scrolled to, and which conversation that was. */
+  scroll?: { conversationId: string | undefined; top: number };
 }
 
 export const ROOM_MODES: { id: RoomMode; label: string; hint: string; needsTreatment?: boolean; step?: boolean }[] = [
-  { id: 'break', label: 'Break the story', hint: 'Talk about where the story is going, the arc, what is thin. Nothing goes on the board or the outline until you ask.' },
+  { id: 'break', label: 'Break the story', hint: 'Develop it: where it is going, what is thin, alternatives, what you have not decided. Beats it lays out may include ones not written yet.' },
+  { id: 'analyze', label: 'Analyze the script', hint: 'A breakdown of what is on the page: where it stands, where the structure gives. Beats it lays out describe only what is there.' },
   { id: 'plot', label: 'Plot the treatment', hint: 'Turn the treatment into scenes, in order, with headings and synopses.', needsTreatment: true },
-  { id: 'ask', label: 'Ask me questions', hint: 'The room asks; you answer. No proposals.' },
-  { id: 'alternatives', label: 'Alternatives', hint: 'Three different versions of a beat you name.' },
-  { id: 'pressure', label: 'Pressure test', hint: 'Where the structure gives, and what each choice costs.' },
   // Steps: reached from their buttons, not the mode tabs.
   { id: 'beats', label: 'Lay out the beats', hint: 'Read the script and the conversation and put the story on the board as beats.', step: true },
   { id: 'scenes', label: 'Break into scenes', hint: 'Turn the beats on the board into scene proposals for the outline.', step: true }
@@ -154,9 +167,17 @@ export const ROOM_MODES: { id: RoomMode; label: string; hint: string; needsTreat
 export const BEATS_REQUEST = 'Lay out the beats: read the script as it stands and what we have said, and put the story on the board as beats.';
 export const SCENES_REQUEST = 'Break the beats on the board into scenes, in order, as scene proposals for the outline.';
 
-/** Openers offered while the conversation is empty. */
-export const STARTERS = ['Where does the story stand?', 'What is this story about, and where is the arc going?', 'What is missing between the midpoint and the end?', 'Ask me what I have not decided yet.'];
+/** Openers offered while the conversation is empty, by mode. */
+export const STARTERS = ['What is this story about, and where is the arc going?', 'What is missing between the midpoint and the end?', 'Give me three different versions of the ending.', 'Ask me what I have not decided yet.'];
+export const ANALYZE_STARTERS = ['Where does the story stand?', 'Where does the structure give?', 'What is set up and not paid off?', 'Where do the stakes go flat?'];
 export const PLOT_STARTERS = ['Break the treatment into scenes, in order.', 'Carry on from where you stopped.', 'How many scenes does this treatment need?', 'Where does the treatment go soft?'];
+export function startersFor(mode: RoomMode): string[] {
+  return mode === 'plot' ? PLOT_STARTERS : mode === 'analyze' ? ANALYZE_STARTERS : STARTERS;
+}
+/** What the board may hold in each mode: only what is on the page, or beats not written yet. */
+export function purposeFor(mode: RoomMode): BeatPurpose {
+  return mode === 'analyze' ? 'analyze' : 'develop';
+}
 
 /** The message sent when the writer clicks "Plot it" on the treatment. */
 export const PLOT_REQUEST = 'Break the treatment into scenes at the density of a finished feature, in order. Start from the beginning, or carry on from wherever the outline already reaches, and stop where fifteen scenes run out.';
@@ -219,7 +240,7 @@ export function normalizeRoom(raw: unknown): RoomData {
     ...(treatment ? { treatment } : {}),
     ...(format ? { format } : {}),
     ...(BEAT_DEPTHS.some(d => d.id === r.beatDepth) ? { beatDepth: r.beatDepth as BeatDepth } : {}),
-    ...(r.beatPurpose === 'analyze' || r.beatPurpose === 'develop' ? { beatPurpose: r.beatPurpose } : {})
+    ...(ROOM_MODES.some(m => m.id === r.mode && !m.step) ? { mode: r.mode as RoomMode } : {})
   };
 }
 
@@ -314,18 +335,27 @@ const RULES =
   'Never write dialogue, action lines or scene text. Talk about their story in their terms, briefly and concretely, referring to scenes by number and heading, and to where things fall by page when it matters (a page is about a minute of screen time). ' +
   'Be a colleague: direct, specific, willing to disagree, never flattering. Prefer questions and options to verdicts. Plain prose, short paragraphs, no headings, no bullet lists longer than four items. ' +
   'Talk first. The board and the outline are the writer\'s; do not put beats or scenes on them unless the writer asks or the mode calls for it. When you do, use exactly one of these blocks at the very end of your reply and nowhere else:\n' +
-  'Scenes for the outline:\n```proposals\n[{"kind":"scene","title":"Short label","text":"One or two sentences on what happens and what it turns","heading":"INT. PLACE - NIGHT"},{"kind":"beat","title":"Short label","text":"…"}]\n```\n' +
+  'Scenes for the outline:\n```proposals\n[{"kind":"scene","title":"Short label","text":"One or two sentences on what happens and what it turns","heading":"INT. PLACE - NIGHT","after":12},{"kind":"beat","title":"Short label","text":"…"}]\n```\n' +
   'Beats for the board:\n```beats\n[{"ref":"b2","title":"Short label","text":"What happens and what it changes","scenes":[3,4]},{"title":"A new beat","text":"…","gap":true}]\n```\n' +
+  'Placing proposals that are waiting:\n```accept\n["p1","p3"]\n```\n' +
+  'A scene goes where it belongs in the story, not only at the end: give it "after", the number of the outline scene it follows (0 to put it before the first), and leave "after" out only for a scene that comes after the last one. Scenes with the same "after" land in the order you list them. ' +
+  'Scenes you propose do not go into the outline by themselves: they wait in a pane, listed below under "Proposals waiting", until the writer places them there or asks you to. ' +
+  'When the writer asks you to move, add or send waiting proposals into the outline, or agrees when you offer, do not propose them again: use the accept block with their labels (or ["all"] for every one waiting), and each becomes a scene in the outline, where its "after" puts it (or at the end), with its heading and a synopsis. To place one somewhere else than it was proposed, give the entry as {"label":"p1","after":12}. ' +
+  'A proposal the writer has already placed or dismissed is not listed and cannot be accepted; if nothing is waiting, propose the scenes with a proposals block instead. ' +
   'A beat is a unit of the story (something that has to happen and what it changes), with no place or time; a scene is a unit of the script, one heading, one place, one stretch of time. ' +
   'The beats block is the board in story order: give an existing beat its label (ref, as listed in the board) to change or move it, leave ref out for a new one, list scenes (their numbers in the outline) that carry it, and set gap when the script does not have it yet. Beats you leave out stay as they are. You never delete a beat; say which the writer should drop. ' +
   'Talk the proposals or beats through in the prose first, briefly. Nothing after the block. ' +
-  'When the conversation has changed the story, say so and offer to carry the change onto the board (beats) or into the outline (scenes); when the writer agrees, or asks outright, do it in that reply with the block.';
+  'When the conversation has changed the story, say so and offer to carry the change onto the board (beats) or into the outline (scenes); when the writer agrees, or asks outright, do it in that reply with the block: proposals for new scenes, accept for scenes already waiting.';
 
 const MODE_RULES: Record<RoomMode, string | ((format: (typeof FORMATS)[number]) => string)> = {
-  break: 'Mode: breaking the story. Talk about where the story is going: what it is about, the arc, where it stands, what is missing or thin, and a few directions for what comes next. No proposals or beats blocks unless the writer asks for beats or scenes in this message.',
-  ask: 'Mode: questions. Do not propose anything and do not solve the story. Ask the writer the two or three most useful questions about what they have not decided yet, and say in a line why each matters. No proposals block.',
-  alternatives: 'Mode: alternatives. For the beat or scene the writer names, offer three genuinely different versions as proposals, each with a different cost, and say in the prose which you would try first and why.',
-  pressure: 'Mode: pressure test. Find where the structure gives: where an audience gets ahead of the story, what is set up and not paid off, what a choice costs the character, where the stakes go flat. Cite scenes and pages. No proposals or beats blocks unless asked.',
+  break:
+    'Mode: breaking the story. The writer is developing the story with you. Talk about where it is going: what it is about, the arc, what is missing or thin, and directions for what comes next. ' +
+    'When the writer names a beat or scene and wants alternatives, offer three genuinely different versions as proposals, each with a different cost, and say which you would try first and why. ' +
+    'When the writer asks to be asked, do not solve the story: ask the two or three most useful questions about what they have not decided yet, and say in a line why each matters. ' +
+    'Otherwise, no proposals or beats blocks unless the writer asks for beats or scenes in this message.',
+  analyze:
+    'Mode: analyzing the script. The writer wants a breakdown of what is on the page, not new material. Describe the story as it stands, then find where the structure gives: where an audience gets ahead of the story, what is set up and not paid off, what a choice costs the character, where the stakes go flat. ' +
+    'Cite scenes and pages. Do not invent events, and do not pitch rewrites as if they were on the page; keep any suggestion brief and clearly marked as one. No proposals or beats blocks unless asked.',
   beats:
     'Mode: laying out the beats. Apply the beat settings below to the requested scope, in story order. Each card says what happens and what it changes, with accurate scene references. ' +
     'If the board already has beats, use refs to update the same story units, add genuinely distinct units, and never delete existing cards. Do not change the meaning of a sequence summary just to reuse its ref for an unrelated detail. ' +
@@ -392,7 +422,7 @@ export function sceneTextForRoom(doc: PMNode, scene: SceneInfo, layout?: Layout)
  * model also learns the page count, where each scene starts and how long it
  * runs, and where every page begins in the text.
  */
-export function roomContext(doc: PMNode, beats: BeatBoardData | null, title: string, treatment?: Treatment | null, layout?: Layout): string {
+export function roomContext(doc: PMNode, beats: BeatBoardData | null, title: string, treatment?: Treatment | null, layout?: Layout, proposals: Proposal[] = []): string {
   const scenes = scenesOf(doc, layout);
   const parts: string[] = [`# ${title || 'Untitled script'}`];
   if (layout) {
@@ -426,6 +456,11 @@ export function roomContext(doc: PMNode, beats: BeatBoardData | null, title: str
   if (beats && beats.beats.length) {
     parts.push('## Beat board (the story in beats, in the writer\'s reading order; refer to a beat by its label)');
     parts.push(boardContext(beats));
+  }
+  const waiting = proposalsContext(proposals);
+  if (waiting) {
+    parts.push('## Proposals waiting (scenes you proposed that the writer has not placed in the outline or dismissed; refer to one by its label, and place them with an accept block when asked)');
+    parts.push(waiting);
   }
   const body = scenes
     .map(s => {
@@ -470,6 +505,94 @@ export function boardContext(board: BeatBoardData): string {
       return bits.join(' ');
     })
     .join('\n');
+}
+
+/** The open proposals in the pane for the model: labelled p1, p2… in pane order, so it can accept one by label. */
+export function proposalsContext(proposals: Proposal[]): string {
+  return openProposals(proposals)
+    .map((p, i) => {
+      const bits = [`p${i + 1}.`];
+      if (p.heading) bits.push(p.heading);
+      bits.push(p.heading ? `— ${p.title}` : p.title);
+      if (p.text && p.text !== p.title) bits.push(`— ${p.text}`);
+      if (p.after !== undefined) bits.push(`(${p.after === 0 ? 'before scene 1' : `after scene ${p.after}`})`);
+      return bits.join(' ');
+    })
+    .join('\n');
+}
+
+function openProposals(proposals: Proposal[]): Proposal[] {
+  return proposals.filter(p => p.status === 'open');
+}
+
+/**
+ * The waiting proposals an accept block names, in the order it names them
+ * (or pane order for "all"). Labels are the ones the model was shown
+ * (p1, p2…); a title also matches, so a model that names a scene instead of
+ * its label still places it. Unknown labels are ignored.
+ */
+export function acceptedProposals(proposals: Proposal[], accept: AcceptBlock): Proposal[] {
+  const open = openProposals(proposals);
+  if (accept === 'all') return open;
+  const chosen: Proposal[] = [];
+  for (const entry of accept) {
+    const label = entry.label.trim().toLowerCase();
+    const byLabel = /^p?(\d+)$/.exec(label);
+    const found = byLabel ? open[Number(byLabel[1]) - 1] : open.find(p => p.title.toLowerCase() === label || (p.heading || '').toLowerCase() === label);
+    if (found && !chosen.some(c => c.id === found.id)) chosen.push(entry.after !== undefined ? { ...found, after: entry.after } : found);
+  }
+  return chosen;
+}
+
+/** One step of placing proposals: which item, the scene number it follows, and the number it ends up with. */
+export interface Placement {
+  index: number;
+  /** The outline scene (its number, in the outline before any of these land) the new scene follows; 0 is the start. */
+  after: number;
+  /** The new scene's number once every item has landed. */
+  number: number;
+}
+
+/**
+ * Proposals become scenes where their `after` puts them (the end when it is
+ * absent), each with its heading and a synopsis. Returns the proposals as
+ * kept, with the ordinal of the scene each became.
+ */
+export function placeScenes(view: EditorView, items: Proposal[]): Proposal[] {
+  const numbered = () => scenesOf(view.state.doc).filter(s => !s.opening);
+  const plan = placementPlan(items, numbered().length);
+  for (const step of plan) {
+    const p = items[step.index];
+    // Scene 0 is the start of the script: after any opening material, else the very top.
+    const afterOrdinal = step.after === 0 ? (scenesOf(view.state.doc)[0]?.opening ? 0 : -1) : numbered()[step.after - 1].ordinal;
+    insertScene(view, afterOrdinal, p.heading || '', proposalSynopsis(p));
+  }
+  const finalNumbered = numbered();
+  const ordinals = new Map(plan.map(step => [step.index, finalNumbered[step.number - 1]?.ordinal]));
+  return items.map((p, index) => ({ ...p, status: 'kept' as const, sceneOrdinal: ordinals.get(index) }));
+}
+
+/** Where a proposal will land, for the writer: "After scene 12", "Before scene 1", "At the end". */
+export function placementLabel(after: number | undefined, count: number): string {
+  if (after === undefined || after >= count) return 'At the end';
+  if (after <= 0) return 'Before scene 1';
+  return `After scene ${after}`;
+}
+
+/**
+ * The order to insert proposals so each lands where its `after` says, given
+ * an outline of `count` scenes. Later anchors go first, and items sharing an
+ * anchor go in reverse, so every insertion happens after a scene whose
+ * number the insertions so far have not moved. An item with no `after`, or
+ * one beyond the outline, goes at the end.
+ */
+export function placementPlan(items: { after?: number }[], count: number): Placement[] {
+  const anchored = items.map((item, index) => {
+    const after = item.after === undefined || !Number.isFinite(item.after) ? count : Math.max(0, Math.min(count, Math.floor(item.after)));
+    return { index, after };
+  });
+  const order = [...anchored].sort((a, b) => b.after - a.after || b.index - a.index);
+  return order.map((step, i) => ({ ...step, number: step.after + 1 + (order.length - 1 - i) }));
 }
 
 // ---- The board, edited by the room ----------------------------------------
@@ -536,20 +659,33 @@ export interface ProposalDraft {
   title: string;
   text: string;
   heading?: string;
+  /** The outline scene (its number) this one goes after; 0 puts it before the first. Absent: the end of the script. */
+  after?: number;
 }
+
+/** One entry of an accept block: a label (p1, p2…) or title, and where the scene goes when the block says so. */
+export interface AcceptEntry {
+  label: string;
+  after?: number;
+}
+
+/** What an accept block asks for: every waiting proposal, or some by label. */
+export type AcceptBlock = 'all' | AcceptEntry[];
 
 export interface ParsedReply {
   prose: string;
   proposals: ProposalDraft[];
   /** Beats for the board, when the reply carried a beats block. */
   beats: BeatEntry[];
+  /** Waiting proposals to place in the outline, when the reply carried an accept block. */
+  accept?: AcceptBlock;
   /** True while a block has started but not closed (streaming). */
   pending: boolean;
   /** A block the app could not read, verbatim, so the writer can see what the room tried to do. */
   unreadable?: string;
 }
 
-const OPEN = /```\s*(proposals|beats|json)\s*\n?/i;
+const OPEN = /```\s*(proposals|beats|accept|json)\s*\n?/i;
 
 /** What a block was meant to be when the model fenced it as plain JSON. */
 export type BlockHint = 'beats' | 'proposals';
@@ -578,6 +714,13 @@ export function parseReply(text: string, hint: BlockHint = 'proposals'): ParsedR
       break;
     }
     const body = afterOpen.slice(0, close);
+    if (fence === 'accept') {
+      const accept = parseAccept(body);
+      if (accept) result.accept = accept === 'all' || result.accept === 'all' ? 'all' : [...(result.accept ?? []), ...accept];
+      else if (body.trim()) result.unreadable = (result.unreadable ? result.unreadable + '\n\n' : '') + `\`\`\`accept\n${body.trim()}\n\`\`\``;
+      rest = afterOpen.slice(close + 3);
+      continue;
+    }
     const kind = fence === 'json' ? guessBlockKind(body, hint) : (fence as BlockHint);
     const items = kind === 'proposals' ? parseProposals(body) : parseBeats(body);
     if (items.length) {
@@ -744,10 +887,64 @@ function parseProposals(body: string): ProposalDraft[] {
   return parsed
     .map((p: any) => {
       const heading = str(p?.heading).toUpperCase();
-      return { kind: (p?.kind === 'scene' || heading ? 'scene' : 'beat') as 'beat' | 'scene', title: str(p?.title), text: str(p?.text), heading: heading || undefined };
+      const after = sceneNumber(p?.after);
+      return { kind: (p?.kind === 'scene' || heading ? 'scene' : 'beat') as 'beat' | 'scene', title: str(p?.title), text: str(p?.text), heading: heading || undefined, ...(after !== undefined ? { after } : {}) };
     })
     .filter(p => p.title || p.text)
     .map(p => ({ ...p, title: p.title || p.text.slice(0, 60) }));
+}
+
+/** A scene number as the model wrote it (12, "12", "scene 12"), or undefined. */
+function sceneNumber(value: unknown): number | undefined {
+  if (typeof value === 'number') return Number.isInteger(value) && value >= 0 ? value : undefined;
+  if (typeof value === 'string') {
+    const m = /(\d+)/.exec(value);
+    if (m) return Number(m[1]);
+  }
+  return undefined;
+}
+
+/**
+ * An accept block, read leniently: a JSON array of labels, the word all
+ * (bare, quoted or in an array), labels separated by commas or spaces, or
+ * an object ({"after": 12, "scenes": [...]}) placing them all after a scene.
+ * An entry may be {"label": "p1", "after": 12} to place that one.
+ */
+function parseAccept(body: string): AcceptBlock | null {
+  const text = body.trim();
+  if (!text) return null;
+  if (/^"?all"?$/i.test(text)) return 'all';
+  let items: unknown[] | null = null;
+  let after: number | undefined;
+  try {
+    const parsed: unknown = JSON.parse(text);
+    let inner: unknown = parsed;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const obj = parsed as Record<string, unknown>;
+      inner = obj.accept ?? obj.scenes ?? obj.proposals ?? obj.labels;
+      after = sceneNumber(obj.after);
+      if (inner === undefined && obj.label !== undefined) inner = [obj];
+    }
+    if (Array.isArray(inner)) items = inner;
+  } catch {
+    items = null;
+  }
+  if (!items) items = text.replace(/^\[|\]$/g, '').split(/[\s,]+/).map(x => x.replace(/^"|"$/g, ''));
+  const entries: AcceptEntry[] = [];
+  for (const x of items) {
+    if (typeof x === 'number') entries.push({ label: `p${x}` });
+    else if (typeof x === 'string' && x.trim()) entries.push({ label: x.trim() });
+    else if (x && typeof x === 'object') {
+      const obj = x as Record<string, unknown>;
+      const label = [obj.label, obj.p, obj.id, obj.title].find(v => typeof v === 'string' || typeof v === 'number');
+      if (label === undefined) continue;
+      const own = sceneNumber(obj.after);
+      entries.push({ label: typeof label === 'number' ? `p${label}` : String(label).trim(), ...(own !== undefined ? { after: own } : {}) });
+    }
+  }
+  if (!entries.length) return null;
+  if (entries.some(e => e.label.toLowerCase() === 'all')) return 'all';
+  return after === undefined ? entries : entries.map(e => (e.after === undefined ? { ...e, after } : e));
 }
 
 /** The synopsis a proposal becomes when it turns into a scene. */

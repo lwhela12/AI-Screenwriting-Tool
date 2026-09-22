@@ -13,9 +13,9 @@ import { exportToPDF, exportToFDX, exportToFountain, exportToText } from './util
 import type { TitlePageData } from './components/editor-v2/TitleSheet';
 import type { BeatBoardData } from './components/beats';
 import { RoomView } from './components/RoomView';
-import type { RoomData } from './components/room';
+import type { RoomData, RoomSession } from './components/room';
 import { captureDraft, createDraft, initializeDrafts, renameDraft, switchDraft } from './drafts';
-import { DraftControls } from './components/DraftControls';
+import { DraftMenu } from './components/DraftMenu';
 import { isHosted, installHostApi, postToHost, serializeDocument, HostDocument } from './host';
 import { openSearch } from './components/editor-v2/plugins/search';
 import { undo, redo } from 'prosemirror-history';
@@ -102,6 +102,8 @@ export const App: React.FC = () => {
   const [beats, setBeats] = useState<BeatBoardData | null>(null);
   const [room, setRoom] = useState<unknown>(null);
   const roomRef = useRef<unknown>(null);
+  // What the Room view was doing when the writer left it; cleared with the views.
+  const roomSessionRef = useRef<RoomSession>({});
   const [showScenes, setShowScenes] = useState(() => readPref('ui.scenes', true));
   const [showInspector, setShowInspector] = useState(() => readPref('ui.inspector', true));
   const [focusMode, setFocusMode] = useState(false);
@@ -132,6 +134,7 @@ export const App: React.FC = () => {
   };
 
   const resetDraftViews = () => {
+    roomSessionRef.current = {};
     sessionRef.current++;
     setHostGeneration(sessionRef.current);
     setEditorState(null);
@@ -504,7 +507,20 @@ export const App: React.FC = () => {
         </nav>
         <div className="toolbar-title" ref={titleSlotRef}>
           <div className="toolbar-title-inner" ref={titleInnerRef}>
-            <span className="toolbar-title-text">{currentProject?.title || 'Untitled'}</span>
+            {currentProject?.drafts ? (
+              <DraftMenu
+                key={currentProject.drafts.activeId}
+                title={currentProject.title || 'Untitled'}
+                drafts={currentProject.drafts}
+                busy={changingDraft || saveState.kind === 'saving'}
+                error={draftError}
+                onCreate={() => changeDraft(createDraft)}
+                onSelect={id => changeDraft(project => switchDraft(project, id))}
+                onRename={name => changeDraft(project => renameDraft(project, name), false)}
+              />
+            ) : (
+              <span className="toolbar-title-text">{currentProject?.title || 'Untitled'}</span>
+            )}
             <span className={`save-status ${saveInfo.className}`}>{saveInfo.text}</span>
           </div>
         </div>
@@ -540,18 +556,6 @@ export const App: React.FC = () => {
           </button>
         </div>
       </header>
-
-      {currentProject?.drafts && (
-        <DraftControls
-          key={currentProject.drafts.activeId}
-          drafts={currentProject.drafts}
-          busy={changingDraft || saveState.kind === 'saving'}
-          error={draftError}
-          onCreate={() => changeDraft(createDraft)}
-          onSelect={id => changeDraft(project => switchDraft(project, id))}
-          onRename={name => changeDraft(project => renameDraft(project, name), false)}
-        />
-      )}
 
       <main className="views" key={hostGeneration}>
         {/* The editor stays mounted on every tab so the outline and beat board can act on the live script. */}
@@ -592,6 +596,8 @@ export const App: React.FC = () => {
               beats={beats}
               onBeatsChange={data => { if (sessionRef.current === hostGeneration) handleBeatsChange(data); }}
               onOpenScene={openScene}
+              session={roomSessionRef.current}
+              onSession={patch => Object.assign(roomSessionRef.current, patch)}
             />
           )}
         </div>

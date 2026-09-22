@@ -14,6 +14,7 @@
 .room-conversation {
   flex: 1 1 auto;
   min-width: 0;
+  position: relative;
   display: flex;
   flex-direction: column;
 }
@@ -103,35 +104,18 @@
   margin-top: 6px;
 }
 
-.room-modes {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 2px;
-  padding: 10px 24px;
-}
-
-.room-modes .ui-button.active {
-  background: var(--chrome);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-}
-
-.room-modes-spacer {
-  flex: 1;
-}
-
-.room-format {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-right: 8px;
-}
-
+/* Board or proposals: floats at the top of the conversation, out of the column's way. */
 .room-pane-toggle {
+  position: absolute;
+  top: 10px;
+  right: 16px;
+  z-index: 2;
   display: flex;
   align-items: center;
   gap: 2px;
-  margin-right: 14px;
+  padding: 2px;
+  border-radius: 9px;
+  background: var(--desk);
 }
 
 .room-pane-toggle .ui-button.active {
@@ -195,35 +179,6 @@
   min-width: 0;
 }
 
-.room-steps {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  width: 100%;
-  max-width: calc(var(--room-column) + 2 * var(--room-gutter));
-  margin: 0 auto;
-  padding: 6px var(--room-gutter) 0;
-}
-
-.room-step {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.room-step:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.room-step:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
 .room-proposals-actions {
   display: flex;
   gap: 2px;
@@ -239,22 +194,6 @@
   border: none;
   padding: 0;
   cursor: pointer;
-}
-
-.room-format .ui-label {
-  margin: 0;
-}
-
-.room-format .ui-select,
-.room-beat-settings .ui-select {
-  font: inherit;
-  font-size: 12.5px;
-  color: var(--ink);
-  background: var(--chrome);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  height: var(--control-height);
-  padding: 0 8px;
 }
 
 .room-scroll {
@@ -353,30 +292,89 @@
   font-size: 12.5px;
 }
 
-/* Same column as the messages: the gutters are inside the max-width. */
+/* The composer: one box holding the message, and under it the actions, the
+   mode, the settings line and Send. Same column as the messages. */
 .room-composer {
   display: flex;
-  gap: 8px;
-  align-items: flex-end;
+  flex-direction: column;
   width: 100%;
-  max-width: calc(var(--room-column) + 2 * var(--room-gutter));
-  margin: 0 auto;
-  padding: 8px var(--room-gutter) 16px;
+  max-width: var(--room-column);
+  margin: 0 auto 16px;
+  background: var(--chrome);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  flex: 0 0 auto;
 }
 
-/* One line tall to match the button; grows with the draft (RoomView sets the height). */
+.room-composer:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
 .room-composer .ui-textarea {
-  flex: 1;
   resize: none;
   min-height: var(--composer-height);
   max-height: 168px;
-  padding: calc((var(--composer-height) - 19px - 2px) / 2) 10px;
+  padding: 10px 12px 4px;
+  border: none;
+  border-radius: 12px 12px 0 0;
+  background: transparent;
   overflow-y: auto;
 }
 
-.room-composer .ui-button {
-  height: var(--composer-height);
-  flex: 0 0 auto;
+.room-composer .ui-textarea:focus {
+  box-shadow: none;
+}
+
+.room-composer-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px 6px;
+}
+
+.room-composer-spacer {
+  flex: 1;
+}
+
+.room-composer-bar .ui-button.icon {
+  width: var(--control-height);
+  padding: 0;
+  justify-content: center;
+}
+
+.room-composer-bar .room-mode {
+  color: var(--ink);
+  gap: 4px;
+}
+
+.room-composer-bar .room-mode svg {
+  color: var(--faint);
+}
+
+.room-composer-bar .room-settings {
+  font-weight: 400;
+  color: var(--faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.room-composer-bar .room-settings:hover {
+  color: var(--muted);
+}
+
+.room-composer-bar .ui-popover-anchor:last-of-type {
+  min-width: 0;
+}
+
+.room-send {
+  border-radius: 999px;
+}
+
+.room-composer.has-draft .room-send:not(:disabled) {
+  background: var(--accent);
+  color: var(--accent-ink);
 }
 
 /* Proposals -------------------------------------------------------------- */
@@ -597,15 +595,3 @@
   border-radius: var(--radius-sm);
   white-space: pre-wrap;
 }
-
-.room-beat-settings {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 14px;
-  padding: 8px 16px 0;
-  color: var(--muted);
-  font-size: 11px;
-}
-.room-beat-settings label { display: flex; align-items: center; gap: 6px; }
-.room-beat-settings .ui-select { max-width: 190px; font-size: 11px; }
