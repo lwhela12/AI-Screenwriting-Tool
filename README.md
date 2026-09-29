@@ -81,6 +81,11 @@ cd mac
 ./build-app.sh --check path/to/script.fdx   # verifies WebKit wraps every line exactly as the pagination engine does
 ```
 
+For a Developer ID signed and notarized distribution DMG, follow
+[the macOS release guide](mac/RELEASING.md). `npm run app:release:prepare`
+creates a clearly labeled local-review preview; `npm run app:release -- --release --identity ... --notary-profile ...`
+creates a release only after notarization and Gatekeeper verification.
+
 Settings (⌘,) holds the Gemini key and model: paste a key from Google AI Studio and pick a model from the menu of recent ones (Gemini 3.8 Flash by default). Check connection replaces the menu with the models your key can actually use. Views switch from the View menu or with ⌥⌘1–5. The on-device drafting features need macOS 26 with Apple Intelligence turned on; the app runs on macOS 15 and later without them. For development, `SCREENWRITER_DEBUG_JS='…'` in the environment runs a script in the page once the document has loaded.
 
 ## Quick Start

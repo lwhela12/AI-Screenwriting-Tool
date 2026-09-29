@@ -10,7 +10,9 @@
     "typecheck": "cd client && npm run typecheck",
     "install:all": "npm install && cd client && npm install",
     "app": "cd mac && ./build-app.sh",
-    "app:install": "cd mac && ./build-app.sh --install"
+    "app:install": "cd mac && ./build-app.sh --install",
+    "app:release": "bash mac/release-app.sh",
+    "app:release:prepare": "bash mac/release-app.sh --prepare"
   },
   "devDependencies": {
     "concurrently": "^8.2.0"
