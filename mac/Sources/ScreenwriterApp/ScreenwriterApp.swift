@@ -1,3 +1,4 @@
+import Sparkle
 import SwiftUI
 
 /// Themes shared with the web editor; one palette drives both sides.

@@ -28,8 +28,11 @@ VERSION_SETTINGS=()
 [ -n "${PICA_MARKETING_VERSION:-}" ] && VERSION_SETTINGS+=("MARKETING_VERSION=$PICA_MARKETING_VERSION")
 [ -n "${PICA_BUILD_NUMBER:-}" ] && VERSION_SETTINGS+=("CURRENT_PROJECT_VERSION=$PICA_BUILD_NUMBER")
 
+# Ad-hoc signing gives the app and the embedded Sparkle.framework different
+# signatures, which the hardened runtime's library validation refuses to load.
+# release-app.sh re-signs everything with the Developer ID and --options runtime.
 echo "==> Building Pica.app..."
-xcodebuild -project Pica.xcodeproj -scheme Pica -configuration Release -derivedDataPath "$DERIVED" build CODE_SIGN_IDENTITY="-" ${VERSION_SETTINGS[@]+"${VERSION_SETTINGS[@]}"} -quiet
+xcodebuild -project Pica.xcodeproj -scheme Pica -configuration Release -derivedDataPath "$DERIVED" build CODE_SIGN_IDENTITY="-" ENABLE_HARDENED_RUNTIME=NO ${VERSION_SETTINGS[@]+"${VERSION_SETTINGS[@]}"} -quiet
 APP="$DERIVED/Build/Products/Release/Pica.app"
 echo "==> Built $APP"
 if [ "${1:-}" = "--install" ]; then

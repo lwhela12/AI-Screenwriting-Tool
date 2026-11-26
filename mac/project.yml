@@ -40,7 +40,6 @@ targets:
         buildPhase: resources
     dependencies:
       - package: Sparkle
-        embed: true
     settings:
       base:
         PRODUCT_NAME: Pica
