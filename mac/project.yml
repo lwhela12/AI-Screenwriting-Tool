@@ -57,7 +57,7 @@ targets:
         # generate_keys here (see RELEASING.md); until then the updater stays
         # off and release-app.sh refuses to make a release.
         SPARKLE_FEED_URL: "https://github.com/lwhela12/AI-Screenwriting-Tool/releases/latest/download/appcast.xml"
-        SPARKLE_PUBLIC_ED_KEY: ""
+        SPARKLE_PUBLIC_ED_KEY: "0OlUFgEhKfk+KNAvqNfpQQy4Fbzk4ylPeLp8FuMG9Dw="
   PicaTests:
     type: bundle.unit-test
     platform: macOS
