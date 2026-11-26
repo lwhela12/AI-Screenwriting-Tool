@@ -28,6 +28,69 @@ The prompts request the Apple ID, Team ID, and app-specific password. See
 `xcrun notarytool store-credentials --help` for Apple-supported alternatives
 such as App Store Connect API keys.
 
+Install the GitHub CLI and sign in once, so a release can be published:
+
+```bash
+gh auth login
+```
+
+### Sparkle update key
+
+Installed copies of Pica update themselves with
+[Sparkle](https://sparkle-project.org). Each update is signed with an EdDSA key
+that lives in your login keychain; the app carries the matching public key and
+refuses any update it cannot verify. Create the key once, after the first
+build has downloaded Sparkle:
+
+```bash
+./build-app.sh
+./.build/SourcePackages/artifacts/sparkle/Sparkle/bin/generate_keys
+```
+
+It prints a public key. Paste it into `project.yml` as `SPARKLE_PUBLIC_ED_KEY`
+and commit that change; release-app.sh refuses to release until it is set.
+Back up the private key somewhere safe, outside the repository:
+
+```bash
+./.build/SourcePackages/artifacts/sparkle/Sparkle/bin/generate_keys -x ~/pica-sparkle-private-key
+```
+
+If the private key is lost, copies already installed can no longer update and
+testers must download Pica again by hand.
+
+## Shipping an update
+
+From a clean, pushed `main`, one command builds, signs, notarizes, verifies and
+publishes:
+
+```bash
+npm run app:release -- --release --version 0.2.0 \
+  --identity "Developer ID Application: Your Name (TEAMID)" --notary-profile pica-notary \
+  --and-publish --notes path/to/notes.md
+```
+
+`--version` is the version testers see and must be new each time; the build
+number is the commit count, so every release from `main` is newer than the one
+before. Publishing creates the GitHub release `v0.2.0` with `Pica.dmg` and
+`appcast.xml` attached. Installed copies look for that appcast on the latest
+release, find the newer build, and offer it (Pica > Check for Updates… checks
+at once). `--notes` is optional; without it the notes say only the version.
+
+Share this link with testers; it always downloads the newest release:
+
+```
+https://github.com/lwhela12/AI-Screenwriting-Tool/releases/latest/download/Pica.dmg
+```
+
+A verified release that was not published yet can be published later:
+
+```bash
+npm run app:release -- --publish mac/.build/releases/Pica-... --notes path/to/notes.md
+```
+
+Publishing refuses previews, unverified releases, builds made from uncommitted
+changes, commits not yet on GitHub, and a version that already has a release.
+
 ## Commands
 
 Create a local-review artifact only:
@@ -42,11 +105,11 @@ for public distribution.
 Build, sign, notarize, staple, and verify a release:
 
 ```bash
-npm run app:release -- --release --identity "Developer ID Application: Your Name (TEAMID)" --notary-profile pica-notary
+npm run app:release -- --release --version 0.2.0 --identity "Developer ID Application: Your Name (TEAMID)" --notary-profile pica-notary
 ```
 
-The workflow checks both `x86_64` and `arm64` in the app executable, applies
-the hardened runtime and secure timestamps, verifies code signatures, creates a
+The workflow checks both `x86_64` and `arm64` in the app executable, signs
+Sparkle's helpers inside out, applies the hardened runtime and secure timestamps, verifies code signatures, creates a
 DMG containing `Pica.app` and an `Applications` shortcut, then submits it to
 Apple. It marks the release verified only after Apple reports `Accepted`, the
 ticket staples and validates, and Gatekeeper assesses both the DMG and staged
@@ -55,7 +118,7 @@ app.
 For a long pending job, submit once and finish later without a second upload:
 
 ```bash
-npm run app:release -- --submit --identity "Developer ID Application: Your Name (TEAMID)" --notary-profile pica-notary
+npm run app:release -- --submit --version 0.2.0 --identity "Developer ID Application: Your Name (TEAMID)" --notary-profile pica-notary
 npm run app:release -- --finish mac/.build/releases/Pica-... --notary-profile pica-notary
 ```
 

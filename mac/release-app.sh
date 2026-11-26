@@ -19,9 +19,10 @@ usage() {
   cat <<'EOF'
 Usage:
   ./release-app.sh --prepare
-  ./release-app.sh --release --identity "Developer ID Application: ..." --notary-profile PROFILE
-  ./release-app.sh --submit --identity "Developer ID Application: ..." --notary-profile PROFILE
-  ./release-app.sh --finish RELEASE_DIRECTORY --notary-profile PROFILE
+  ./release-app.sh --release --version X.Y.Z --identity "Developer ID Application: ..." --notary-profile PROFILE [--and-publish] [--notes FILE]
+  ./release-app.sh --submit --version X.Y.Z --identity "Developer ID Application: ..." --notary-profile PROFILE
+  ./release-app.sh --finish RELEASE_DIRECTORY --notary-profile PROFILE [--and-publish] [--notes FILE]
+  ./release-app.sh --publish RELEASE_DIRECTORY [--notes FILE]
 
 --prepare creates an explicitly UNNOTARIZED preview DMG. It is for local
 review only and must not be distributed as a signed release.
@@ -29,6 +30,16 @@ review only and must not be distributed as a signed release.
 --release builds, signs, submits, waits for acceptance, staples, and verifies.
 --submit does the same through submission, then exits and records the submission
 ID. Use --finish to resume that release directory without uploading again.
+
+--version sets the version testers see; the build number is the commit count,
+so each release is newer than the last. A release needs Sparkle's public key in
+project.yml (SPARKLE_PUBLIC_ED_KEY), or installed copies could not update.
+
+--publish takes a verified release directory, signs the DMG for Sparkle with
+the private key in your login keychain, writes appcast.xml, and creates the
+GitHub release vX.Y.Z with Pica.dmg and appcast.xml attached, using the GitHub
+CLI (gh). --and-publish does this straight after --release or --finish.
+--notes FILE uses that file as the release notes.
 
 The Developer ID Application identity must be present in the login keychain.
 The notary profile is a Keychain item created with `xcrun notarytool store-
@@ -48,6 +59,17 @@ MODE=""
 IDENTITY=""
 NOTARY_PROFILE=""
 RELEASE_DIR=""
+VERSION=""
+NOTES_FILE=""
+AND_PUBLISH=false
+
+resolve_dir() {
+  case "$1" in
+    /*) printf '%s' "$1" ;;
+    *) printf '%s/%s' "$INVOCATION_DIR" "$1" ;;
+  esac
+}
+
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --prepare|--release|--submit) [ -z "$MODE" ] || die "choose one mode"; MODE="${1#--}" ;;
@@ -56,11 +78,18 @@ while [ "$#" -gt 0 ]; do
       MODE="finish"
       shift
       [ "$#" -gt 0 ] || die "--finish requires RELEASE_DIRECTORY"
-      case "$1" in
-        /*) RELEASE_DIR="$1" ;;
-        *) RELEASE_DIR="$INVOCATION_DIR/$1" ;;
-      esac
+      RELEASE_DIR="$(resolve_dir "$1")"
       ;;
+    --publish)
+      [ -z "$MODE" ] || die "choose one mode"
+      MODE="publish"
+      shift
+      [ "$#" -gt 0 ] || die "--publish requires RELEASE_DIRECTORY"
+      RELEASE_DIR="$(resolve_dir "$1")"
+      ;;
+    --version) shift; [ "$#" -gt 0 ] || die "--version requires a value"; VERSION="$1" ;;
+    --notes) shift; [ "$#" -gt 0 ] || die "--notes requires a file"; NOTES_FILE="$(resolve_dir "$1")" ;;
+    --and-publish) AND_PUBLISH=true ;;
     --identity) shift; [ "$#" -gt 0 ] || die "--identity requires a value"; IDENTITY="$1" ;;
     --notary-profile) shift; [ "$#" -gt 0 ] || die "--notary-profile requires a value"; NOTARY_PROFILE="$1" ;;
     --help|-h) usage; exit 0 ;;
@@ -69,6 +98,19 @@ while [ "$#" -gt 0 ]; do
   shift
 done
 [ -n "$MODE" ] || { usage >&2; exit 2; }
+
+if [ -n "$VERSION" ]; then
+  printf '%s\n' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || die "--version must look like 1.2.3"
+fi
+case "$MODE" in
+  release|submit) [ -n "$VERSION" ] || die "--version is required for --$MODE" ;;
+esac
+if [ "$AND_PUBLISH" = true ]; then
+  case "$MODE" in release|finish) ;; *) die "--and-publish works with --release or --finish" ;; esac
+fi
+if [ -n "$NOTES_FILE" ]; then
+  [ -f "$NOTES_FILE" ] || die "notes file not found: $NOTES_FILE"
+fi
 
 need xcodebuild
 need xcrun
@@ -106,6 +148,32 @@ fresh_release_dir() {
   RELEASE_DIR="$(mktemp -d "$RELEASE_ROOT/Pica-${version}-${stamp}-XXXXXX")"
 }
 
+require_sparkle_key() {
+  local key
+  key="$(/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' "$1/Contents/Info.plist" 2>/dev/null || true)"
+  [ -n "$key" ] || die "SPARKLE_PUBLIC_ED_KEY is empty in project.yml; run Sparkle's generate_keys and paste the public key (see RELEASING.md)"
+}
+
+# Sparkle ships helpers inside its framework. Sign them inside-out with the
+# same identity and hardened runtime, as Sparkle's documentation describes.
+sparkle_framework() { printf '%s/Contents/Frameworks/Sparkle.framework' "$1"; }
+
+sign_sparkle() {
+  local framework current
+  framework="$(sparkle_framework "$1")"
+  [ -d "$framework" ] || return 0
+  current="$framework/Versions/Current"
+  [ -d "$current/XPCServices/Installer.xpc" ] && \
+    codesign --force --options runtime --timestamp --sign "$IDENTITY" "$current/XPCServices/Installer.xpc"
+  [ -d "$current/XPCServices/Downloader.xpc" ] && \
+    codesign --force --options runtime --timestamp --preserve-metadata=entitlements --sign "$IDENTITY" "$current/XPCServices/Downloader.xpc"
+  [ -e "$current/Autoupdate" ] && \
+    codesign --force --options runtime --timestamp --sign "$IDENTITY" "$current/Autoupdate"
+  [ -d "$current/Updater.app" ] && \
+    codesign --force --options runtime --timestamp --sign "$IDENTITY" "$current/Updater.app"
+  codesign --force --options runtime --timestamp --sign "$IDENTITY" "$framework"
+}
+
 app_path() { printf '%s/stage/%s' "$RELEASE_DIR" "$APP_NAME"; }
 dmg_path() { printf '%s/%s' "$RELEASE_DIR" "$DMG_FILE"; }
 
@@ -119,10 +187,14 @@ check_universal_app() {
 
 build_and_stage() {
   echo "==> Rebuilding Pica.app"
-  ./build-app.sh
+  local build_number
+  build_number="$(git rev-list --count HEAD 2>/dev/null || true)"
+  [ -n "$build_number" ] || die "could not count commits for the build number"
+  PICA_MARKETING_VERSION="$VERSION" PICA_BUILD_NUMBER="$build_number" ./build-app.sh
   local built_app=".build/Build/Products/Release/$APP_NAME"
   [ -d "$built_app" ] || die "build did not produce $built_app"
   check_universal_app "$built_app"
+  if [ "$MODE" != "prepare" ]; then require_sparkle_key "$built_app"; fi
   fresh_release_dir
   mkdir -p "$RELEASE_DIR/stage"
   ditto "$built_app" "$(app_path)"
@@ -169,6 +241,7 @@ assert_no_unexpected_nested_code() {
   main_executable="$app/Contents/MacOS/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")"
   while IFS= read -r candidate; do
     [ "$candidate" = "$main_executable" ] && continue
+    case "$candidate" in "$(sparkle_framework "$app")"/*) continue ;; esac
     if file "$candidate" | grep -q 'Mach-O'; then
       die "unexpected nested executable requires an explicit signing rule: $candidate"
     fi
@@ -180,6 +253,7 @@ sign_release() {
   app="$(app_path)"
   assert_no_unexpected_nested_code "$app"
   echo "==> Signing app with $IDENTITY"
+  sign_sparkle "$app"
   codesign --force --options runtime --timestamp --entitlements App/Pica.entitlements --sign "$IDENTITY" "$app"
   codesign --verify --deep --strict --verbose=2 "$app"
   create_dmg "Pica"
@@ -242,6 +316,93 @@ finish() {
   echo "==> Release verified: $(dmg_path)"
 }
 
+provenance_value() {
+  { grep -E "^$1=" "$RELEASE_DIR/provenance.txt" || true; } | tail -n 1 | cut -d= -f2-
+}
+
+find_sign_update() {
+  find "$SCRIPT_DIR/.build/SourcePackages/artifacts" -type f -path '*/bin/sign_update' 2>/dev/null | head -n 1
+}
+
+publish() {
+  need gh
+  [ -d "$RELEASE_DIR" ] || die "release directory does not exist: $RELEASE_DIR"
+  RELEASE_DIR="$(cd "$RELEASE_DIR" && pwd)"
+  [ -f "$RELEASE_DIR/provenance.txt" ] || die "missing provenance.txt in $RELEASE_DIR"
+  [ -f "$(dmg_path)" ] || die "missing Pica.dmg in $RELEASE_DIR"
+  [ -z "$(provenance_value preview_only)" ] || die "a preview DMG is never published"
+  [ -n "$(provenance_value accepted_at)" ] || die "release is not notarized and verified yet; run --finish first"
+  [ "$(provenance_value git_dirty)" = "false" ] || die "release was built from uncommitted changes; commit, push and release again"
+  verify_checksum
+
+  local app plist version build git_sha feed repo tag min_os sign_update signature notes_file
+  app="$(app_path)"
+  plist="$app/Contents/Info.plist"
+  version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist")"
+  build="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$plist")"
+  min_os="$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$plist")"
+  feed="$(/usr/libexec/PlistBuddy -c 'Print :SUFeedURL' "$plist" 2>/dev/null || true)"
+  git_sha="$(provenance_value git_sha)"
+  repo="$(printf '%s' "$feed" | sed -nE 's#^https://github\.com/([^/]+/[^/]+)/releases/latest/download/appcast\.xml$#\1#p')"
+  [ -n "$repo" ] || die "SUFeedURL is not a GitHub latest-release appcast URL: $feed"
+  tag="v$version"
+
+  if gh release view "$tag" -R "$repo" >/dev/null 2>&1; then
+    die "$repo already has a release $tag; release again with a new --version"
+  fi
+  gh api "repos/$repo/commits/$git_sha" >/dev/null 2>&1 || \
+    die "commit $git_sha is not on GitHub; push it before publishing"
+
+  sign_update="$(find_sign_update)"
+  [ -n "$sign_update" ] || die "Sparkle's sign_update was not found under .build/SourcePackages; build the app once first"
+  echo "==> Signing the update with the Sparkle key in your keychain"
+  signature="$("$sign_update" "$(dmg_path)")"
+  printf '%s\n' "$signature" | grep -Eq '^sparkle:edSignature="[A-Za-z0-9+/=]+" length="[0-9]+"$' || \
+    die "unexpected sign_update output: $signature"
+
+  notes_file="$NOTES_FILE"
+  if [ -z "$notes_file" ]; then
+    notes_file="$RELEASE_DIR/release-notes.md"
+    printf 'Pica %s\n' "$version" > "$notes_file"
+  fi
+
+  echo "==> Writing appcast.xml"
+  node - "$RELEASE_DIR/appcast.xml" "$repo" "$tag" "$version" "$build" "$min_os" "$signature" "$notes_file" <<'NODE'
+const fs = require("fs");
+const [out, repo, tag, version, build, minOS, signature, notesFile] = process.argv.slice(2);
+const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const notes = fs.readFileSync(notesFile, "utf8").trim().split(/\n\s*\n/).map(p => `<p>${esc(p).replace(/\n/g, "<br>")}</p>`).join("");
+const xml = `<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>Pica</title>
+    <item>
+      <title>Pica ${esc(version)}</title>
+      <pubDate>${new Date().toUTCString()}</pubDate>
+      <sparkle:version>${esc(build)}</sparkle:version>
+      <sparkle:shortVersionString>${esc(version)}</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>${esc(minOS)}</sparkle:minimumSystemVersion>
+      <sparkle:fullReleaseNotesLink>https://github.com/${repo}/releases/tag/${tag}</sparkle:fullReleaseNotesLink>
+      <description><![CDATA[${notes.replace(/]]>/g, "]]&gt;")}]]></description>
+      <enclosure url="https://github.com/${repo}/releases/download/${tag}/Pica.dmg" ${signature} type="application/octet-stream"/>
+    </item>
+  </channel>
+</rss>
+`;
+fs.writeFileSync(out, xml);
+NODE
+
+  echo "==> Creating GitHub release $tag on $repo"
+  gh release create "$tag" "$(dmg_path)" "$RELEASE_DIR/appcast.xml" \
+    -R "$repo" --target "$git_sha" --title "Pica $version" --notes-file "$notes_file"
+  gh release view "$tag" -R "$repo" --json assets --jq '.assets[].name' > "$RELEASE_DIR/published-assets.txt"
+  grep -qx 'Pica.dmg' "$RELEASE_DIR/published-assets.txt" || die "release $tag is missing Pica.dmg"
+  grep -qx 'appcast.xml' "$RELEASE_DIR/published-assets.txt" || die "release $tag is missing appcast.xml"
+  printf '%s\n' "published_at=$(date -u +%FT%TZ)" "published_tag=$tag" "published_repo=$repo" >> "$RELEASE_DIR/provenance.txt"
+  echo "==> Published $tag"
+  echo "==> Download link for testers: https://github.com/$repo/releases/latest/download/Pica.dmg"
+}
+
 case "$MODE" in
   prepare)
     build_and_stage
@@ -257,11 +418,18 @@ case "$MODE" in
     build_and_stage
     sign_release
     submit
-    if [ "$MODE" = "release" ]; then finish; fi
+    if [ "$MODE" = "release" ]; then
+      finish
+      if [ "$AND_PUBLISH" = true ]; then publish; fi
+    fi
     echo "==> Release directory: $RELEASE_DIR"
     ;;
   finish)
     require_notary_profile
     finish
+    if [ "$AND_PUBLISH" = true ]; then publish; fi
+    ;;
+  publish)
+    publish
     ;;
 esac

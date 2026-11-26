@@ -38,6 +38,7 @@ extension FocusedValues {
 struct ScreenwriterApp: App {
     @AppStorage("theme") private var theme = AppTheme.paper.rawValue
     @FocusedValue(\.scriptBridge) private var focusedBridge
+    private let updaterController = Updates.makeController()
 
     /// The focused script window's bridge, or the one behind a focused beat board window.
     private var activeBridge: ScriptBridge? {
@@ -57,6 +58,11 @@ struct ScreenwriterApp: App {
         .defaultSize(width: 1440, height: 900)
         .defaultLaunchBehavior(.suppressed)
         .commands { WelcomeCommands() }
+        .commands {
+            CommandGroup(after: .appInfo) {
+                CheckForUpdatesButton(updater: updaterController.updater)
+            }
+        }
         .commands {
             // The web view would otherwise answer ⌘Z with WebKit's own undo, not the script's.
             CommandGroup(replacing: .undoRedo) {
