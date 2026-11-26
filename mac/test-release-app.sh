@@ -18,6 +18,26 @@ if ./release-app.sh --finish >/dev/null 2>&1; then
   exit 1
 fi
 
+if ./release-app.sh --publish >/dev/null 2>&1; then
+  echo "expected --publish without a directory to fail" >&2
+  exit 1
+fi
+
+if ./release-app.sh --release --identity x --notary-profile y >/dev/null 2>&1; then
+  echo "expected --release without --version to fail before a build" >&2
+  exit 1
+fi
+
+if ./release-app.sh --release --version 1.2 --identity x --notary-profile y >/dev/null 2>&1; then
+  echo "expected a malformed --version to fail before a build" >&2
+  exit 1
+fi
+
+if ./release-app.sh --prepare --and-publish >/dev/null 2>&1; then
+  echo "expected --and-publish with --prepare to fail" >&2
+  exit 1
+fi
+
 fixture_bin="$(mktemp -d)"
 mkdir -p .build
 fixture_release="$(mktemp -d "$PWD/.build/release-app-test.XXXXXX")"
@@ -80,3 +100,20 @@ if grep -Fq 'notarytool info' "$fixture_log"; then
   echo "changed DMG was queried for notarization before receipt verification" >&2
   exit 1
 fi
+
+# Publishing needs a notarized, verified, clean release; nothing reaches GitHub otherwise.
+make_fixture gh 'printf "gh %s\n" "$*" >> "$PICA_RELEASE_TEST_LOG"; exit 1'
+(cd "$fixture_release" && shasum -a 256 -c SHA256SUMS.txt >/dev/null 2>&1) || \
+  (printf 'fixture-dmg' > "$fixture_release/Pica.dmg" && cd "$fixture_release" && shasum -a 256 Pica.dmg > SHA256SUMS.txt)
+for provenance in 'git_dirty=false' $'git_dirty=true\naccepted_at=now' $'preview_only=true\naccepted_at=now\ngit_dirty=false'; do
+  printf '%s\n' "$provenance" > "$fixture_release/provenance.txt"
+  : > "$fixture_log"
+  if (cd .. && PATH="$fixture_bin:$PATH" PICA_RELEASE_TEST_LOG="$fixture_log" bash mac/release-app.sh --publish "$relative_release" >/dev/null 2>&1); then
+    echo "expected publish to refuse provenance: $provenance" >&2
+    exit 1
+  fi
+  if grep -Fq 'gh ' "$fixture_log"; then
+    echo "publish reached GitHub for an unpublishable release: $provenance" >&2
+    exit 1
+  fi
+done

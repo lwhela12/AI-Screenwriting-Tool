@@ -9,6 +9,11 @@ options:
   createIntermediateGroups: true
   xcodeVersion: "26.3"
 
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    majorVersion: 2.6.0
+
 settings:
   base:
     SWIFT_VERSION: "5.0"
@@ -33,6 +38,8 @@ targets:
       - path: web
         type: folder
         buildPhase: resources
+    dependencies:
+      - package: Sparkle
     settings:
       base:
         PRODUCT_NAME: Pica
@@ -41,8 +48,16 @@ targets:
         GENERATE_INFOPLIST_FILE: false
         ENABLE_HARDENED_RUNTIME: true
         CODE_SIGN_ENTITLEMENTS: App/Pica.entitlements
+        # release-app.sh overrides both: --version sets MARKETING_VERSION and
+        # the build number is the commit count, so every release is newer.
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
+        # Sparkle updates. The feed is the appcast attached to the latest
+        # GitHub release. Paste the public key printed by Sparkle's
+        # generate_keys here (see RELEASING.md); until then the updater stays
+        # off and release-app.sh refuses to make a release.
+        SPARKLE_FEED_URL: "https://github.com/lwhela12/AI-Screenwriting-Tool/releases/latest/download/appcast.xml"
+        SPARKLE_PUBLIC_ED_KEY: ""
   PicaTests:
     type: bundle.unit-test
     platform: macOS
