@@ -190,7 +190,9 @@ build_and_stage() {
   local build_number
   build_number="$(git rev-list --count HEAD 2>/dev/null || true)"
   [ -n "$build_number" ] || die "could not count commits for the build number"
-  PICA_MARKETING_VERSION="$VERSION" PICA_BUILD_NUMBER="$build_number" ./build-app.sh
+  local distribution=0
+  [ "$MODE" = "prepare" ] || distribution=1
+  PICA_MARKETING_VERSION="$VERSION" PICA_BUILD_NUMBER="$build_number" PICA_DISTRIBUTION="$distribution" ./build-app.sh
   local built_app=".build/Build/Products/Release/$APP_NAME"
   [ -d "$built_app" ] || die "build did not produce $built_app"
   check_universal_app "$built_app"

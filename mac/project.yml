@@ -58,6 +58,9 @@ targets:
         # off and release-app.sh refuses to make a release.
         SPARKLE_FEED_URL: "https://github.com/lwhela12/AI-Screenwriting-Tool/releases/latest/download/appcast.xml"
         SPARKLE_PUBLIC_ED_KEY: "0OlUFgEhKfk+KNAvqNfpQQy4Fbzk4ylPeLp8FuMG9Dw="
+        # Only release-app.sh turns the updater on, so development builds
+        # (build number 1) are never offered a published release.
+        PICA_UPDATES_ENABLED: "NO"
   PicaTests:
     type: bundle.unit-test
     platform: macOS
