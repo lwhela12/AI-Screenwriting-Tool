@@ -4,12 +4,13 @@ import SwiftUI
 /// Sparkle checks the appcast on the latest GitHub release for a newer,
 /// signed and notarized Pica, and installs it when the writer agrees.
 ///
-/// Builds without a public EdDSA key (development builds, and any build made
-/// before the key is added to project.yml) never start the updater, so they
-/// cannot be offered an update they could not verify.
+/// Only distribution builds made by release-app.sh start the updater, and
+/// only when they carry the public EdDSA key. Development builds never check,
+/// so they are not replaced by a published release.
 enum Updates {
     static var isConfigured: Bool {
         let info = Bundle.main.infoDictionary ?? [:]
+        guard (info["PicaUpdatesEnabled"] as? String)?.uppercased() == "YES" else { return false }
         let key = (info["SUPublicEDKey"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let feed = info["SUFeedURL"] as? String ?? ""
         return !key.isEmpty && !key.hasPrefix("$(") && URL(string: feed)?.scheme == "https"

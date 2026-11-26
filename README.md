@@ -84,7 +84,7 @@ cd mac
 For a Developer ID signed and notarized distribution DMG, follow
 [the macOS release guide](mac/RELEASING.md). Released copies update themselves
 through Sparkle from the appcast on the latest GitHub release (Pica > Check for
-Updates…); development builds carry no update key and never check. `npm run app:release:prepare`
+Updates…); development builds never check. `npm run app:release:prepare`
 creates a clearly labeled local-review preview; `npm run app:release -- --release --identity ... --notary-profile ...`
 creates a release only after notarization and Gatekeeper verification.
 

@@ -7,6 +7,8 @@
 #
 # PICA_MARKETING_VERSION and PICA_BUILD_NUMBER, when set (release-app.sh sets
 # both), override the version and build number in project.yml.
+# PICA_DISTRIBUTION=1 (set by release-app.sh for signed releases) turns the
+# Sparkle updater on; every other build leaves it off.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -27,6 +29,7 @@ fi
 VERSION_SETTINGS=()
 [ -n "${PICA_MARKETING_VERSION:-}" ] && VERSION_SETTINGS+=("MARKETING_VERSION=$PICA_MARKETING_VERSION")
 [ -n "${PICA_BUILD_NUMBER:-}" ] && VERSION_SETTINGS+=("CURRENT_PROJECT_VERSION=$PICA_BUILD_NUMBER")
+[ "${PICA_DISTRIBUTION:-}" = "1" ] && VERSION_SETTINGS+=("PICA_UPDATES_ENABLED=YES")
 
 # Ad-hoc signing gives the app and the embedded Sparkle.framework different
 # signatures, which the hardened runtime's library validation refuses to load.
